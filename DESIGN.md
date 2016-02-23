@@ -78,7 +78,7 @@ In the safe mode, all files are scanned and the chunk sequence is regenerated.
 
 The length sequence stores the lengths for all chunks, which are needed when calculating some statistics such as the total
 length of chunks. For a repository containing a large number of files, the size of the snapshot file can be tremendous. 
-To make the situation worse, very time a big snapshot file must be uploaded even if only a few files have changed since
+To make the situation worse, every time a big snapshot file would have been uploaded even if only a few files have been changed since
 last backup. To save space, the variable-size chunking algorithm is also applied to the three dynamic fields of a snapshot
 file, *files*, *chunks*, and *lengths*.
 
@@ -102,4 +102,18 @@ contains sequences of chunk hashes and other fixed size fields:
     "fc2758ae60a441c244dae05f035136e6dd33d3f3a0c5eb4b9025a9bed1d0c328"
   ]
 }
+```
+
+Under the extreme case of the respository remainging unchanged since last backup, no new chunks will be uploaded, as shown by the output of a real run:
+
+```sh
+$ duplicacy backup -stats
+Storage set to sftp://gchen@192.168.1.100/Duplicacy
+Last backup at revision 260 found
+Backup for /Users/gchen/duplicacy at revision 261 completed
+Files: 42367 total, 2,204M bytes; 0 new, 0 bytes
+File chunks: 447 total, 2,238M bytes; 0 new, 0 bytes, 0 bytes uploaded
+Metadata chunks: 6 total, 11,753K bytes; 0 new, 0 bytes, 0 bytes uploaded
+All chunks: 453 total, 2,249M bytes; 0 new, 0 bytes, 0 bytes uploaded
+Total running time: 00:00:05
 ```
