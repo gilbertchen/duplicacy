@@ -1,4 +1,4 @@
-## Lock-free deduplication
+## Lock-Free Deduplication
 
 ## Snapshot Format
 
@@ -70,11 +70,11 @@ files were packed into a big zip file which is then split into chunks.
 The *content* field of a file indicates the indexes of starting and ending chunks and the corresponding offsets. For
 instance, *fiel1* starts at chunk 0 offset 0 while ends at chunk 2 offset 6108, immediately followed by *file2*.
 
-The backup procedure can run in one of two modes. In the quick mode, only modified or new files are scanned. Chunks only
+The backup procedure can run in one of two modes. In the default quick mode, only modified or new files are scanned. Chunks only
 referenced by old files that have been modified are removed from the chunk sequence, and then chunks referenced by new 
 files are appended. Indices for unchanged files need to be updated too.
 
-In the safe mode, all files are scanned and the chunk sequence is regenerated.
+In the safe mode (enabled by the -hash option), all files are scanned and the chunk sequence is regenerated.
 
 The length sequence stores the lengths for all chunks, which are needed when calculating some statistics such as the total
 length of chunks. For a repository containing a large number of files, the size of the snapshot file can be tremendous. 
@@ -104,7 +104,7 @@ contains sequences of chunk hashes and other fixed size fields:
 }
 ```
 
-If the respository has not been touched since last backup, a new backup operation will not create any new chunks,
+If the respository has not been touched since last backup, a new backup procedure will not create any new chunks,
 as shown by the following output from a real use case:
 
 ```
