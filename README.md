@@ -29,9 +29,9 @@ Once you have the Duplicacy executable under your path, you can change to the di
 $ cd path/to/your/repository
 $ duplicacy init mywork sftp://192.168.1.100/path/to/storage
 ```
-The *init* command connects the repository with the remote storage at 192.168.1.00 via SFTP.  It will initialize the remote storage if this has not been done before.  It also assigns the snapshot ID *mywork* to the repository.  This ID is used to uniquely identify this repository if there are other repositories that also back up to the same storage.
+The *init* command connects the repository with the remote storage at 192.168.1.00 via SFTP.  It will initialize the remote storage if this has not been done before.  It also assigns the snapshot id *mywork* to the repository.  This snpashot id is used to uniquely identify this repository if there are other repositories that also back up to the same storage.
 
-You can now create snapshots of the repository by invoking the *backup* command.  The first snapshot may take a while depending on the size of the repository and the upload bandwidth.  Subsequent snapshots will be much faster, as only new or modified files will be uploaded.  Each snapshot is identified by the snapshot ID and an increasing revision number starting from 1.
+You can now create snapshots of the repository by invoking the *backup* command.  The first snapshot may take a while depending on the size of the repository and the upload bandwidth.  Subsequent snapshots will be much faster, as only new or modified files will be uploaded.  Each snapshot is identified by the snapshot id and an increasing revision number starting from 1.
 
 ```sh
 $ duplicacy backup
