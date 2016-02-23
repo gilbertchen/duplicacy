@@ -106,7 +106,7 @@ contains sequences of chunk hashes and other fixed size fields:
 
 Under the extreme case of the respository remainging unchanged since last backup, no new chunks will be uploaded, as shown by the output of a real run:
 
-```sh
+```
 $ duplicacy backup -stats
 Storage set to sftp://gchen@192.168.1.100/Duplicacy
 Last backup at revision 260 found
