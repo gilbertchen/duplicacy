@@ -21,7 +21,7 @@ set of basic file operations, into powerful backup backends capable of both bloc
 locking mechanism on top of the file storage.
 
 There is one problem, though.
-Delection of snapshots without an indexing database, when concurrent access is permitted, turns out to be a hard problem.
+Deletion of snapshots without an indexing database, when concurrent access is permitted, turns out to be a hard problem.
 If exclusive access to a file storage by a single client can be guaranteed, the deletion procedure can simply search for
 chunks not referenced by any backup and delete them. However, if concurrent access is required, an unreferenced chunk
 can't be trivially removed, because of the possibility that a backup procedure in progress may reference the same chunk.
@@ -32,7 +32,7 @@ Fortunately, there is a solution to address the deletion problem and make lock-f
 
 ## Two-Step Fossil Collection
 
-When the deletion procedure identifies a chunk not referenced by any known snaphots, instead of deleting the chunk file
+When the deletion procedure identifies a chunk not referenced by any known snapshots, instead of deleting the chunk file
 immediately, it changes the name of the chunk file (and possibly moves it to a different directory).
 A chunk that has been renamed is called a *fossil*.
 
@@ -157,7 +157,7 @@ contains sequences of chunk hashes and other fixed size fields:
 }
 ```
 
-If the respository has not been touched since last backup, a new backup procedure will not create any new chunks,
+If the repository has not been touched since last backup, a new backup procedure will not create any new chunks,
 as shown by the following output from a real use case:
 
 ```
