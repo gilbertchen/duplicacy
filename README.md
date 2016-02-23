@@ -25,7 +25,7 @@ During beta testing only binaries are available.  Please visit the [releases pag
 
 Once you have the Duplicacy executable under your path, you can change to the directory that you want to back up (called *repository*) and run the *init* command:
 
-```sh
+```
 $ cd path/to/your/repository
 $ duplicacy init mywork sftp://192.168.1.100/path/to/storage
 ```
