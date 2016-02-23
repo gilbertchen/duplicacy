@@ -4,7 +4,7 @@ This repository contains only binary releases and documentation for Duplicacy.  
 
 ## Overview
 
-Duplicacy supports major cloud storage providers (Amazon S3, Googld Cloud Storage, Microsoft Azure, Dropbox, and BackBlaze) and offers all essential features of a modern backup tool:
+Duplicacy supports major cloud storage providers (Amazon S3, Google Cloud Storage, Microsoft Azure, Dropbox, and BackBlaze) and offers all essential features of a modern backup tool:
 
 * Incremental backup: only back up what has been changed
 * Full snapshot : although each backup is incremental, it behaves like a full snapshot
@@ -13,7 +13,7 @@ Duplicacy supports major cloud storage providers (Amazon S3, Googld Cloud Storag
 * Deletion: every backup can be deleted independently without affecting others
 * Concurrent access: multiple clients can back up to the same storage at the same time
 
-The key idea behind Duplicacy is a concept called **Lock-Free Deduplication**, which can be summaried as follows:
+The key idea behind Duplicacy is a concept called **Lock-Free Deduplication**, which can be summarized as follows:
 
 * Use variable-size chunking algorithm to split files into chunks
 * Store each chunk in the storage using a file name derived from its hash, and rely on the file system API to manage chunks without using a centralized indexing database
@@ -31,7 +31,7 @@ Once you have the Duplicacy executable under your path, you can change to the di
 $ cd path/to/your/repository
 $ duplicacy init mywork sftp://192.168.1.100/path/to/storage
 ```
-The *init* command connects the repository with the remote storage at 192.168.1.00 via SFTP.  It will initialize the remote storage if this has not been done before.  It also assigns the snapshot id *mywork* to the repository.  This snpashot id is used to uniquely identify this repository if there are other repositories that also back up to the same storage.
+The *init* command connects the repository with the remote storage at 192.168.1.00 via SFTP.  It will initialize the remote storage if this has not been done before.  It also assigns the snapshot id *mywork* to the repository.  This snapshot id is used to uniquely identify this repository if there are other repositories that also back up to the same storage.
 
 You can now create snapshots of the repository by invoking the *backup* command.  The first snapshot may take a while depending on the size of the repository and the upload bandwidth.  Subsequent snapshots will be much faster, as only new or modified files will be uploaded.  Each snapshot is identified by the snapshot id and an increasing revision number starting from 1.
 
@@ -44,11 +44,11 @@ Duplicacy provides a set of commands, such as list, check, diff, cat history, to
 $ duplicacy list            # List all snapshots
 $ duplicacy check           # Check integrity of snapshots
 $ duplicacy diff            # Compare two snapshots, or the same file in two snapshots
-$ duplicacy cat             # Print a file in a snpashot
+$ duplicacy cat             # Print a file in a snapshot
 $ duplicacy history         # Show how a file changes over time
 ```
 
-The *restore* command rolls back the repoistory to a previous revision:
+The *restore* command rolls back the repository to a previous revision:
 ```sh
 $ duplicacy restore -r 1
 ```
