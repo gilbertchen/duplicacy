@@ -25,9 +25,9 @@ Once you have the Duplicacy executable under your path, you can change to the di
 $ cd path/to/your/repository
 $ duplicacy init mywork sftp://192.168.1.100/path/to/storage
 ```
-The *init* command connects the repository with the remote storage at 192.168.1.00 via SFTP.  It will initialize the remote storage if this has not been done before.  It also assign the repository a snapshot ID *mywork*.  This ID is used to uniquely identify this repository if there are other repositories that also back up to the same storage.
+The *init* command connects the repository with the remote storage at 192.168.1.00 via SFTP.  It will initialize the remote storage if this has not been done before.  It also assigns the snapshot ID *mywork* to the repository.  This ID is used to uniquely identify this repository if there are other repositories that also back up to the same storage.
 
-You can now create snapshots of the repository by invoking the *backup* command.  The first snapshot may take a while depending on the size of you repository and the upload bandwidth.  Subsequent snapshots will be much faster, as only new or modified files will be uploaded.  Each snapshot is identified by the snapshot ID and an increasing revision number starting from 1.
+You can now create snapshots of the repository by invoking the *backup* command.  The first snapshot may take a while depending on the size of the repository and the upload bandwidth.  Subsequent snapshots will be much faster, as only new or modified files will be uploaded.  Each snapshot is identified by the snapshot ID and an increasing revision number starting from 1.
 
 ```sh
 $ duplicacy backup
@@ -50,17 +50,18 @@ $ duplicacy restore -r 1
 The *prune* command removes snapshots by revisions, or tags, or retention policies:
 
 ```sh
-$ duplicacy prune -r 1      # Remove the snapshot with revision number 1
-$ duplicacy prune -t quick  # Remove all snapshots with a quick tag
-$ duplicacy prune -r 1:7    # Keep 1 snapshot per day for snapshots older than 7 days
-$ duplicacy prune -r 0:30   # Remove all snapshots older than 30 days
+$ duplicacy prune -r 1            # Remove the snapshot with revision number 1
+$ duplicacy prune -t quick        # Remove all snapshots with a quick tag
+$ duplicacy prune -retent 1:7     # Keep 1 snapshot per day for snapshots older than 7 days
+$ duplicacy prune -retent 7:30    # Keep 1 snapshot every 7 days for snapshots older than 30 days
+$ duplicacy prune -retent 0:180   # Remove all snapshots older than 180 days
 ```
 
 The first time the *prune* command is called, it removes all the snapshots but keeps all unreferenced chunks as fossils.
 Since it uses the two-step fossil collection algorithm to clean chunks, you will need to run it again to remove those fossils from the storage:
 
 ```sh
-$ duplicacy prune           # Now chunks from deleted snapshots will be removed
+$ duplicacy prune           # Chunks from deleted snapshots will be removed if deletion criteria are met
 ```
 
 To back up to multiple storages, use the *add* command to add a new storage.  The *add* command is similar to the *init* command, except that the first argument is a storage name used to distinguish different storages:
