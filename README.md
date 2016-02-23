@@ -1,4 +1,8 @@
-# Duplicacy: A new generation cloud backup tool based on Lock-Free Deduplication
+# Duplicacy: A new generation cloud backup tool
+
+This repository contains only binary releases and documentation for Duplicacy.  It also serves as an issue tracker for user-developer communication during the beta testing phase.
+
+## Overview
 
 Duplicacy supports major cloud storage providers (Amazon S3, Googld Cloud Storage, Microsoft Azure, Dropbox, and BackBlaze) and offers all essential features of a modern backup tool:
 
