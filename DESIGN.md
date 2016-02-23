@@ -1,8 +1,61 @@
 ## Lock-Free Deduplication
 
+The three elements of lock-free deduplication are:
+
+* Use variable-size chunking algorithm to split files into chunks
+* Store each chunk in the storage using a file name derived from its hash, and rely on the file system API to manage chunks without using a centralized indexing database
+* Apply a *two-step fossil collection* algorithm to remove chunks that become unreferenced after a backup is deleted
+
+The variable-size chunking algorithm, also called Content-Defined Chunking, is well-known and has been adopted by many
+backup tools. The main advantage of the variable-size chunking algorithm over the fixed-size chunking algorithm (as used
+by rsync) is that in the former the rolling hash is only used to search for boundaries between chunks, after which a far
+more collision-resistant hash function like MD5 or SHA256 is applied on each chunk. In contrast, in the fixed-size
+chunking algorithm, for the purpose of detecting inserts or deletions, a lookup in the known hash table is required every
+time the rolling hash window is shifted by one byte, thus significantly reducing the chunk splitting performance.
+
+What is novel about lock-free deduplication is the absence of a centralized indexing database for tracking all existing
+chunks and for detecting which chunks are not needed any more. Instead, to check if a chunk has already been uploaded
+before, one can just perform a lookup via the file system API using the file name derived from the hash of the chunk.
+This effectively turn cloud storages offering only a very limited
+set of basic file operations, into powerful backup backends capable of both block-level and file-level deduplication. More importantly, the absence of a centralized indexing database means that there is no need to implement a distributed
+locking mechanism on top of the file storage.
+
+There is one problem, though.
+Delection of snapshots without an indexing database, when concurrent access is permitted, turns out to be a hard problem.
+If exclusive access to a file storage by a single client can be guaranteed, the deletion procedure can simply search for
+chunks not referenced by any backup and delete them. However, if concurrent access is required, an unreferenced chunk
+can't be trivially removed, because of the possibility that a backup procedure in progress may reference the same chunk.
+The ongoing backup procedure, still unknown to the deletion procedure, may have already encountered that chunk during its
+file scanning phase, but decided not to upload the chunk again since it already exists on the file storage. 
+
+Fortunately, there is a solution to address the deletion problem and make lock-free deduplication practical.  The solution is an algorithm that we call *two-step fossil collection* that deletes unreferenced chunks in two steps: identify and collect them in the first step, and then permanently remove them when certain conditions are met.
+
+## Two-Step Fossil Collection
+
+When the deletion procedure identifies a chunk not referenced by any known snaphots, instead of deleting the chunk file
+immediately, it changes the name of the chunk file (and possibly moves it to a different directory).
+A chunk that has been renamed is called a *fossil*.
+
+The fossil still exists on the file storage. We enforce the following two rules regarding the access of fossils:
+
+* A restore, list, or check procedure that reads existing backups can read the fossil if the original chunk cannot be found.
+* A backup procedure can never access any fossils. That is, it must upload a chunk if it cannot find the chunk, even if a corresponding fossil exists.
+ 
+In the first step of the deletion procedure, called the *fossil collection* step, the names of all identified fossils will
+be saved in a fossil collection file. The deletion procedure then exits without performing other tasks. This step has not effectively changed any chunk references due to these 2 rules.
+
+The second step, called the *fossil deletion* step, will permanently delete fossils, but only when two conditions are met:
+
+* For each snapshot id, there is a new snapshot that was not seen by the fossil collection step
+* The new snapshot must finish after the fossil collection step
+
+The first condition guarantees that if a backup procedure references a chunk before the deletion procedure turns it into a fossil, it will be detected in the fossil deletion step which will then turn the fossil back into a normal chunk.
+
+The second condition guarantees that any backup procedure unknown to the fossil deletion step can start only after the fossil collection step finishes.  Therefore, if it references a chunk that was identified as fossil in the fossil collection step, it should observe the fossil, not the chunk, so it will upload a new chunk.
+
 ## Snapshot Format
 
-A snapshot file is a file that the backup procedure uploads to the file storage after it finishes breaking files into
+A snapshot file is a file that the backup procedure uploads to the file storage after it finishes splitting files into
 chunks and uploading all new chunks. It mainly contains metadata for the backup overall, metadata for all the files,
 and chunk references for each file. Here is an example snapshot file for a repository containing 3 files (file1, file2,
 and dir1/file3):
