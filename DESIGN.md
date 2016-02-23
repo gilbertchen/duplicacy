@@ -104,7 +104,8 @@ contains sequences of chunk hashes and other fixed size fields:
 }
 ```
 
-Under the extreme case of the respository remainging unchanged since last backup, no new chunks will be uploaded, as shown by the output of a real run:
+If the respository has not been touched since last backup, a new backup operation will not create any new chunks,
+as shown by the following output from a real use case:
 
 ```
 $ duplicacy backup -stats
