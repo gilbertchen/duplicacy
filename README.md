@@ -11,8 +11,8 @@ Duplicacy works with major cloud storage providers and at the same time offers a
 
 The key idea behind Duplicacy is a technique called **Lock-Free Deduplication**.  There are three elements of lock-free deduplication:
 
-*Use variable-size chunking algorithm to split files into chunks
-*Store each chunk in the storage using a file name derived from its hash, and rely on the file system API to manage chunks without using a centralized indexing database
-*A *two-step fossil collection* algorithm to remove chunks that become unreferenced after a backup is deleted
+* Use variable-size chunking algorithm to split files into chunks
+* Store each chunk in the storage using a file name derived from its hash, and rely on the file system API to manage chunks without using a centralized indexing database
+* A *two-step fossil collection* algorithm to remove chunks that become unreferenced after a backup is deleted
 
 Getting Started
