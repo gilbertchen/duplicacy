@@ -13,11 +13,13 @@ Duplicacy supports major cloud storage providers (Amazon S3, Googld Cloud Storag
 * Deletion: every backup can be deleted independently without affecting others
 * Concurrent access: multiple clients can back up to the same storage at the same time
 
-The key idea behind Duplicacy is a concept called **Lock-Free Deduplication**.  There are three elements of lock-free deduplication:
+The key idea behind Duplicacy is a concept called **Lock-Free Deduplication**, which can be summaried as follows:
 
 * Use variable-size chunking algorithm to split files into chunks
 * Store each chunk in the storage using a file name derived from its hash, and rely on the file system API to manage chunks without using a centralized indexing database
 * Apply a *two-step fossil collection* algorithm to remove chunks that become unreferenced after a backup is deleted
+
+The [design document](https://github.com/gilbertchen/duplicacy-beta/blob/master/DESIGN.md) explains lock-free duplication in detail.
 
 ## Getting Started
 
