@@ -58,9 +58,9 @@ The *prune* command removes snapshots by revisions, or tags, or retention polici
 ```sh
 $ duplicacy prune -r 1            # Remove the snapshot with revision number 1
 $ duplicacy prune -t quick        # Remove all snapshots with a quick tag
-$ duplicacy prune -retent 1:7     # Keep 1 snapshot per day for snapshots older than 7 days
-$ duplicacy prune -retent 7:30    # Keep 1 snapshot every 7 days for snapshots older than 30 days
-$ duplicacy prune -retent 0:180   # Remove all snapshots older than 180 days
+$ duplicacy prune -keep 1:7       # Keep 1 snapshot per day for snapshots older than 7 days
+$ duplicacy prune -keep 7:30      # Keep 1 snapshot every 7 days for snapshots older than 30 days
+$ duplicacy prune -keep 0:180     # Remove all snapshots older than 180 days
 ```
 
 The first time the *prune* command is called, it removes all the snapshots but keeps all unreferenced chunks as fossils.
