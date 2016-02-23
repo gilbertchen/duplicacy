@@ -1,6 +1,6 @@
 # Duplicacy: A new generation cloud backup tool based on Lock-Free Deduplication
 
-Duplicacy supports major cloud storage providers (Amazon S3, Googld Cloud Storage, Microsoft Azure, Dropbox, and Blaze) and at the same time offers all essential features of a modern backup tool:
+Duplicacy supports major cloud storage providers (Amazon S3, Googld Cloud Storage, Microsoft Azure, Dropbox, and BackBlaze) and at the same time offers all essential features of a modern backup tool:
 
 * Incremental backup: only back up what has been changed
 * Full snapshot : although each backup is incremental, it must appear to be a full snapshot independent of others
