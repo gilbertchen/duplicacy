@@ -127,7 +127,7 @@ Dropbox has two advantages over other cloud providers.  First, if you are alread
 
 ```
 Storage URL:  s3://amazon.com/bucket/path/to/storage (default region is us-east-1)
-              s3://region@amazon.com/bucket/path/to/storage (other region must be specified)
+              s3://region@amazon.com/bucket/path/to/storage (other regions must be specified)
 ```
 
 You'll need to input an access key and a scret key to access your Amazon S3 storage.
