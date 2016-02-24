@@ -31,12 +31,12 @@ Once you have the Duplicacy executable under your path, you can change to the di
 $ cd path/to/your/repository
 $ duplicacy init mywork sftp://192.168.1.100/path/to/storage
 ```
-The *init* command connects the repository with the remote storage at 192.168.1.00 via SFTP.  It will initialize the remote storage if this has not been done before.  It also assigns the snapshot id *mywork* to the repository.  This snapshot id is used to uniquely identify this repository if there are other repositories that also back up to the same storage.
+This *init* command connects the repository with the remote storage at 192.168.1.00 via SFTP.  It will initialize the remote storage if this has not been done before.  It also assigns the snapshot id *mywork* to the repository.  This snapshot id is used to uniquely identify this repository if there are other repositories that also back up to the same storage.
 
 You can now create snapshots of the repository by invoking the *backup* command.  The first snapshot may take a while depending on the size of the repository and the upload bandwidth.  Subsequent snapshots will be much faster, as only new or modified files will be uploaded.  Each snapshot is identified by the snapshot id and an increasing revision number starting from 1.
 
 ```sh
-$ duplicacy backup
+$ duplicacy backup -stats
 ```
 
 Duplicacy provides a set of commands, such as list, check, diff, cat history, to manage snapshots:
@@ -58,7 +58,7 @@ The *prune* command removes snapshots by revisions, or tags, or retention polici
 
 ```sh
 $ duplicacy prune -r 1            # Remove the snapshot with revision number 1
-$ duplicacy prune -t quick        # Remove all snapshots with a quick tag
+$ duplicacy prune -t quick        # Remove all snapshots with the tag 'quick'
 $ duplicacy prune -keep 1:7       # Keep 1 snapshot per day for snapshots older than 7 days
 $ duplicacy prune -keep 7:30      # Keep 1 snapshot every 7 days for snapshots older than 30 days
 $ duplicacy prune -keep 0:180     # Remove all snapshots older than 180 days
