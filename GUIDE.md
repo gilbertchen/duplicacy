@@ -185,41 +185,161 @@ by specifying the storage name.
 #### Cat
 ```
 SYNOPSIS:
+   duplicacy cat - Print to stdout the specified file, or the snapshot content if no file is specified
+
+USAGE:
+   duplicacy cat [command options] [<file>]
+
+OPTIONS:
+   -id <snapshot id>        retrieve from the snapshot with the specified id
+   -r <revision>		       the revision number of the snapshot
+   -storage <storage name>  retrieve the file from the specified storage
 ```
+
+The *cat* command prints a file or the entire snpashot content if no file is specified.
+
+The file must be specified with a path relative to the repository.
+
+You can specify a different snapshot id rather than the default id.
+
+The -r option is optional.  If not specified, the lastest revision will be selected.
+
+You can use the -storage option to select a different storage other than the default one.
 
 #### Diff
 ```
 SYNOPSIS:
+   duplicacy diff - Diff two revisions of a snapshot or file
+
+USAGE:
+   duplicacy diff [command options] [<file>]
+
+OPTIONS:
+   -id <snapshot id>        diff with the snpashot with the specified id
+   -r <revision> [+]        the revision number of the snapshot
+   -hash                    compute the hashes of on-disk files
+   -storage <storage name>  retrieve files from the specified storage
 ```
+The *diff* command compares the same file in two different snapshots if a file is given, otherwise compares the
+two snapshots.
+
+The file must be specified with a path relative to the repository.
+
+You can specify a different snapshot id rather than the default snapshot id.
+
+If only one revision is given by -r, the right hand side of the comparison will be the on-disk version.
+The -hash option can then instruct this command to compute the hash of the file. 
+
+You can use the -storage option to select a different storage other than the default one.
 
 #### History
 ```
 SYNOPSIS:
+   duplicacy history - Show the history of a file
+
+USAGE:
+   duplicacy history [command options] <file>
+
+OPTIONS:
+   -id <snapshot id>        find the file in the snpashot with the specified id
+   -r <revision> [+]        show history of the specified revisions
+   -hash                    show the hash of the on-disk file
+   -storage <storage name>  retrieve files from the specified storage
 ```
+
+The *history* command shows how the hash, size, and timestamp of a file change over the specified set of revisions.
+
+You can specify a different snapshot id rather than the default snapshot id, and multipe -r options to specify the
+set of revisions.
+
+The -hash option is to compute the hash of the on-disk file.  Otherwise, only the size and timestamp of the on-disk
+file will be shown.
+
+You can use the -storage option to select a different storage other than the default one.
 
 #### Prune
 ```
 SYNOPSIS:
+   duplicacy prune - Prune snapshots by revision, tag, or retention policy
+
+USAGE:
+   duplicacy prune [command options] [arguments...]
+
+OPTIONS:
+   -id <snapshot id> 		delete snapshots with the specified id instead of the default one
+   -all, -a 			match against all snapshot IDs
+   -r <revision> [+]		delete snapshots with the specified revisions
+   -t <tag> [+]			delete snapshots with the specifed tags
+   -keep <interval:age> [+]	retention policy (e.g., 7:30 means weekly month-old snapshots)
+   -exhaustive 			remove all unreferenced chunks (not just those referenced by deleted snapshots)
+   -exclusive 			assume exclusive acess to the storage (disable two-step fossil collection)
+   -ignore <tag> [+]		ignore snapshots with the specified id when deciding if fossils can be deleted
+   -dry-run, -d 		show what would have been deleted
+   -delete-only 		delete fossils previsouly collected (if deletable) and don't collect fossils
+   -collect-only 		identify and collect fossils, but don't delete fossils previously collected
+   -storage <storage name> 	prune snapshots from the specified storage
 ```
 
 #### Password
 ```
 SYNOPSIS:
+   duplicacy password - Change the storage password
+
+USAGE:
+   duplicacy password [command options] [arguments...]
+
+OPTIONS:
+   -storage <storage name> 	change the password used to access the specified storage
 ```
 
 #### Add
 ```
 SYNOPSIS:
+   duplicacy add - Add an additional storage to be used for the existing repository
+
+USAGE:
+   duplicacy add [command options] <storage name> <snapshot id> <storage url>
+
+OPTIONS:
+   -encrypt, -e                    Encrypt the storage with a password
+   -chunk-size, -c 4M              the average size of chunks
+   -max-chunk-size, -max 16M       the maximum size of chunks (defaults to chunk-size * 4)
+   -min-chunk-size, -min 1M        the minimum size of chunks (defaults to chunk-size / 4)
+   -compression-level, -l <level>  compression level (defaults to -1)
+   -copy <storage name>            make the new storage compatiable with an existing one to allow for copy operations
 ```
 
 #### Set
 ```
 SYNOPSIS:
+   duplicacy set - Change the options for the default or specified storage
+
+USAGE:
+   duplicacy set [command options] [arguments...]
+
+OPTIONS:
+   -encrypt, e[=true]       encrypt the storage with a password
+   -no-backup[=true]        backup to this storage is prohibited
+   -no-restore[=tru]        restore from this storage is prohibited
+   -no-save-password[=true] don't save password or access keys to keychain/keyring
+   -key                     add a key/password whose value is supplied by the -value option
+   -value  			          the value of the key/password
+   -storage <storage name>  use the specified storage instead of the default one
 ```
 
 #### Copy
 ```
 SYNOPSIS:
+   duplicacy copy - Copy snapshots between compatiable storages
+
+USAGE:
+   duplicacy copy [command options]
+
+OPTIONS:
+   -id <snapshot id>     copy snapshots with the specified id instead of all snapshot ids
+   -r <revision> [+]     copy snapshots with the specified revisions
+   -from <storage name>  copy snapshots from the specified storage
+   -to <storage name>    copy snapshots to the specified storage
 ```
 
 
