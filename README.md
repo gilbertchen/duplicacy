@@ -41,7 +41,7 @@ $ duplicacy backup
 
 Duplicacy provides a set of commands, such as list, check, diff, cat history, to manage snapshots:
 
-```.console
+```console
 $ duplicacy list            # List all snapshots
 $ duplicacy check           # Check integrity of snapshots
 $ duplicacy diff            # Compare two snapshots, or the same file in two snapshots
