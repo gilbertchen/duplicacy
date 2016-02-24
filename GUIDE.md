@@ -192,7 +192,7 @@ USAGE:
 
 OPTIONS:
    -id <snapshot id>        retrieve from the snapshot with the specified id
-   -r <revision>		       the revision number of the snapshot
+   -r <revision>            the revision number of the snapshot
    -storage <storage name>  retrieve the file from the specified storage
 ```
 
@@ -266,18 +266,18 @@ USAGE:
    duplicacy prune [command options] [arguments...]
 
 OPTIONS:
-   -id <snapshot id> 		delete snapshots with the specified id instead of the default one
-   -all, -a 			match against all snapshot IDs
-   -r <revision> [+]		delete snapshots with the specified revisions
-   -t <tag> [+]			delete snapshots with the specifed tags
-   -keep <interval:age> [+]	retention policy (e.g., 7:30 means weekly month-old snapshots)
-   -exhaustive 			remove all unreferenced chunks (not just those referenced by deleted snapshots)
-   -exclusive 			assume exclusive acess to the storage (disable two-step fossil collection)
-   -ignore <tag> [+]		ignore snapshots with the specified id when deciding if fossils can be deleted
-   -dry-run, -d 		show what would have been deleted
-   -delete-only 		delete fossils previsouly collected (if deletable) and don't collect fossils
-   -collect-only 		identify and collect fossils, but don't delete fossils previously collected
-   -storage <storage name> 	prune snapshots from the specified storage
+   -id <snapshot id>        delete snapshots with the specified id instead of the default one
+   -all, -a                 match against all snapshot IDs
+   -r <revision> [+]        delete snapshots with the specified revisions
+   -t <tag> [+]             delete snapshots with the specifed tags
+   -keep <interval:age> [+] retention policy (e.g., 7:30 means weekly month-old snapshots)
+   -exhaustive              remove all unreferenced chunks (not just those referenced by deleted snapshots)
+   -exclusive               assume exclusive acess to the storage (disable two-step fossil collection)
+   -ignore <tag> [+]        ignore snapshots with the specified id when deciding if fossils can be deleted
+   -dry-run, -d             show what would have been deleted
+   -delete-only             delete fossils previsouly collected (if deletable) and don't collect fossils
+   -collect-only            identify and collect fossils, but don't delete fossils previously collected
+   -storage <storage name>  prune snapshots from the specified storage
 ```
 
 #### Password
@@ -286,10 +286,10 @@ SYNOPSIS:
    duplicacy password - Change the storage password
 
 USAGE:
-   duplicacy password [command options] [arguments...]
+   duplicacy password [command options]
 
 OPTIONS:
-   -storage <storage name> 	change the password used to access the specified storage
+   -storage <storage name>  change the password used to access the specified storage
 ```
 
 #### Add
@@ -306,7 +306,7 @@ OPTIONS:
    -max-chunk-size, -max 16M       the maximum size of chunks (defaults to chunk-size * 4)
    -min-chunk-size, -min 1M        the minimum size of chunks (defaults to chunk-size / 4)
    -compression-level, -l <level>  compression level (defaults to -1)
-   -copy <storage name>            make the new storage compatiable with an existing one to allow for copy operations
+   -copy <storage name>            make the new storage copy-compatiable with an existing one
 ```
 
 #### Set
