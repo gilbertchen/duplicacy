@@ -94,14 +94,14 @@ $ duplicacy copy -to s3        # Copy every snapshot to the s3 storage
 
 Currently Duplicacy supports local file storage, SFTP, and 5 cloud storage providers.
 
-### Local disk
+#### Local disk
 
 ```
 Storage URL:  /path/to/storage (on Linux or Mac OS X)
               C:\path\to\storage (on Windows)
 ```
 
-### SFTP
+#### SFTP
 
 ```
 Storage URL:  sftp://username@server/path/to/storage
@@ -109,7 +109,7 @@ Storage URL:  sftp://username@server/path/to/storage
 
 Login methods include password authentication and public key authentication.  Due to a limitation of the underlying Go SSH library, the key pair for public key authentication be generated without a passphrase.  To work with a key that has a passphrase, you can set up SSH agent forwarding which is also supported by Duplicacy.
 
-### Dropbox
+#### Dropbox
 
 ```
 Storage URL:  dropbox://path/to/storage
@@ -123,7 +123,7 @@ For Duplicacy to access your Dropbox storage, you must provide an access token t
 
 Dropbox has two advantages over other cloud providers.  First, if you are already a paid user then to use the unused space as the backup storage is basically free.  Second, unlike other providers Dropbox does not charge a fee on API usage.
 
-### Amazon S3
+#### Amazon S3
 
 ```
 Storage URL:  s3://amazon.com/bucket/path/to/storage (default region is us-east-1)
@@ -133,7 +133,7 @@ Storage URL:  s3://amazon.com/bucket/path/to/storage (default region is us-east-
 You'll need to input an access key and a scret key to access your Amazon S3 storage.
 
 
-### Google Cloud Storage
+#### Google Cloud Storage
 
 ```
 Storage URL:  s3://storage.googleapis.com/bucket/path/to/storage
@@ -141,7 +141,7 @@ Storage URL:  s3://storage.googleapis.com/bucket/path/to/storage
 
 Duplicacy actually uses the s3 protocol to access Google Cloud Storage, so you must enable the [interoperable access](https://cloud.google.com/storage/docs/migrating#migration-simple) in your Google Cloud Storage settings.
 
-### Microsoft Azure
+#### Microsoft Azure
 
 ```
 Storage URL:  azure://account/path/to/storage
@@ -149,7 +149,7 @@ Storage URL:  azure://account/path/to/storage
 
 You'll need to input the access key once prompted.
 
-### BackBlaze
+#### BackBlaze
 
 ```
 Storage URL: b2://bucket
