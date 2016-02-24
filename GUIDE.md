@@ -6,7 +6,7 @@
 
 ```
 SYNOPSIS:
-   duplicacy init - Initialize the storage if necessary and the current working directory as the repository
+   duplicacy init - Initialize the storage if necessary and the current directory as the repository
 
 USAGE:
    duplicacy init [command options] <snapshot id> <storage url>
@@ -52,27 +52,122 @@ OPTIONS:
    -storage <storage name>    backup to the specified storage instead of the default one
 ```
 
+The *backup* command creates a snapshot of the repository and uploads it to the storage.  If -hash is not provided,
+it will upload new or modified files since last backup by comparing file sizes and timestmpas.
+Otherwise, every file is scanned to detect changes.
+
+You can assign a tag to the snapshot so later you can refer to it by tag in other commands.
+
+If the -stats option is specified, statistical information such as transfer speed, number of chunks will be displayed
+throughout the backup procedure.
+
+The -vss option works on Windows only to turn on the Volume Shadow Copy service such that files opened by other
+processes with exclusive locks can be read as usual.
+
+When the repository can have multiple storages (added by the *add* command), you can specifiy the storage to back up to
+by the storage name.
+
+You can specify patterns to include/exclude files by putthing them in a file named *.duplicacy/filters*.  Please refer to the Include/Exclude Patterns section for how to specify the patterns.
 
 #### Restore
+```
+SYNOPSIS:
+   duplicacy restore - Restore the repository to a previously saved snapshot
+
+USAGE:
+   duplicacy restore [command options] [--] [pattern] ...
+
+OPTIONS:
+   -r <revision>            the revision number of the snapshot (required)
+   -hash                    detect file differences by hash (rather than size and timestamp)
+   -overwrite               overwrite existing files in the repository
+   -delete                  delete files not in the snapshot
+   -stats                   show statistics during and after restore
+   -storage <storage name>  restore from the specified storage instead of the default one
+```
+
+The *restore* command restores the repository to a previous revision.  By default the restore procedure will treat
+files that have the same sizes and timestamps as those in the snapshot as unchanged files, but if -hash is specified, every file will be fully scanned to make sure they are in fact unchanged.
+
+By default the restore procedure will not overwriting existing files, unless the -overwrite option is specified.
+
+The -delete indicates that files not in the snapshot will be removed.
+
+If the -stats option is specified, statistical information such as transfer speed, number of chunks will be displayed
+throughout the restore procedure.
+
+When the repository can have multiple storages (added by the *add* command), you can specifiy the storage to restore from
+by the storage name.
+
+Unlike the *backup* procedure that reading the include/exclude patterns from a file, the *restore* procedure reads them
+from the command line.  If the patterns can cause confusion to the command line argument parse, -- should be prepended to
+the patterns.  Please refer to the Include/Exclude Patterns section for how to specify patterns.
+
 
 #### List
+```
+SYNOPSIS:
+   duplicacy list - List snapshots
+
+USAGE:
+   duplicacy list [command options]  
+
+OPTIONS:
+   -all, -a                    list snapshots with any id
+   -id <snapshot id>           list snapshots with the specified id rather than the default one
+   -r <revision> [+]           the revision number of the snapshot
+   -t <tag>                    list snaphots with the specified tag
+   -files                      print the file list in each snapshot
+   -chunks                     print chunks in each snapshot or all chunks if no snapshot specified
+   -reset-password             take passwords from input rather than keychain/keyring or env
+   -storage <storage name>     retrieve snapshots from the specified storage
+```
+
+
 
 #### Check
+```
+SYNOPSIS:
+```
 
 #### Cat
+```
+SYNOPSIS:
+```
 
 #### Diff
+```
+SYNOPSIS:
+```
 
 #### History
+```
+SYNOPSIS:
+```
 
 #### Prune
+```
+SYNOPSIS:
+```
 
 #### Password
+```
+SYNOPSIS:
+```
 
 #### Add
+```
+SYNOPSIS:
+```
 
 #### Set
+```
+SYNOPSIS:
+```
 
 #### Copy
+```
+SYNOPSIS:
+```
 
 
