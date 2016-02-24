@@ -5,7 +5,8 @@
 #### Init
 
 ```
-   duplicacy init - Prepare the current working directory as the repository to be backed up and connect it with the storage
+SYNOPSIS:
+   duplicacy init - Initialize the storage if necessary and the current working directory as the repository
 
 USAGE:
    duplicacy init [command options] <snapshot id> <storage url>
@@ -13,8 +14,8 @@ USAGE:
 OPTIONS:
    -encrypt, -e                    encrypt the storage with a password
    -chunk-size, -c 4M              the average size of chunks
-   -max-chunk-size, -max 16M 		  the maximum size of chunks (defaults to chunk-size * 4)
-   -min-chunk-size, -min 1M 		  the minimum size of chunks (defaults to chunk-size / 4)
+   -max-chunk-size, -max 16M       the maximum size of chunks (defaults to chunk-size * 4)
+   -min-chunk-size, -min 1M        the minimum size of chunks (defaults to chunk-size / 4)
    -compression-level, -l <level>  compression level (defaults to -1)
 ```
 
@@ -37,6 +38,7 @@ Once a storage has been initialized with these parameters, there parameters cann
 #### Backup
 
 ```
+SYNOPSIS:
    duplicacy backup - Save a snapshot of the repository to the storage
 
 USAGE:
@@ -45,9 +47,9 @@ USAGE:
 OPTIONS:
    -hash                      detect file diferences by hash (rather than size and timestamp)
    -t <tag>                   assign a tag to the backup
-   -stats 		               show statistics during and after backup
-   -vss 		                  enable the Volume Shadow Copy service (Windows only)
-   -storage <storage name> 	backup to the specified storage instead of the default one
+   -stats                     show statistics during and after backup
+   -vss                       enable the Volume Shadow Copy service (Windows only)
+   -storage <storage name>    backup to the specified storage instead of the default one
 ```
 
 
