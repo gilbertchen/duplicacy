@@ -115,13 +115,13 @@ Login methods include password authentication and public key authentication.  Du
 Storage URL:  dropbox://path/to/storage
 ```
 
-For Duplicacy to access your Dropbox storage, you must provide an access token that can be obtained one of two ways:
+For Duplicacy to access your Dropbox storage, you must provide an access token that can be obtained in one of two ways:
 
-* Create your own app on [the Dropbox Developer](https://www.dropbox.com/developers) page, and then generate the [access token](https://blogs.dropbox.com/developers/2014/05/generate-an-access-token-for-your-own-account/)
+* Create your own app on the [Dropbox Developer](https://www.dropbox.com/developers) page, and then generate the [access token](https://blogs.dropbox.com/developers/2014/05/generate-an-access-token-for-your-own-account/)
 
-* Or authorize Duplicacy to access its own app folder inside your Dropbox (following [this link](https://dl.dropboxusercontent.com/u/95866350/start_dropbox_token.html)), and Dropbox will generate the access token (which is not visible to us, as the redirect page showing the token is merely a static html hosted by Dropbox)
+* Or authorize Duplicacy to access its app folder inside your Dropbox (following [this link](https://dl.dropboxusercontent.com/u/95866350/start_dropbox_token.html)), and Dropbox will generate the access token (which is not visible to us, as the redirect page showing the token is merely a static html hosted by Dropbox)
 
-Dropbox has two advantages over other cloud providers.  First, if you are already a paid user then to use the unused space as the backup storage is basically free.  Second, unlike other providers Dropbox does not charge a fee on API usage.
+Dropbox has two advantages over other cloud providers.  First, if you are already a paid user then to use the unused space as the backup storage is basically free.  Second, unlike other providers Dropbox does not charge API usage fees.
 
 #### Amazon S3
 
@@ -139,7 +139,7 @@ You'll need to input an access key and a scret key to access your Amazon S3 stor
 Storage URL:  s3://storage.googleapis.com/bucket/path/to/storage
 ```
 
-Duplicacy actually uses the s3 protocol to access Google Cloud Storage, so you must enable the [interoperable access](https://cloud.google.com/storage/docs/migrating#migration-simple) in your Google Cloud Storage settings.
+Duplicacy actually uses the s3 protocol to access Google Cloud Storage, so you must enable the [s3 interoperability](https://cloud.google.com/storage/docs/migrating#migration-simple) in your Google Cloud Storage settings.
 
 #### Microsoft Azure
 
