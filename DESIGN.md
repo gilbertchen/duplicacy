@@ -40,25 +40,26 @@ The fossil still exists on the file storage.  Two rules are enforced regarding t
 
 * A restore, list, or check procedure that reads existing backups can read the fossil if the original chunk cannot be found.
 * A backup procedure does not check the existence of a fossil. That is, it must upload a chunk if it cannot find the chunk, even if an equivalent fossil exists.
- 
+
 In the first step of the deletion procedure, called the *fossil collection* step, the names of all identified fossils will
-be saved in a fossil collection file. The deletion procedure then exits without performing further actions. This step has not effectively changed any chunk references due to the first fossil access rule.
+be saved in a fossil collection file. The deletion procedure then exits without performing further actions. This step has not effectively changed any chunk references due to the first fossil access rule.  If a backup procedure references a chunk after it is marked as a fossil, a new chunk will be uploaded because of the second fossil access rule, as depicted in Figure 1.
+
+<p align="center">
+  <img src="https://github.com/gilbertchen/duplicacy-beta/blob/master/images/fossil_collection_1.png?raw=true" 
+       alt="Reference after Rename"/>
+</p>
 
 The second step, called the *fossil deletion* step, will permanently delete fossils, but only when two conditions are met:
 
 * For each snapshot id, there is a new snapshot that was not seen by the fossil collection step
 * The new snapshot must finish after the fossil collection step
 
-![](https://raw.githubusercontent.com/gilbertchen/duplicacy-beta/master/images/fossil_collection_1.png)
-
 The first condition guarantees that if a backup procedure references a chunk before the deletion procedure turns it into a fossil, the reference will be detected in the fossil deletion step which will then turn the fossil back into a normal chunk.
 
 The second condition guarantees that any backup procedure unknown to the fossil deletion step can start only after the fossil collection step finishes.  Therefore, if it references a chunk that was identified as fossil in the fossil collection step, it should observe the fossil, not the chunk, so it will upload a new chunk, according to the second fossil access rule.
 
-<p align="center">
-  <img src="https://github.com/gilbertchen/duplicacy-beta/blob/master/images/fossil_collection_1.png?raw=true" 
-       alt="Reference after Rename"/>
-</p>
+Therefore, if a backup procedure references a chunk before the chunk is marked a fossil, the fossil deletion step will not
+delete the chunk until it sees the backup procedure finishes (as indicated by the appearance of a new snapshot file uploaded to the storage).  This ensure that senarios depicted in Figure 2 will never happen.
 
 <p align="center">
   <img src="https://github.com/gilbertchen/duplicacy-beta/blob/master/images/fossil_collection_2.png?raw=true" 
