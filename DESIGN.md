@@ -55,7 +55,15 @@ The first condition guarantees that if a backup procedure references a chunk bef
 
 The second condition guarantees that any backup procedure unknown to the fossil deletion step can start only after the fossil collection step finishes.  Therefore, if it references a chunk that was identified as fossil in the fossil collection step, it should observe the fossil, not the chunk, so it will upload a new chunk, according to the second fossil access rule.
 
-![](https://raw.githubusercontent.com/gilbertchen/duplicacy-beta/master/images/fossil_collection_2.png)
+<p align="center">
+  <img src="https://github.com/gilbertchen/duplicacy-beta/blob/master/images/fossil_collection_1.png?raw=true" 
+       alt="Reference after Rename"/>
+</p>
+
+<p align="center">
+  <img src="https://github.com/gilbertchen/duplicacy-beta/blob/master/images/fossil_collection_2.png?raw=true" 
+       alt="Reference before Rename"/>
+</p>
 
 ## Snapshot Format
 
