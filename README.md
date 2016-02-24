@@ -41,7 +41,7 @@ $ duplicacy backup
 
 Duplicacy provides a set of commands, such as list, check, diff, cat history, to manage snapshots:
 
-```
+```shell
 $ duplicacy list            # List all snapshots
 $ duplicacy check           # Check integrity of snapshots
 $ duplicacy diff            # Compare two snapshots, or the same file in two snapshots
@@ -56,7 +56,7 @@ $ duplicacy restore -r 1
 
 The *prune* command removes snapshots by revisions, or tags, or retention policies:
 
-```shell
+```sh
 $ duplicacy prune -r 1            # Remove the snapshot with revision number 1
 $ duplicacy prune -t quick        # Remove all snapshots with a quick tag
 $ duplicacy prune -keep 1:7       # Keep 1 snapshot per day for snapshots older than 7 days
