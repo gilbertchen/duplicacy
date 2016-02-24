@@ -273,7 +273,7 @@ OPTIONS:
    -all, -a                 match against all snapshot IDs
    -r <revision> [+]        delete snapshots with the specified revisions
    -t <tag> [+]             delete snapshots with the specifed tags
-   -keep <interval:age> [+] retention policy (e.g., 7:30 means weekly month-old snapshots)
+   -keep <n:m> [+]          keep 1 snapshot every n days for snapshots older than m days
    -exhaustive              find all unreferenced chunks by scanning the storage
    -exclusive               assume exclusive acess to the storage (disable two-step fossil collection)
    -ignore <id> [+]         ignore the specified snapshot id when deciding if fossils can be deleted
@@ -282,6 +282,7 @@ OPTIONS:
    -collect-only            identify and collect fossils, but don't delete fossils previously collected
    -storage <storage name>  prune snapshots from the specified storage
 ```
+
 
 #### Password
 ```
