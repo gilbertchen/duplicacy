@@ -92,7 +92,7 @@ $ duplicacy copy -to s3        # Copy every snapshot to the s3 storage
 
 ## Storages
 
-Currently Duplicacy supports local file storage, SFTP, and 5 cloud storage providers.
+Duplicacy currently supports local file storage, SFTP, and 5 cloud storage providers.
 
 #### Local disk
 
