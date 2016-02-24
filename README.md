@@ -117,9 +117,9 @@ Storage URL:  dropbox://path/to/storage
 
 For Duplicacy to access your Dropbox storage, you must provide an access token that can be obtained one of two ways:
 
-* Create your own app on [the Dropbox Developer](https://www.dropbox.com/developers) page, and then generate an [access token](https://blogs.dropbox.com/developers/2014/05/generate-an-access-token-for-your-own-account/)
+* Create your own app on [the Dropbox Developer](https://www.dropbox.com/developers) page, and then generate the [access token](https://blogs.dropbox.com/developers/2014/05/generate-an-access-token-for-your-own-account/)
 
-* Or authorize Duplicacy to access its own app forlder inside your Dropbox (following [this link]()), and Dropbox will generate the access token (which is not visible to us, as the redirect page showing the token is merely a static html hosted on github.com)
+* Or authorize Duplicacy to access its own app forlder inside your Dropbox (following [this link](https://dl.dropboxusercontent.com/u/95866350/start_dropbox_token.html)), and Dropbox will generate the access token (which is not visible to us, as the redirect page showing the token is merely a static html hosted by Dropbox)
 
 Dropbox has two advantages over other cloud providers.  First, if you are already a paid user then to use the unused space as the backup storage is basically free.  Second, unlike other providers Dropbox does not charge a fee on API usage.
 
