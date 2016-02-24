@@ -14,11 +14,10 @@ chunking algorithm, for the purpose of detecting inserts or deletions, a lookup 
 time the rolling hash window is shifted by one byte, thus significantly reducing the chunk splitting performance.
 
 What is novel about lock-free deduplication is the absence of a centralized indexing database for tracking all existing
-chunks and for detecting which chunks are not needed any more. Instead, to check if a chunk has already been uploaded
-before, one can just perform a lookup via the file system API using the file name derived from the hash of the chunk.
-This effectively turn cloud storages offering only a very limited
-set of basic file operations, into powerful backup backends capable of both block-level and file-level deduplication. More importantly, the absence of a centralized indexing database means that there is no need to implement a distributed
-locking mechanism on top of the file storage.
+chunks and for determining which chunks are not needed any more.  Instead, to check if a chunk has already been uploaded
+before, one can just perform a file lookup via the file storage API using the file name derived from the hash of the chunk.
+This effectively turn a cloud storage offering only a very limited
+set of basic file operations into a powerful modern backup backend capable of both block-level and file-level deduplication.  More importantly, the absence of a centralized indexing database means that there is no need to implement a distributed locking mechanism on top of the file storage.
 
 There is one problem, though.
 Deletion of snapshots without an indexing database, when concurrent access is permitted, turns out to be a hard problem.
@@ -32,26 +31,27 @@ Fortunately, there is a solution to address the deletion problem and make lock-f
 
 ## Two-Step Fossil Collection
 
+Interestingly, the two-step fossil collection algorithm hinges on a basic file operation supported almost universally, *file renaming*.
 When the deletion procedure identifies a chunk not referenced by any known snapshots, instead of deleting the chunk file
 immediately, it changes the name of the chunk file (and possibly moves it to a different directory).
 A chunk that has been renamed is called a *fossil*.
 
-The fossil still exists on the file storage. We enforce the following two rules regarding the access of fossils:
+The fossil still exists on the file storage.  Two rules are enforced regarding the access of fossils:
 
 * A restore, list, or check procedure that reads existing backups can read the fossil if the original chunk cannot be found.
-* A backup procedure can never access any fossils. That is, it must upload a chunk if it cannot find the chunk, even if a corresponding fossil exists.
+* A backup procedure does not check the existence of a fossil. That is, it must upload a chunk if it cannot find the chunk, even if an equivalent fossil exists.
  
 In the first step of the deletion procedure, called the *fossil collection* step, the names of all identified fossils will
-be saved in a fossil collection file. The deletion procedure then exits without performing other tasks. This step has not effectively changed any chunk references due to these 2 rules.
+be saved in a fossil collection file. The deletion procedure then exits without performing further actions. This step has not effectively changed any chunk references due to the first fossil access rule.
 
 The second step, called the *fossil deletion* step, will permanently delete fossils, but only when two conditions are met:
 
 * For each snapshot id, there is a new snapshot that was not seen by the fossil collection step
 * The new snapshot must finish after the fossil collection step
 
-The first condition guarantees that if a backup procedure references a chunk before the deletion procedure turns it into a fossil, it will be detected in the fossil deletion step which will then turn the fossil back into a normal chunk.
+The first condition guarantees that if a backup procedure references a chunk before the deletion procedure turns it into a fossil, the reference will be detected in the fossil deletion step which will then turn the fossil back into a normal chunk.
 
-The second condition guarantees that any backup procedure unknown to the fossil deletion step can start only after the fossil collection step finishes.  Therefore, if it references a chunk that was identified as fossil in the fossil collection step, it should observe the fossil, not the chunk, so it will upload a new chunk.
+The second condition guarantees that any backup procedure unknown to the fossil deletion step can start only after the fossil collection step finishes.  Therefore, if it references a chunk that was identified as fossil in the fossil collection step, it should observe the fossil, not the chunk, so it will upload a new chunk, according to the second fossil access rule.
 
 ## Snapshot Format
 
@@ -116,9 +116,9 @@ and dir1/file3):
 }
 ```
 
-When Duplicacy splits a file in chunks, if the end of a file is reached and yet the boundary marker for terminating a chunk
+When Duplicacy splits a file in chunks using the variable-size chunking algorithm, if the end of a file is reached and yet the boundary marker for terminating a chunk
 hasn't been found, the next file, if there is one, will be read in and the chunking algorithm continues. It is as if all 
-files were packed into a big zip file which is then split into chunks.
+files were packed into a big tar file which is then split into chunks.
 
 The *content* field of a file indicates the indexes of starting and ending chunks and the corresponding offsets. For
 instance, *fiel1* starts at chunk 0 offset 0 while ends at chunk 2 offset 6108, immediately followed by *file2*.
@@ -157,7 +157,7 @@ contains sequences of chunk hashes and other fixed size fields:
 }
 ```
 
-If the repository has not been touched since last backup, a new backup procedure will not create any new chunks,
+In the extreme case where the repository has not been modified since last backup, a new backup procedure will not create any new chunks,
 as shown by the following output from a real use case:
 
 ```
