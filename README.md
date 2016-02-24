@@ -56,7 +56,7 @@ $ duplicacy restore -r 1
 
 The *prune* command removes snapshots by revisions, or tags, or retention policies:
 
-```sh
+```shell
 $ duplicacy prune -r 1            # Remove the snapshot with revision number 1
 $ duplicacy prune -t quick        # Remove all snapshots with a quick tag
 $ duplicacy prune -keep 1:7       # Keep 1 snapshot per day for snapshots older than 7 days
