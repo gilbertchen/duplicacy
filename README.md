@@ -35,12 +35,13 @@ The *init* command connects the repository with the remote storage at 192.168.1.
 
 You can now create snapshots of the repository by invoking the *backup* command.  The first snapshot may take a while depending on the size of the repository and the upload bandwidth.  Subsequent snapshots will be much faster, as only new or modified files will be uploaded.  Each snapshot is identified by the snapshot id and an increasing revision number starting from 1.
 
-```
+```sh
 $ duplicacy backup
 ```
 
 Duplicacy provides a set of commands, such as list, check, diff, cat history, to manage snapshots:
-```sh
+
+```
 $ duplicacy list            # List all snapshots
 $ duplicacy check           # Check integrity of snapshots
 $ duplicacy diff            # Compare two snapshots, or the same file in two snapshots
