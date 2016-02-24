@@ -95,10 +95,72 @@ $ duplicacy copy -to s3        # Copy every snapshot to the s3 storage
 Currently Duplicacy supports local file storage, SFTP, and 5 cloud storage providers.
 
 ### Local disk
-URL:  /path/to/storage (on Linux or Mac OS X)
 
-      C:/path/to/storage (on Windows)
-      
+```
+Storage URL:  /path/to/storage (on Linux or Mac OS X)
+              C:\path\to\storage (on Windows)
+```
+
 ### SFTP
-URL:  sftp://username@server/path/to/storage
+
+```
+Storage URL:  sftp://username@server/path/to/storage
+```
+
+Login methods include password authentication and public key authentication.  However, due to a limitation of the underlying Go SSH library, if public key authentication is used, the key must be generated without a passphrase.  To work with a key with a passphrase, you can set up SSH agent forwording which is also supported by Duplicacy.
+
+### Dropbox
+
+```
+Storage URL:  dropbox://path/to/storage
+```
+
+For Duplicacy to access your Dropbox storage, you must provide an access token, which can be obtained one of two ways:
+
+* Create your own app on [the Dropbox Developer](https://www.dropbox.com/developers) page, and then generate an [access token](https://blogs.dropbox.com/developers/2014/05/generate-an-access-token-for-your-own-account/)
+
+* Or authorize Duplicacy to access its own app forlder inside your Dropbox (following [this link]()), and Dropbox will generate the access token (which is not visible to us, as the redirect page showing the token is a static html hosted on github.com)
+
+
+Dropbox has two advantages over other cloud providers.  First, if you are already a paid user then to use the unused quota is basically free.  Second, unlike other providers Dropbox does not charge a fee on API usage.
+
+### Amazon S3
+
+```
+Storage URL:  s3://amazon.com/bucket/path/to/storage (default region is us-east-1)
+              s3://region@amazon.com/bucket/path/to/storage (other region must be specified)
+```
+
+You'll need to input an access key and a screte key to access your Amazon S3 storage.
+
+
+### Google Cloud Storage
+
+```
+Storage URL:  s3://storage.googleapis.com/bucket/path/to/storage
+```
+
+Duplicacy acutally uses the s3 protocol to access Google Cloud Storage, so you must enable the [interoperable access](https://cloud.google.com/storage/docs/migrating#migration-simple) in your Google Cloud Storage settings.
+
+### Microsoft Azure
+
+```
+Storage URL:  azure://account/path/to/storage
+```
+
+You'll need to input the access key once prompted.
+
+### BackBlaze
+
+```
+Storage URL: b2://bucket
+```
+
+You'll need to input the account id and applicaction key.
+
+BackBlaze offers perhaps the least expensive cloud storage at 5 cents per GB per month.  Unfortunately their API does not support file naming, so the -exclusive option is required when pruning old backup.  This means concurrent access and deletion can't be permitted at the same time.
+
+
+
+
 
