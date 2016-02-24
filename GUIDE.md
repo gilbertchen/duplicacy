@@ -22,6 +22,9 @@ OPTIONS:
 The *init* command first connects to the storage specified by the storage URL.  If the storage has been already been
 initailized before, it will download the storage configuration (stored in the file named *config*) and ignore the options provided in the command line.  Otherwise, it will create the configuration file from the options and upload the file.
 
+The initialized storage will then become the default storage for other commands if the -storage option is not specified
+for those commands.  This default storage actually has a name, and the name is *default*.
+
 After that, it will prepare the the current working directory as the repositor.  Under the hood, it will create a directory
 named *.duplicacy* in the repository and put a file named *preferences* that stores the snapshot id and encryption and storage options.
 
@@ -271,9 +274,9 @@ OPTIONS:
    -r <revision> [+]        delete snapshots with the specified revisions
    -t <tag> [+]             delete snapshots with the specifed tags
    -keep <interval:age> [+] retention policy (e.g., 7:30 means weekly month-old snapshots)
-   -exhaustive              remove all unreferenced chunks (not just those referenced by deleted snapshots)
+   -exhaustive              find all unreferenced chunks by scanning the storage
    -exclusive               assume exclusive acess to the storage (disable two-step fossil collection)
-   -ignore <tag> [+]        ignore snapshots with the specified id when deciding if fossils can be deleted
+   -ignore <id> [+]         ignore the specified snapshot id when deciding if fossils can be deleted
    -dry-run, -d             show what would have been deleted
    -delete-only             delete fossils previsouly collected (if deletable) and don't collect fossils
    -collect-only            identify and collect fossils, but don't delete fossils previously collected
@@ -292,6 +295,13 @@ OPTIONS:
    -storage <storage name>  change the password used to access the specified storage
 ```
 
+The *password* command decrypts the storage configuration file *config* using the old password, and re-encrypt the file
+using a new password.  It does not change all the encryption keys used to encrypt and decrypt chunk files
+snapshot files, etc.
+
+You can specify the storage to change the password for when working with multiple storages.
+
+
 #### Add
 ```
 SYNOPSIS:
@@ -309,6 +319,18 @@ OPTIONS:
    -copy <storage name>            make the new storage copy-compatiable with an existing one
 ```
 
+The *add* command connects another storage to the current repository.  Like the *init* command, if the storage has not
+been intialized before, a storage configuraiton file derived from the command line options will be uploaded, but those
+options will be ignored if the configuration file already exists in the storage.
+
+A unique storage name must be given in order to distinguish it from other storages.
+
+The -copy option is required if later you want to copy snapshots between this storage and another storage.
+Two storages are copy-compatiable if they have the same average chunk size, the same maximum chunk size,
+the same minimum chunk size, the same chunk seed (used in calculating the rolling hash in the variable-size chunks
+algorithm), and the same hash key.  If the -copy option is specified, these parameters will be copied from
+the existing storage rather than from the command line.
+
 #### Set
 ```
 SYNOPSIS:
@@ -320,12 +342,28 @@ USAGE:
 OPTIONS:
    -encrypt, e[=true]       encrypt the storage with a password
    -no-backup[=true]        backup to this storage is prohibited
-   -no-restore[=tru]        restore from this storage is prohibited
+   -no-restore[=true]       restore from this storage is prohibited
    -no-save-password[=true] don't save password or access keys to keychain/keyring
    -key                     add a key/password whose value is supplied by the -value option
    -value  			          the value of the key/password
    -storage <storage name>  use the specified storage instead of the default one
 ```
+
+The *set* command changes the options for the specified storage.
+
+The -e option turns on the storage encryption.  If specified as -e=false, it turns off the storage encryption.
+
+The -no-backup option will not allow backups from this repository to be created.
+
+The -no-restore option will not allow restoring this repository to a different revision.
+
+The -no-save-password opiton will require password to be enter every time and not saved anywhere.
+
+The -key and -value options are used to store (in plain text) access keys or tokens need by various storages.  Please
+refer to the Managing Passwords section for more details.
+
+You can select a storage to change options for by specifying a storage name.
+
 
 #### Copy
 ```
@@ -341,5 +379,20 @@ OPTIONS:
    -from <storage name>  copy snapshots from the specified storage
    -to <storage name>    copy snapshots to the specified storage
 ```
+
+The *copy* command copies snapshots from one storage to another storage.  They must be copy-compatiable, i.e., some
+configuraiton parameters must be the same.  One storage must be initialized with the -copy option provided by the *add* command.
+
+Instead of copying all snapshots, you can specify a set of snapshots to copy by giving the -r options.  The *copy* command
+preserves the revision numbers, so if a revision number already exists on the destination storage the *copy* command will fail.
+
+If no -from option is given, the snapshots from the default storage will be copied.  The -to option specified the
+destination storage and is required.
+
+## Include/Exclude Patterns
+
+## Managing Passwords
+
+## Scripts
 
 
