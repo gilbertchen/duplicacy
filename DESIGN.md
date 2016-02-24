@@ -49,9 +49,13 @@ The second step, called the *fossil deletion* step, will permanently delete foss
 * For each snapshot id, there is a new snapshot that was not seen by the fossil collection step
 * The new snapshot must finish after the fossil collection step
 
+![](https://raw.githubusercontent.com/gilbertchen/duplicacy-beta/master/images/fossil_collection_1.png)
+
 The first condition guarantees that if a backup procedure references a chunk before the deletion procedure turns it into a fossil, the reference will be detected in the fossil deletion step which will then turn the fossil back into a normal chunk.
 
 The second condition guarantees that any backup procedure unknown to the fossil deletion step can start only after the fossil collection step finishes.  Therefore, if it references a chunk that was identified as fossil in the fossil collection step, it should observe the fossil, not the chunk, so it will upload a new chunk, according to the second fossil access rule.
+
+![](https://raw.githubusercontent.com/gilbertchen/duplicacy-beta/master/images/fossil_collection_2.png)
 
 ## Snapshot Format
 
