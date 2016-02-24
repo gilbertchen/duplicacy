@@ -66,29 +66,6 @@ delete the chunk until it sees the backup procedure finishes (as indicated by th
        alt="Reference before Rename"/>
 </p>
 
-## Encryption
-
-When encryption is enabled, Duplicacy will generate 4 random 256 bit keys:
-
-* *Hash Key*: for generating a chunk hash from the content of a chunk
-* *ID Key*: for generating a chunk id from a chunk hash
-* *Chunk Key*: for encrypting chunk files
-* *File Key: for encrypting non-chunk files such as snapshot files.
-
-Here is a diagram showing how these keys are used:
-
-<p align="center">
-  <img src="https://github.com/gilbertchen/duplicacy-beta/blob/master/images/duplicacy_encryption.png?raw=true" 
-       alt="encryption"/>
-</p>
-
-Chunk hashes are used internally and saved in the snapshot file.  Chunk ids are used for the name of the chunk files and therefore exposed.
-Chunk content is encrypted by AES-GCM, with an encryption key that is the HMAC-SHA256 of the chunk Hash with the Chunk Key as the secret key.
-
-The snapshot is encrypted by AES-GCM too, using an encrypt key that is the HMAC-SHA256 of the file path with the File Key as the secret key.
-
-There four random keys are saved in a file named 'config' in the file storage, encrypted with a master key derived from the PBKDF2 function on
-the storage password selected by the user.
 
 ## Snapshot Format
 
@@ -208,3 +185,29 @@ Metadata chunks: 6 total, 11,753K bytes; 0 new, 0 bytes, 0 bytes uploaded
 All chunks: 453 total, 2,249M bytes; 0 new, 0 bytes, 0 bytes uploaded
 Total running time: 00:00:05
 ```
+
+## Encryption
+
+When encryption is enabled (by the -e option with the *init* or *add* command), Duplicacy will generate 4 random 256 bit keys:
+
+* *Hash Key*: for generating a chunk hash from the content of a chunk
+* *ID Key*: for generating a chunk id from a chunk hash
+* *Chunk Key*: for encrypting chunk files
+* *File Key*: for encrypting non-chunk files such as snapshot files.
+
+Here is a diagram showing how these keys are used:
+
+<p align="center">
+  <img src="https://github.com/gilbertchen/duplicacy-beta/blob/master/images/duplicacy_encryption.png?raw=true" 
+       alt="encryption"/>
+</p>
+
+Chunk hashes are used internally and stored in the snapshot file.  They are never exposed unless the snapshot file is decrypted.  Chunk ids are used as the file names for the chunks and therefore exposed.  When the *cat* command is used to print out a snapshot file, the chunk hashes stored in the snapshot file will be converted into chunk ids first which are then displayed instead.
+
+Chunk content is encrypted by AES-GCM, with an encryption key that is the HMAC-SHA256 of the chunk Hash with the *Chunk Key* as the secret key.
+
+The snapshot is encrypted by AES-GCM too, using an encrypt key that is the HMAC-SHA256 of the file path with the *File Key* as the secret key.
+
+There four random keys are saved in a file named 'config' in the file storage, encrypted with a master key derived from the PBKDF2 function on
+the storage password selected by the user.
+
