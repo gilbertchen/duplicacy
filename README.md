@@ -64,7 +64,7 @@ $ duplicacy prune -keep 7:30      # Keep 1 snapshot every 7 days for snapshots o
 $ duplicacy prune -keep 0:180     # Remove all snapshots older than 180 days
 ```
 
-The first time the *prune* command is called, it removes all the snapshots but keeps all unreferenced chunks as fossils.
+The first time the *prune* command is called, it removes the specified snapshots but keeps all unreferenced chunks as fossils.
 Since it uses the two-step fossil collection algorithm to clean chunks, you will need to run it again to remove those fossils from the storage:
 
 ```sh
