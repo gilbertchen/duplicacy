@@ -27,7 +27,7 @@ can't be trivially removed, because of the possibility that a backup procedure i
 The ongoing backup procedure, still unknown to the deletion procedure, may have already encountered that chunk during its
 file scanning phase, but decided not to upload the chunk again since it already exists on the file storage. 
 
-Fortunately, there is a solution to address the deletion problem and make lock-free deduplication practical.  The solution is an algorithm that we call *two-step fossil collection* that deletes unreferenced chunks in two steps: identify and collect them in the first step, and then permanently remove them when certain conditions are met.
+Fortunately, there is a solution to address the deletion problem and make lock-free deduplication practical.  The solution is a *two-step fossil collection* algorithm that deletes unreferenced chunks in two steps: identify and collect them in the first step, and then permanently remove them once certain conditions are met.
 
 ## Two-Step Fossil Collection
 
