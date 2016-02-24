@@ -66,6 +66,30 @@ delete the chunk until it sees the backup procedure finishes (as indicated by th
        alt="Reference before Rename"/>
 </p>
 
+## Encryption
+
+When encryption is enabled, Duplicacy will generate 4 random 256 bit keys:
+
+* *Hash Key*: for generating a chunk hash from the content of a chunk
+* *ID Key*: for generating a chunk id from a chunk hash
+* *Chunk Key*: for encrypting chunk files
+* *File Key: for encrypting non-chunk files such as snapshot files.
+
+Here is a diagram showing how these keys are used:
+
+<p align="center">
+  <img src="https://github.com/gilbertchen/duplicacy-beta/blob/master/images/duplicacy_encryption.png?raw=true" 
+       alt="encryption"/>
+</p>
+
+Chunk hashes are used internally and saved in the snapshot file.  Chunk ids are used for the name of the chunk files and therefore exposed.
+Chunk content is encrypted by AES-GCM, with an encryption key that is the HMAC-SHA256 of the chunk Hash with the Chunk Key as the secret key.
+
+The snapshot is encrypted by AES-GCM too, using an encrypt key that is the HMAC-SHA256 of the file path with the File Key as the secret key.
+
+There four random keys are saved in a file named 'config' in the file storage, encrypted with a master key derived from the PBKDF2 function on
+the storage password selected by the user.
+
 ## Snapshot Format
 
 A snapshot file is a file that the backup procedure uploads to the file storage after it finishes splitting files into
