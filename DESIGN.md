@@ -42,7 +42,7 @@ The fossil still exists on the file storage.  Two rules are enforced regarding t
 * A backup procedure does not check the existence of a fossil. That is, it must upload a chunk if it cannot find the chunk, even if an equivalent fossil exists.
 
 In the first step of the deletion procedure, called the *fossil collection* step, the names of all identified fossils will
-be saved in a fossil collection file. The deletion procedure then exits without performing further actions. This step has not effectively changed any chunk references due to the first fossil access rule.  If a backup procedure references a chunk after it is marked as a fossil, a new chunk will be uploaded because of the second fossil access rule, as depicted in Figure 1.
+be saved in a fossil collection file. The deletion procedure then exits without performing further actions. This step has not effectively changed any chunk references due to the first fossil access rule.  If a backup procedure references a chunk after it is marked as a fossil, a new chunk will be uploaded because of the second fossil access rule, as shown in Figure 1.
 
 <p align="center">
   <img src="https://github.com/gilbertchen/duplicacy-beta/blob/master/images/fossil_collection_1.png?raw=true" 
