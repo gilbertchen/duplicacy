@@ -89,3 +89,15 @@ However, snapshots created this way will be different on different storages, if 
 $ duplicacy copy -r 1 -to s3   # Copy snapshot at revision 1 to the s3 storage
 $ duplicacy copy -to s3        # Copy every snapshot to the s3 storage
 ```
+
+## Storages
+
+Currently Duplicacy supports local file storage, SFTP, and 5 cloud storage providers.
+
+### Local disk
+URL:  /path/to/storage (on Linux or Mac OS X)
+      C:/path/to/storage (on Windows)
+      
+### SFTP
+URL:  sftp://username@server/path/to/storage
+
