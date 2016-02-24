@@ -96,6 +96,7 @@ Currently Duplicacy supports local file storage, SFTP, and 5 cloud storage provi
 
 ### Local disk
 URL:  /path/to/storage (on Linux or Mac OS X)
+
       C:/path/to/storage (on Windows)
       
 ### SFTP
