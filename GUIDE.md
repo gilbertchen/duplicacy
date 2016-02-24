@@ -64,8 +64,8 @@ throughout the backup procedure.
 The -vss option works on Windows only to turn on the Volume Shadow Copy service such that files opened by other
 processes with exclusive locks can be read as usual.
 
-When the repository can have multiple storages (added by the *add* command), you can specifiy the storage to back up to
-by the storage name.
+When the repository can have multiple storages (added by the *add* command), you can select the storage to back up to
+by specifying the storage name.
 
 You can specify patterns to include/exclude files by putthing them in a file named *.duplicacy/filters*.  Please refer to the Include/Exclude Patterns section for how to specify the patterns.
 
@@ -96,8 +96,7 @@ The -delete indicates that files not in the snapshot will be removed.
 If the -stats option is specified, statistical information such as transfer speed, number of chunks will be displayed
 throughout the restore procedure.
 
-When the repository can have multiple storages (added by the *add* command), you can specifiy the storage to restore from
-by the storage name.
+When the repository can have multiple storages (added by the *add* command), you can select the storage to restore from by specifying the storage name.
 
 Unlike the *backup* procedure that reading the include/exclude patterns from a file, the *restore* procedure reads them
 from the command line.  If the patterns can cause confusion to the command line argument parse, -- should be prepended to
@@ -123,12 +122,65 @@ OPTIONS:
    -storage <storage name>     retrieve snapshots from the specified storage
 ```
 
+The *list* command lists information about specified snapshots.  By default it will list snapshots created from the
+current respository, but you can list all snapshots stored in the storage by specifying the -all option, or list snapshots
+with a different snapshot id using the -id option, and/or snapshots with a particular tag with the -t option.
 
+The revision number is a number assigned to the snapshot when it is being created.  This number will keep increasing
+every time a new snapshot is created from a repository.  You can refer to snapshots by their revisions numbers using 
+the -r option, which either takes a single revision number (-r 123) or a range (-r 123-456).
+There can be multiple -r options.
+
+If -files is specified, for each snapshot to be listed, this command will also print infomation about every files
+contained in the snapshot.
+
+If -chunks is specified, the command will also print out every chunk the snapshot references.
+
+The -reset-password option is used to reset stored passwords and to allow passwords to be enterred again.  Please refer to the Managing Passwords section for more information.
+
+When the repository can have multiple storages (added by the *add* command), you can specify the storage to list
+by specifying the storage name.
 
 #### Check
 ```
 SYNOPSIS:
+   duplicacy check - Check the integrity of snapshots
+
+USAGE:
+   duplicacy check [command options]
+
+OPTIONS:
+   -all, -a                 check snapshots with any id
+   -id <snapshot id>        check snapshots with the specified id rather than the default one
+   -r <revision> [+]        the revision number of the snapshot
+   -t <tag>                 check snapshots with the specified tag
+   -fossils                 search fossils if a chunk can't be found
+   -resurrect               turn referenced fossils back into chunks
+   -files                   verify the integrity of every file
+   -storage <storage name>  retrieve snapshots from the specified storage```
 ```
+The *check* command checks, for each specified snapshot, that all referenced chunks exist in the storage.
+
+By default the *check* command will check snapshots created from the
+current respository, but you can check all snapshots stored in the storage at once by specifying the -all option, or
+snapshots from a different repository using the -id option, and/or snapshots with a particular tag with the -t option.
+
+The revision number is a number assigned to the snapshot when it is being created.  This number will keep increasing
+every time a new snapshot is created from a repository.  You can refer to snapshots by their revisions numbers using 
+the -r option, which either takes a single revision number (-r 123) or a range (-r 123-456).
+There can be multiple -r options.
+
+By default the *check* command only verifies the existence of chunks.  To verify the full integrity of a snapshot,
+you should specify the -files option, which will download chunks and compute file hashes in memory, to
+make sure that all hashes match.
+
+By default the *check* command does not find fossils. If the -fossils option is specified, it will find
+the fossil if the referenced chunk does not exist.  if the -resurrect option is specified, it will turn the fossil
+if found, back into a chunk.
+
+When the repository can have multiple storages (added by the *add* command), you can specify the storage to check
+by specifying the storage name.
+
 
 #### Cat
 ```
