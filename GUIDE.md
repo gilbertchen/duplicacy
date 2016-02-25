@@ -444,7 +444,15 @@ destination storage and is required.
 
 ## Include/Exclude Patterns
 
+An include pattern starts with -, and an exclude pattern starts with +.  Patterns may contain wildcard character such as * and ? with their normal meaning.
 
+When matching a path against a list of patterns, the path is compared with the part after + or -, one pattern at a time.  Therefore, the order of the patterns is significant.  If a match with an include pattern is found, the path is said to be included without further comparisons.  If a match with an exclude pattern is found, the path is said to be excluded without further comparison.  If a match is not found, the path will be excluded if all patterns are include patterns, but included otherwise.
+
+Note that the path in Duplicacy for a directory always ends with a /, even on Windows.  The path of a file does not end with a /.  This can be used to exclude directories only.
+
+For the *backup* command, the include/exclude patterns are read from a file named *filters* under the *.duplicacy* directory.
+
+For the *restore* command, the include/exclude patterns are specified as the command line arguments.
 
 ## Managing Passwords
 
@@ -452,7 +460,7 @@ Duplicacy will attempt to retrieve in three ways the storage password and variou
 
 * If a secret vault service is available, Duplicacy will store the password input by the user in such a secret vault and later retrieve it when needed.  On Mac OS X it is Keychain, and on Linux it is gnome-keyring.  On Windows the password is encrypted and decrypted by the Data Protection API and encrypted password is stored in the file *.duplicacy/keyring*.  However, if the -no-save-password option is specified for the storage, then Duplicacy will not save password this way
 * If an environment variable for a password is provided, Duplicacy will always take it.  The table below shows the name of the environment variable for each kind of password.  Note that if the storage is not the default one, the storage name will be included in the name of the environment variable.
-* If a matching key and a value is saved to the preference file (.duplicacy/preferences) by the *set* command, the value will be used as the password.  The last column in the table below lists the name of the preference key for each type of password.
+* If a matching key and its value are saved to the preference file (.duplicacy/preferences) by the *set* command, the value will be used as the password.  The last column in the table below lists the name of the preference key for each type of password.
 
 | password type | environment variable (default storage) | environment variable (non-default storage) | key in preferences  |
 |:----------------:|:----------------:|:----------------:|:----------------:|
@@ -469,4 +477,4 @@ Note that the passwords stored in the environment variable and the preference ne
 
 ## Scripts
 
-
+You can instruct Duplicay to run a script before or after executing a command.  For exmaple, if you create a bash script with the name *pre-prune* under the *.duplicacy/scripts* directory, this bash script will be run before the *prune* command starts.  A script named *post-prune* will be run after the *prune* command finishes.  This rule applies to all commands except *init*.
