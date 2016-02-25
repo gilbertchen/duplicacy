@@ -23,20 +23,20 @@ The *init* command first connects to the storage specified by the storage URL.  
 initailized before, it will download the storage configuration (stored in the file named *config*) and ignore the options provided in the command line.  Otherwise, it will create the configuration file from the options and upload the file.
 
 The initialized storage will then become the default storage for other commands if the -storage option is not specified
-for those commands.  This default storage actually has a name, and the name is *default*.
+for those commands.  This default storage actually has a name, *default*.
 
-After that, it will prepare the the current working directory as the repositor.  Under the hood, it will create a directory
+After that, it will prepare the the current working directory as the repository to be backed up.  Under the hood, it will create a directory
 named *.duplicacy* in the repository and put a file named *preferences* that stores the snapshot id and encryption and storage options.
 
-The snapshot id is an id used to distinguish different repositories connected to the same storage.  It is required for each repository to have a unique snapshot id.
+The snapshot id is an id used to distinguish different repositories connected to the same storage.  Each repository must have a unique snapshot id.
 
-The -e option controls whether or not the encryption will be enabled for the storage.  If the encryption is enabled, you will be prompted to enter a password.
+The -e option controls whether or not encryption will be enabled for the storage.  If encryption is enabled, you will be prompted to enter a storage password.
 
-The chunk size parametes are passed to the variable-size chunking algorithm.  Their values are important to the overall performance, espeically for cloud storages.  If the chunk size is too small, a lot of overhead will be spent in sending requests and receiving responses.  If the chunk size is too large, the effect of deduplication will be less obvious as more data will need to be transferred with each chunk.
+The three chunk size parametes are passed to the variable-size chunking algorithm.  Their values are important to the overall performance, espeically for cloud storages.  If the chunk size is too small, a lot of overhead will be in sending requests and receiving responses.  If the chunk size is too large, the effect of deduplication will be less obvious as more data will need to be transferred with each chunk.
 
 The compression level parameter is passed to the zlib library.  Valid values are -1 through 9, with 0 meaning no compression, 9 best compression (slowest), and -1 being the default value (equivalent to level 6).
 
-Once a storage has been initialized with these parameters, there parameters cannot be modified any more.
+Once a storage has been initialized with these parameters, these parameters cannot be modified any more.
 
 #### Backup
 
@@ -59,7 +59,7 @@ The *backup* command creates a snapshot of the repository and uploads it to the 
 it will upload new or modified files since last backup by comparing file sizes and timestmpas.
 Otherwise, every file is scanned to detect changes.
 
-You can assign a tag to the snapshot so later you can refer to it by tag in other commands.
+You can assign a tag to the snapshot so that later you can refer to it by tag in other commands.
 
 If the -stats option is specified, statistical information such as transfer speed, number of chunks will be displayed
 throughout the backup procedure.
@@ -68,9 +68,9 @@ The -vss option works on Windows only to turn on the Volume Shadow Copy service 
 processes with exclusive locks can be read as usual.
 
 When the repository can have multiple storages (added by the *add* command), you can select the storage to back up to
-by specifying the storage name.
+by giving a storage name.
 
-You can specify patterns to include/exclude files by putthing them in a file named *.duplicacy/filters*.  Please refer to the [Include/Exclude Patterns](https://github.com/gilbertchen/duplicacy-beta/blob/master/GUIDE.md#includeexclude-patterns) section for how to specify the patterns.
+You can specify patterns to include/exclude files by putting them in a file named *.duplicacy/filters*.  Please refer to the [Include/Exclude Patterns](https://github.com/gilbertchen/duplicacy-beta/blob/master/GUIDE.md#includeexclude-patterns) section for how to specify the patterns.
 
 #### Restore
 ```
@@ -90,11 +90,11 @@ OPTIONS:
 ```
 
 The *restore* command restores the repository to a previous revision.  By default the restore procedure will treat
-files that have the same sizes and timestamps as those in the snapshot as unchanged files, but if -hash is specified, every file will be fully scanned to make sure they are in fact unchanged.
+files that have the same sizes and timestamps as those in the snapshot as unchanged files, but with the -hash option, every file will be fully scanned to make sure they are in fact unchanged.
 
 By default the restore procedure will not overwriting existing files, unless the -overwrite option is specified.
 
-The -delete indicates that files not in the snapshot will be removed.
+The -delete option indicates that files not in the snapshot will be removed.
 
 If the -stats option is specified, statistical information such as transfer speed, number of chunks will be displayed
 throughout the restore procedure.
@@ -102,7 +102,7 @@ throughout the restore procedure.
 When the repository can have multiple storages (added by the *add* command), you can select the storage to restore from by specifying the storage name.
 
 Unlike the *backup* procedure that reading the include/exclude patterns from a file, the *restore* procedure reads them
-from the command line.  If the patterns can cause confusion to the command line argument parse, -- should be prepended to
+from the command line.  If the patterns can cause confusion to the command line argument parser, -- should be prepended to
 the patterns.  Please refer to the [Include/Exclude Patterns](https://github.com/gilbertchen/duplicacy-beta/blob/master/GUIDE.md#includeexclude-patterns) section for how to specify patterns.
 
 
@@ -130,11 +130,11 @@ current respository, but you can list all snapshots stored in the storage by spe
 with a different snapshot id using the -id option, and/or snapshots with a particular tag with the -t option.
 
 The revision number is a number assigned to the snapshot when it is being created.  This number will keep increasing
-every time a new snapshot is created from a repository.  You can refer to snapshots by their revisions numbers using 
+every time a new snapshot is created from a repository.  You can refer to snapshots by their revision numbers using 
 the -r option, which either takes a single revision number (-r 123) or a range (-r 123-456).
 There can be multiple -r options.
 
-If -files is specified, for each snapshot to be listed, this command will also print infomation about every files
+If -files is specified, for each snapshot to be listed, this command will also print information about every file
 contained in the snapshot.
 
 If -chunks is specified, the command will also print out every chunk the snapshot references.
@@ -169,7 +169,7 @@ current respository, but you can check all snapshots stored in the storage at on
 snapshots from a different repository using the -id option, and/or snapshots with a particular tag with the -t option.
 
 The revision number is a number assigned to the snapshot when it is being created.  This number will keep increasing
-every time a new snapshot is created from a repository.  You can refer to snapshots by their revisions numbers using 
+every time a new snapshot is created from a repository.  You can refer to snapshots by their revision numbers using 
 the -r option, which either takes a single revision number (-r 123) or a range (-r 123-456).
 There can be multiple -r options.
 
@@ -178,8 +178,7 @@ you should specify the -files option, which will download chunks and compute fil
 make sure that all hashes match.
 
 By default the *check* command does not find fossils. If the -fossils option is specified, it will find
-the fossil if the referenced chunk does not exist.  if the -resurrect option is specified, it will turn the fossil
-if found, back into a chunk.
+the fossil if the referenced chunk does not exist.  if the -resurrect option is specified, it will turn the fossil back into a chunk.
 
 When the repository can have multiple storages (added by the *add* command), you can specify the storage to check
 by specifying the storage name.
@@ -212,7 +211,7 @@ You can use the -storage option to select a different storage other than the def
 #### Diff
 ```
 SYNOPSIS:
-   duplicacy diff - Diff two revisions of a snapshot or file
+   duplicacy diff - Compare two snapshots or two revisions of a file
 
 USAGE:
    duplicacy diff [command options] [<file>]
@@ -230,7 +229,7 @@ The file must be specified with a path relative to the repository.
 
 You can specify a different snapshot id rather than the default snapshot id.
 
-If only one revision is given by -r, the right hand side of the comparison will be the on-disk version.
+If only one revision is given by -r, the right hand side of the comparison will be the on-disk file.
 The -hash option can then instruct this command to compute the hash of the file. 
 
 You can use the -storage option to select a different storage other than the default one.
@@ -256,7 +255,7 @@ You can specify a different snapshot id rather than the default snapshot id, and
 set of revisions.
 
 The -hash option is to compute the hash of the on-disk file.  Otherwise, only the size and timestamp of the on-disk
-file will be shown.
+file will be included.
 
 You can use the -storage option to select a different storage other than the default one.
 
@@ -284,15 +283,15 @@ OPTIONS:
 ```
 
 The *prune* command implements the two-step fossil collection algorithm.  It will first find fossil collection files
-from previous runs and check if contained fossils are eligible for safe deletion (the fossil deletion step).  Then it
-will identify snapshots to be deleted, mark unreferenced chunks as fossils (by renaming) and save them in a new fossil
+from previous runs and check if contained fossils are eligible for permanent deletion (the fossil deletion step).  Then it
+will search for snapshots to be deleted, mark unreferenced chunks as fossils (by renaming) and save them in a new fossil
 collection file stored locally (the fossil colleciton step).
 
 If a snapshot id is specified, that snapshot id will be used instead of the default one.  The -a option will find
 snaphshots with any id.  Snapshots to be deleted can be specified by revision numbers, by a tag, by retention policies,
 or by any combination of them.
 
-The retention policies are specified by the -keep option, which accepts an argument in the form of two numbers *n:m*, where *n* indicates the number of days between two consective snapshots to keep, and *m* means that the policy only applies to snapshots  at least *m* day old.  If *n* is zero, then it means any snapshots older than *m* days will be removed.
+The retention policies are specified by the -keep option, which accepts an argument in the form of two numbers *n:m*, where *n* indicates the number of days between two consective snapshots to keep, and *m* means that the policy only applies to snapshots at least *m* day old.  If *n* is zero, any snapshots older than *m* days will be removed.
 
 Here are a few sample retention policies:
 
@@ -303,7 +302,7 @@ $ duplicacy prune -keep 30:180    # Keep 1 snapshot every 30 days for snapshots 
 $ duplicacy prune -keep 0:360     # Keep no snapshots older than 360 days
 ```
 
-Multiple -keep options must be specified by their *m* values in decreasing order.  For instance, to combine the above policies into one line, it would become:
+Multiple -keep options must be sorted by their *m* values in decreasing order.  For instance, to combine the above policies into one line, it would become:
 
 ```sh
 $ duplicacy prune -keep 0:360 -keep 30:180 -keep 7:30 -keep 1:7
@@ -313,25 +312,25 @@ The -exhaustive option will scan the list of all chunks in the storage, therefor
 unreferenced chunks from deleted snapshots, but also chunks that become unreferenced for other reasons, such as
 those from an incomplete backup.  It will also find any file that does not look like a chunk file.
 In contrast, a default *prune* command will only identify 
-chunks referenced by deleted snapshots but not any other snapshots, and skip those that are not referenced by any
-snapshots at all.
+chunks referenced by deleted snapshots but not any other snapshots.
 
 The -exclusive option will assume that no other clients are accessing the storage, effectively disabling the 
-*two-step fossil collection algorithm*.  With this option, the *prune* command will immediately remove unreferenced chunks.
+*two-step fossil collection* algorithm.  With this option, the *prune* command will immediately remove unreferenced chunks.
 
 The -dryrun option is used to test what changes the *prune* command would have done.  It is guaranteed not to make
-any changes on the storage, not even creating the fossil collection file.  The following command checks if the
+any changes on the storage, not even creating the local fossil collection file.  The following command checks if the
 chunk directory is clean (i.e., if there are any unreferenced chunks, temporary files, or anything else):
 
 ```
 $ duplicacy prune -d -exclusive -exhaustive    #  Prints out nothing if the chunk directory is clean
 ```
+
 The -delete-only option will skip the fossil collection step, while the -collect-only option will skip the fossil deletion step.
 
 For fossils collected in the fossil collection step to be eligible for safe deletion in the fossil deletion step, at least
-one new snapshot from *each* snapshot id must be created between two runs of the *prune* command.  However, a repository
-may not be set up to back up in a regular schedule, and thus literally blocking other repository from deleting any fossils.  Duplicacy by default will ignore repositories that have no backup in the past 7 days.  It also provide an
--ignore option that can be used to specify repositories to skip when deciding the deletion criteria.
+one new snapshot from *each* snapshot id must be created between two runs of the *prune* command.  However, some repository
+may not be set up to back up with a regular schedule, and thus literally blocking other repositories from deleting any fossils.  Duplicacy by default will ignore repositories that have no new backup in the past 7 days.  It also provide an
+-ignore option that can be used to skip certain repositories when deciding the deletion criteria.
 
 You can use the -storage option to select a different storage other than the default one.
 
@@ -348,8 +347,8 @@ OPTIONS:
    -storage <storage name>  change the password used to access the specified storage
 ```
 
-The *password* command decrypts the storage configuration file *config* using the old password, and re-encrypt the file
-using a new password.  It does not change all the encryption keys used to encrypt and decrypt chunk files
+The *password* command decrypts the storage configuration file *config* using the old password, and re-encrypts the file
+using a new password.  It does not change all the encryption keys used to encrypt and decrypt chunk files,
 snapshot files, etc.
 
 You can specify the storage to change the password for when working with multiple storages.
@@ -410,7 +409,7 @@ The -no-backup option will not allow backups from this repository to be created.
 
 The -no-restore option will not allow restoring this repository to a different revision.
 
-The -no-save-password opiton will require password to be enter every time and not saved anywhere.
+The -no-save-password opiton will require every password or token to be entered every time and not saved anywhere.
 
 The -key and -value options are used to store (in plain text) access keys or tokens need by various storages.  Please
 refer to the [Managing Passwords](https://github.com/gilbertchen/duplicacy-beta/blob/master/GUIDE.md#managing-passwords) section for more details.
@@ -437,7 +436,7 @@ The *copy* command copies snapshots from one storage to another storage.  They m
 configuraiton parameters must be the same.  One storage must be initialized with the -copy option provided by the *add* command.
 
 Instead of copying all snapshots, you can specify a set of snapshots to copy by giving the -r options.  The *copy* command
-preserves the revision numbers, so if a revision number already exists on the destination storage the *copy* command will fail.
+preserves the revision numbers, so if a revision number already exists on the destination storage the command will fail.
 
 If no -from option is given, the snapshots from the default storage will be copied.  The -to option specified the
 destination storage and is required.
@@ -456,9 +455,9 @@ For the *restore* command, the include/exclude patterns are specified as the com
 
 ## Managing Passwords
 
-Duplicacy will attempt to retrieve in three ways the storage password and various access tokens required to access the storage.
+Duplicacy will attempt to retrieve in three ways the storage password and the storage-specific access tokens/keys.
 
-* If a secret vault service is available, Duplicacy will store the password input by the user in such a secret vault and later retrieve it when needed.  On Mac OS X it is Keychain, and on Linux it is gnome-keyring.  On Windows the password is encrypted and decrypted by the Data Protection API and encrypted password is stored in the file *.duplicacy/keyring*.  However, if the -no-save-password option is specified for the storage, then Duplicacy will not save password this way
+* If a secret vault service is available, Duplicacy will store the password input by the user in such a secret vault and later retrieve it when needed.  On Mac OS X it is Keychain, and on Linux it is gnome-keyring.  On Windows the password is encrypted and decrypted by the Data Protection API, and encrypted password is stored in the file *.duplicacy/keyring*.  However, if the -no-save-password option is specified for the storage, then Duplicacy will not save passwords this way
 * If an environment variable for a password is provided, Duplicacy will always take it.  The table below shows the name of the environment variable for each kind of password.  Note that if the storage is not the default one, the storage name will be included in the name of the environment variable.
 * If a matching key and its value are saved to the preference file (.duplicacy/preferences) by the *set* command, the value will be used as the password.  The last column in the table below lists the name of the preference key for each type of password.
 
@@ -477,4 +476,4 @@ Note that the passwords stored in the environment variable and the preference ne
 
 ## Scripts
 
-You can instruct Duplicay to run a script before or after executing a command.  For exmaple, if you create a bash script with the name *pre-prune* under the *.duplicacy/scripts* directory, this bash script will be run before the *prune* command starts.  A script named *post-prune* will be run after the *prune* command finishes.  This rule applies to all commands except *init*.
+You can instruct Duplicay to run a script before or after executing a command.  For example, if you create a bash script with the name *pre-prune* under the *.duplicacy/scripts* directory, this bash script will be run before the *prune* command starts.  A script named *post-prune* will be run after the *prune* command finishes.  This rule applies to all commands except *init*.
