@@ -192,5 +192,5 @@ The followsing table compares the feature lists of all these backup tools:
 | Obnam     | Yes | Yes | Weak | Yes | Yes | No | No   |
 | Attic     | Yes | Yes | Yes  | Yes | Yes | No | No   |
 | restic    | Yes | Yes | Yes  | Yes | No  | No | S3 only |
-| Duplicacy | Yes | Yes | Yes  | Yes | Yes | Yes | Full |
+| **Duplicacy** | **Yes** | **Yes** | **Yes**  | **Yes** | **Yes** | **Yes** | **Full** |
 
