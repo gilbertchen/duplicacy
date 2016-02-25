@@ -19,7 +19,7 @@ The key idea behind Duplicacy is a concept called **Lock-Free Deduplication**, w
 * Store each chunk in the storage using a file name derived from its hash, and rely on the file system API to manage chunks without using a centralized indexing database
 * Apply a *two-step fossil collection* algorithm to remove chunks that become unreferenced after a backup is deleted
 
-The [design document](https://github.com/gilbertchen/duplicacy-beta/blob/master/DESIGN.md) explains lock-free duplication in detail.
+The [design document](https://github.com/gilbertchen/duplicacy-beta/blob/master/DESIGN.md) explains lock-free deduplication in detail.
 
 ## Getting Started
 
