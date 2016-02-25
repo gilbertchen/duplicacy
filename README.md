@@ -165,12 +165,12 @@ BackBlaze offers perhaps the least expensive cloud storage at 0.5 cent per GB pe
 ## Comparison with Other Backup Tools
 
 [duplicity](http://duplicity.nongnu.org) works by using the rsync algorithm (or more specific, the [librsync](https://github.com/librsync/librsync) library
-to find the differences from previous backups and only uploading the differences.  It is the only existing back tool with extensive cloud support -- the [long list](http://duplicity.nongnu.org/duplicity.1.html#sect7) of supported storages covers almost every cloud storage one can think of.  However, duplicity's biggest flaw lies in ints incremental model -- a chain of dependent backups starts with a full backup followed by a number of incremental ones, and ends when a full backup is uploaded.  No individual backup on a chain can be deleted without affecting others on the same chain.  Periodically, a full backup is required, in order to make previous backups discardable.
+to find the differences from previous backups and only uploading the differences.  It is the only existing back tool with extensive cloud support -- the [long list](http://duplicity.nongnu.org/duplicity.1.html#sect7) of supported storages covers almost every cloud storage one can think of.  However, duplicity's biggest flaw lies in ints incremental model -- a chain of dependent backups starts with a full backup followed by a number of incremental ones, and ends when another full backup is uploaded.  Deleting one backup will render useless the subsequent backups on the same chain.  Periodically, a full backup is required, in order to make previous backups discardable.
 
+[bup](https://github.com/bup/bup) also uses librsync to split files into chunks but save chunks in the git packfile format.  It doesn't support any cloud storage, or deletion of old backups.
 
-[bup](https://github.com/bup/bup) also uses librsync to split files into chunks but save chunks in the git packfile format.  It doesn't support any cloud storage, and deletion of old backups is impossible.
-
-[Obnam](http://obnam.org) got the incremental backup model right in the sense that every incremental backup is actuall a full snapshot.  Although Obnam also splits files into chunks, it does not adopt either the rsync algorithm or the variable-size chunking algorithm.  As a result, deletions or insertions of a few bytes will foil the deduplication.
+[Obnam](http://obnam.org) got the incremental backup model right in the sense that every incremental backup is actuall a full snapshot.  Although Obnam also splits files into chunks, it does not adopt either the rsync algorithm or the variable-size chunking algorithm.  As a result, deletions or insertions of a few bytes will foil the
+[deduplication](http://obnam.org/faq/dedup).
 Deletion of old backups is possible, but no cloud storages are supoprted.
 Multiple clients can back up to the same storage, guarded by [locking on-disk data structures](http://obnam.org/locking/).
 It is unclear if lack of cloud storage is due to difficulties in porting the locking on-disk data structures to cloud storage APIs.
@@ -181,7 +181,7 @@ necessity for better deduplication.  For instance, if multiple machines can back
 
 [restic](https://restic.github.io) is a more recent addition to the long list of backup tools.  It is worth mentioning here because like Duplicacy, it is written in Go.  Like bup, it uses a format similar to the git packfile format, but not exactly the same.  Multiple clients backing up to the same storage are still guarded by 
 [locks](https://github.com/restic/restic/blob/master/doc/Design.md#locks).
-A command to delete old backups is in the developer's [plan](https://github.com/restic/restic/issues/18). S3 storage is supported, although it is unclear how hard it is to port it to other clould storage APIs because of the use of locks.  Overall, it still falls in the same category as Attic and whether or not it will become superior to Attic is at best questionable.
+A command to delete old backups is in the developer's [plan](https://github.com/restic/restic/issues/18). S3 storage is supported, although it is unclear how hard it is to port it to other clould storage APIs because of the use of locks.  Overall, it still falls in the same category as Attic.  Whether it will eventually reach the same level as Attic remains to be seen.
 
 The followsing table compares the feature lists of all these backup tools:
 
