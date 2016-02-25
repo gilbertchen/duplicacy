@@ -144,7 +144,7 @@ Duplicacy actually uses the s3 protocol to access Google Cloud Storage, so you m
 #### Microsoft Azure
 
 ```
-Storage URL:  azure://account/path/to/storage
+Storage URL:  azure://account/container
 ```
 
 You'll need to input the access key once prompted.
