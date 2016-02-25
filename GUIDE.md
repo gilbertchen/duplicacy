@@ -448,7 +448,7 @@ destination storage and is required.
 
 ## Managing Passwords
 
-| password type | env var (default storage) | env var (non-default storage) | key in preferences  |
+| password type | environment variable (default storage) | environment variable (non-default storage) | key in preferences  |
 |:----------------:|:----------------:|:----------------:|:----------------:|
 | storage password | DUPLICACY_PASSWORD | DUPLICACY_<STORAGENAME>_PASSWORD | password |
 | sftp password | DUPLICACY_SSH_PASSWORD | DUPLICACY_<STORAGENAME>_SSH_PASSWORD | ssh_password |
