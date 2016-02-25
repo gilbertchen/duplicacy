@@ -266,7 +266,7 @@ SYNOPSIS:
    duplicacy prune - Prune snapshots by revision, tag, or retention policy
 
 USAGE:
-   duplicacy prune [command options] [arguments...]
+   duplicacy prune [command options]
 
 OPTIONS:
    -id <snapshot id>        delete snapshots with the specified id instead of the default one
@@ -276,12 +276,64 @@ OPTIONS:
    -keep <n:m> [+]          keep 1 snapshot every n days for snapshots older than m days
    -exhaustive              find all unreferenced chunks by scanning the storage
    -exclusive               assume exclusive acess to the storage (disable two-step fossil collection)
-   -ignore <id> [+]         ignore the specified snapshot id when deciding if fossils can be deleted
    -dry-run, -d             show what would have been deleted
    -delete-only             delete fossils previsouly collected (if deletable) and don't collect fossils
    -collect-only            identify and collect fossils, but don't delete fossils previously collected
+   -ignore <id> [+]         ignore the specified snapshot id when deciding if fossils can be deleted
    -storage <storage name>  prune snapshots from the specified storage
 ```
+
+The *prune* command implements the two-step fossil collection algorithm.  It will first find fossil collection files
+from previous runs and check if contained fossils are eligible for safe deletion (the fossil deletion step).  Then it
+will identify snapshots to be deleted, mark unreferenced chunks as fossils (by renaming) and save them in a new fossil
+collection file stored locally (the fossil colleciton step).
+
+If a snapshot id is specified, that snapshot id will be used instead of the default one.  The -a option will find
+snaphshots with any id.  Snapshots to be deleted can be specified by revision numbers, by a tag, by retention policies,
+or by any combination of them.
+
+The retention policies are specified by the -keep option, which accepts an argument in the form of two numbers *n:m*, where *n* indicates the number of days between two consective snapshots to keep, and *m* means that the policy only applies to snapshots  at least *m* day old.  If *n* is zero, then it means any snapshots older than *m* days will be removed.
+
+Here are a few sample retention policies:
+
+```sh
+$ duplicacy prune -keep 1:7       # Keep 1 snapshot per day for snapshots older than 7 days
+$ duplicacy prune -keep 7:30      # Keep 1 snapshot every 7 days for snapshots older than 30 days
+$ duplicacy prune -keep 30:180    # Keep 1 snapshot every 30 days for snapshots older than 180 days
+$ duplicacy prune -keep 0:360     # Keep no snapshots older than 360 days
+```
+
+Multiple -keep options must be specified by their *m* values in decreasing order.  For instance, to combine the above policies into one line, it would become:
+
+```sh
+$ duplicacy prune -keep 0:360 -keep 30:180 -keep 7:30 -keep 1:7
+```
+
+The -exhaustive option will scan the list of all chunks in the storage, therefore it will find not only 
+unreferenced chunks from deleted snapshots, but also chunks that become unreferenced for other reasons, such as
+those from an incomplete backup.  It will also find any file that does not look like a chunk file.
+In contrast, a default *prune* command will only identify 
+chunks referenced by deleted snapshots but not any other snapshots, and skip those that are not referenced by any
+snapshots at all.
+
+The -exclusive option will assume that no other clients are accessing the storage, effectively disabling the 
+*two-step fossil collection algorithm*.  With this option, the *prune* command will immediately remove unreferenced chunks.
+
+The -dryrun option is used to test what changes the *prune* command would have done.  It is guaranteed not to make
+any changes on the storage, not even creating the fossil collection file.  The following command checks if the
+chunk directory is clean (i.e., if there are any unreferenced chunks, temporary files, or anything else):
+
+```
+$ duplicacy prune -d -exclusive -exhaustive    #  Prints out nothing if the chunk directory is clean
+```
+The -delete-only option will skip the fossil collection step, while the -collect-only option will skip the fossil deletion step.
+
+For fossils collected in the fossil collection step to be eligible for safe deletion in the fossil deletion step, at least
+one new snapshot from *each* snapshot id must be created between two runs of the *prune* command.  However, a repository
+may not be set up to back up in a regular schedule, and thus literally blocking other repository from deleting any fossils.  Duplicacy by default will ignore repositories that have no backup in the past 7 days.  It also provide an
+-ignore option that can be used to specify repositories to skip when deciding the deletion criteria.
+
+You can use the -storage option to select a different storage other than the default one.
 
 
 #### Password
@@ -338,7 +390,7 @@ SYNOPSIS:
    duplicacy set - Change the options for the default or specified storage
 
 USAGE:
-   duplicacy set [command options] [arguments...]
+   duplicacy set [command options]
 
 OPTIONS:
    -encrypt, e[=true]       encrypt the storage with a password
