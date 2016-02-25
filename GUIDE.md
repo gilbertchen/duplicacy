@@ -444,7 +444,7 @@ destination storage and is required.
 
 ## Include/Exclude Patterns
 
-An include pattern starts with -, and an exclude pattern starts with +.  Patterns may contain wildcard character such as * and ? with their normal meaning.
+An include pattern starts with -, and an exclude pattern starts with +.  Patterns may contain wildcard characters such as * and ? with their normal meaning.
 
 When matching a path against a list of patterns, the path is compared with the part after + or -, one pattern at a time.  Therefore, the order of the patterns is significant.  If a match with an include pattern is found, the path is said to be included without further comparisons.  If a match with an exclude pattern is found, the path is said to be excluded without further comparison.  If a match is not found, the path will be excluded if all patterns are include patterns, but included otherwise.
 
