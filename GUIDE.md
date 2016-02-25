@@ -70,7 +70,7 @@ processes with exclusive locks can be read as usual.
 When the repository can have multiple storages (added by the *add* command), you can select the storage to back up to
 by specifying the storage name.
 
-You can specify patterns to include/exclude files by putthing them in a file named *.duplicacy/filters*.  Please refer to the Include/Exclude Patterns section for how to specify the patterns.
+You can specify patterns to include/exclude files by putthing them in a file named *.duplicacy/filters*.  Please refer to the [Include/Exclude Patterns](https://github.com/gilbertchen/duplicacy-beta/blob/master/GUIDE.md#includeexclude-patterns) section for how to specify the patterns.
 
 #### Restore
 ```
@@ -103,7 +103,7 @@ When the repository can have multiple storages (added by the *add* command), you
 
 Unlike the *backup* procedure that reading the include/exclude patterns from a file, the *restore* procedure reads them
 from the command line.  If the patterns can cause confusion to the command line argument parse, -- should be prepended to
-the patterns.  Please refer to the Include/Exclude Patterns section for how to specify patterns.
+the patterns.  Please refer to the [Include/Exclude Patterns](https://github.com/gilbertchen/duplicacy-beta/blob/master/GUIDE.md#includeexclude-patterns) section for how to specify patterns.
 
 
 #### List
@@ -139,7 +139,7 @@ contained in the snapshot.
 
 If -chunks is specified, the command will also print out every chunk the snapshot references.
 
-The -reset-password option is used to reset stored passwords and to allow passwords to be enterred again.  Please refer to the Managing Passwords section for more information.
+The -reset-password option is used to reset stored passwords and to allow passwords to be enterred again.  Please refer to the [Managing Passwords](https://github.com/gilbertchen/duplicacy-beta/blob/master/GUIDE.md#managing-passwords) section for more information.
 
 When the repository can have multiple storages (added by the *add* command), you can specify the storage to list
 by specifying the storage name.
@@ -413,7 +413,7 @@ The -no-restore option will not allow restoring this repository to a different r
 The -no-save-password opiton will require password to be enter every time and not saved anywhere.
 
 The -key and -value options are used to store (in plain text) access keys or tokens need by various storages.  Please
-refer to the Managing Passwords section for more details.
+refer to the [Managing Passwords](https://github.com/gilbertchen/duplicacy-beta/blob/master/GUIDE.md#managing-passwords) section for more details.
 
 You can select a storage to change options for by specifying a storage name.
 
@@ -448,6 +448,12 @@ destination storage and is required.
 
 ## Managing Passwords
 
+Duplicacy will attempt to retrieve in three ways the storage password and various access tokens required to access the storage.
+
+* If a secret vault service is available, Duplicacy will store the password input by the user in such a secret vault and later retrieve it when needed.  On Mac OS X it is Keychain, and on Linux it is gnome-keyring.  On Windows the password is encrypted and decrypted by the Data Protection API and encrypted password is stored in the file *.duplicacy/keyring*.  However, if the -no-save-password option is specified for the storage, then Duplicacy will not save password this way
+* If an environment variable for a password is provided, Duplicacy will always take it.  The table below shows the name of the environment variable for each kind of password.  Note that if the storage is not the default one, the storage name will be included in the name of the environment variable.
+* If a matching key and a value is saved to the preference file (.duplicacy/preferences) by the *set* command, the value will be used as the password.  The last column in the table below lists the name of the preference key for each type of password.
+
 | password type | environment variable (default storage) | environment variable (non-default storage) | key in preferences  |
 |:----------------:|:----------------:|:----------------:|:----------------:|
 | storage password | DUPLICACY_PASSWORD | DUPLICACY_<STORAGENAME>_PASSWORD | password |
@@ -458,6 +464,8 @@ destination storage and is required.
 | BackBlaze Account ID | DUPLICACY_B2_ID | DUPLICACY_<STORAGENAME>_B2_ID | b2_id |
 | Backblaze Application Key | DUPLICACY_B2_KEY | DUPLICACY_<STORAGENAME>_B2_KEY | b2_key |
 | Azure Access Key | DUPLICACY_AZURE_KEY | DUPLICACY_<STORAGENAME>_AZURE_KEY | azure_key |
+
+Note that the passwords stored in the environment variable and the preference need to be in plaintext and thus are insecure and should be avoided whenver possible.
 
 ## Scripts
 
