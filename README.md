@@ -162,7 +162,35 @@ You'll need to input the account id and application key.
 
 BackBlaze offers perhaps the least expensive cloud storage at 0.5 cent per GB per month.  Unfortunately their API does not support file renaming, so the -exclusive option is required when pruning old backups.  This means concurrent access and deletion can't be permitted at the same time.
 
+## Comparison with Other Backup Tools
+
+[duplicity](http://duplicity.nongnu.org) works by using the rsync algorithm (or more specific, the [librsync](https://github.com/librsync/librsync) library
+to find the differences from previous backups and only uploading the differences.  It is the only existing back tool with extensive cloud support -- the [long list](http://duplicity.nongnu.org/duplicity.1.html#sect7) of supported storages covers almost every cloud storage one can think of.  However, duplicity's biggest flaw lies in ints incremental model -- a chain of dependent backups starts with a full backup followed by a number of incremental ones, and ends when a full backup is uploaded.  No individual backup on a chain can be deleted without affecting others on the same chain.  Periodically, a full backup is required, in order to make previous backups discardable.
 
 
+[bup](https://github.com/bup/bup) also uses librsync to split files into chunks but save chunks in the git packfile format.  It doesn't support any cloud storage, and deletion of old backups is impossible.
 
+[Obnam](http://obnam.org) got the incremental backup model right in the sense that every incremental backup is actuall a full snapshot.  Although Obnam also splits files into chunks, it does not adopt either the rsync algorithm or the variable-size chunking algorithm.  As a result, deletions or insertions of a few bytes will foil the deduplication.
+Deletion of old backups is possible, but no cloud storages are supoprted.
+Multiple clients can back up to the same storage, guarded by [locking on-disk data structures](http://obnam.org/locking/).
+It is unclear if lack of cloud storage is due to difficulties in porting the locking on-disk data structures to cloud storage APIs.
+
+[Attic](https://attic-backup.org) has been acclaimed by some as the [Holy Grail of bacups](https://www.stavros.io/posts/holy-grail-backups).  It follows the same incremental backup model as Obnam, but embraces the variable-size chunk algorithm for better performance and better deduplication.  Deletions of old backup is also supported.  However, no cloud storages are supported, as in Obnam.  Secondly, concurrent backups from multiple clients to the same storage is not possible, as locking is still required.  
+Concurrent access is not only a convenience; it is a
+necessity for better deduplication.  For instance, if multiple machines can back up their entire drives to the same storage, only one copy of the same OS files can be stored, greatly reducing the storage space regardless of the number of machines.  Attic still adopts the traditional approach of using a centralized indexing database to manage chunks, and relies heavily on caching to improve performance.  The presence of locking makes it hard to be adapted for cloud storage APIs and prevents concurrent access.
+
+[restic](https://restic.github.io) is a more recent addition to the long list of backup tools.  It is worth mentioning here because like Duplicacy, it is written in Go.  Like bup, it uses a format similar to the git packfile format, but not exactly the same.  Multiple clients backing up to the same storage is still guarded by 
+[locks](https://github.com/restic/restic/blob/master/doc/Design.md#locks).
+A command to delete old backups is in the developer's [plan](https://github.com/restic/restic/issues/18). S3 storage is supported, although it is unclear how hard it is to port it to other clould storage APIs because of the use of locks.  Overall, it still falls in the same category as Attic and whether not no it will become superior to Attic is at best questionable.
+
+The followsing table compares the feature lists of all these backup tools:
+
+| Tool | Incremental Backup | Full Snapshot | Deduplication | Encryption | Deletion | Concurrent Backups |Cloud Support |
+|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|
+| duplicity | Yes | No  | Weak | Yes | No  | No | Full |
+| bup       | Yes | Yes | Yes  | Yes | No  | No | No   |
+| Obnam     | Yes | Yes | Weak | Yes | Yes | No | No   |
+| Attic     | Yes | Yes | Yes  | Yes | Yes | No | No   |
+| restic    | Yes | Yes | Yes  | Yes | No  | No | S3 only |
+| Duplicacy | Yes | Yes | Yes  | Yes | Yes | Yes | Full |
 
