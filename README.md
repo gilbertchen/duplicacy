@@ -181,7 +181,7 @@ necessity for better deduplication.  For instance, if multiple machines can back
 
 [restic](https://restic.github.io) is a more recent addition to the long list of backup tools.  It is worth mentioning here because like Duplicacy, it is written in Go.  Like bup, it uses a format similar to the git packfile format, but not exactly the same.  Multiple clients backing up to the same storage are still guarded by 
 [locks](https://github.com/restic/restic/blob/master/doc/Design.md#locks).
-A command to delete old backups is in the developer's [plan](https://github.com/restic/restic/issues/18). S3 storage is supported, although it is unclear how hard it is to port it to other clould storage APIs because of the use of locks.  Overall, it still falls in the same category as Attic and whether not no it will become superior to Attic is at best questionable.
+A command to delete old backups is in the developer's [plan](https://github.com/restic/restic/issues/18). S3 storage is supported, although it is unclear how hard it is to port it to other clould storage APIs because of the use of locks.  Overall, it still falls in the same category as Attic and whether or not it will become superior to Attic is at best questionable.
 
 The followsing table compares the feature lists of all these backup tools:
 
