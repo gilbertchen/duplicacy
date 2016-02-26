@@ -20,7 +20,7 @@ OPTIONS:
 ```
 
 The *init* command first connects to the storage specified by the storage URL.  If the storage has been already been
-initailized before, it will download the storage configuration (stored in the file named *config*) and ignore the options provided in the command line.  Otherwise, it will create the configuration file from the options and upload the file.
+initialized before, it will download the storage configuration (stored in the file named *config*) and ignore the options provided in the command line.  Otherwise, it will create the configuration file from the options and upload the file.
 
 The initialized storage will then become the default storage for other commands if the -storage option is not specified
 for those commands.  This default storage actually has a name, *default*.
@@ -56,7 +56,7 @@ OPTIONS:
 ```
 
 The *backup* command creates a snapshot of the repository and uploads it to the storage.  If -hash is not provided,
-it will upload new or modified files since last backup by comparing file sizes and timestmaps.
+it will upload new or modified files since last backup by comparing file sizes and timestamps.
 Otherwise, every file is scanned to detect changes.
 
 You can assign a tag to the snapshot so that later you can refer to it by tag in other commands.
