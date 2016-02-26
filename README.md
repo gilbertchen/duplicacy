@@ -187,10 +187,10 @@ The followsing table compares the feature lists of all these backup tools:
 
 | Tool | Incremental Backup | Full Snapshot | Deduplication | Encryption | Deletion | Concurrent Backups |Cloud Support |
 |:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|
-| duplicity | Yes | No  | Weak | Yes | No  | No | Full |
+| duplicity | Yes | No  | Weak | Yes | No  | No | Extensive |
 | bup       | Yes | Yes | Yes  | Yes | No  | No | No   |
 | Obnam     | Yes | Yes | Weak | Yes | Yes | Exclusive locking | No   |
 | Attic     | Yes | Yes | Yes  | Yes | Yes | Not recommended | No   |
 | restic    | Yes | Yes | Yes  | Yes | No  | Exclusive locking | S3 only |
-| **Duplicacy** | **Yes** | **Yes** | **Yes**  | **Yes** | **Yes** | **Lock-free** | **Full** |
+| **Duplicacy** | **Yes** | **Yes** | **Yes**  | **Yes** | **Yes** | **Lock-free** | **5 major cloud storages** |
 
