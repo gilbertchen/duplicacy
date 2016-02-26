@@ -61,7 +61,7 @@ The first condition guarantees that if a backup procedure references a chunk bef
 The second condition guarantees that any backup procedure unknown to the fossil deletion step can start only after the fossil collection step finishes.  Therefore, if it references a chunk that was identified as fossil in the fossil collection step, it should observe the fossil, not the chunk, so it will upload a new chunk, according to the second fossil access rule.
 
 Therefore, if a backup procedure references a chunk before the chunk is marked a fossil, the fossil deletion step will not
-delete the chunk until it sees the backup procedure finishes (as indicated by the appearance of a new snapshot file uploaded to the storage).  This ensures that scenarios depicted in Figure 2 will never happen.
+delete the chunk until it sees that backup procedure finishes (as indicated by the appearance of a new snapshot file uploaded to the storage).  This ensures that scenarios depicted in Figure 2 will never happen.
 
 <p align="center">
   <img src="https://github.com/gilbertchen/duplicacy-beta/blob/master/images/fossil_collection_2.png?raw=true" 
@@ -211,5 +211,5 @@ Chunk content is encrypted by AES-GCM, with an encryption key that is the HMAC-S
 The snapshot is encrypted by AES-GCM too, using an encrypt key that is the HMAC-SHA256 of the file path with the *File Key* as the secret key.
 
 There four random keys are saved in a file named 'config' in the file storage, encrypted with a master key derived from the PBKDF2 function on
-the storage password selected by the user.
+the storage password chosen by the user.
 
