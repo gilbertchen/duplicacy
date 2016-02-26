@@ -27,7 +27,7 @@ If exclusive access to a file storage by a single client can be guaranteed, the 
 chunks not referenced by any backup and delete them. However, if concurrent access is required, an unreferenced chunk
 can't be trivially removed, because of the possibility that a backup procedure in progress may reference the same chunk.
 The ongoing backup procedure, still unknown to the deletion procedure, may have already encountered that chunk during its
-file scanning phase, but decided not to upload the chunk again since it already exists on the file storage. 
+file scanning phase, but decided not to upload the chunk again since it already exists in the file storage. 
 
 Fortunately, there is a solution to address the deletion problem and make lock-free deduplication practical.  The solution is a *two-step fossil collection* algorithm that deletes unreferenced chunks in two steps: identify and collect them in the first step, and then permanently remove them once certain conditions are met.
 
@@ -38,7 +38,7 @@ When the deletion procedure identifies a chunk not referenced by any known snaps
 immediately, it changes the name of the chunk file (and possibly moves it to a different directory).
 A chunk that has been renamed is called a *fossil*.
 
-The fossil still exists on the file storage.  Two rules are enforced regarding the access of fossils:
+The fossil still exists in the file storage.  Two rules are enforced regarding the access of fossils:
 
 * A restore, list, or check procedure that reads existing backups can read the fossil if the original chunk cannot be found.
 * A backup procedure does not check the existence of a fossil. That is, it must upload a chunk if it cannot find the chunk, even if an equivalent fossil exists.
