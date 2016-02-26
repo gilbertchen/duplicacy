@@ -133,7 +133,7 @@ Storage URL:  s3://amazon.com/bucket/path/to/storage (default region is us-east-
               s3://region@amazon.com/bucket/path/to/storage (other regions must be specified)
 ```
 
-You'll need to input an access key and a scret key to access your Amazon S3 storage.
+You'll need to input an access key and a secret key to access your Amazon S3 storage.
 
 
 #### Google Cloud Storage
@@ -165,7 +165,7 @@ BackBlaze offers perhaps the least expensive cloud storage at 0.5 cent per GB pe
 ## Comparison with Other Backup Tools
 
 [duplicity](http://duplicity.nongnu.org) works by applying the rsync algorithm (or more specific, the [librsync](https://github.com/librsync/librsync) library)
-to find the differences from previous backups and only then uploading the differences.  It is the only existing backup tool with extensive cloud support -- the [long list](http://duplicity.nongnu.org/duplicity.1.html#sect7) of storage backends covers almost every cloud provider one can think of.  However, duplicity's biggest flaw lies in its incremental model -- a chain of dependent backups starts with a full backup followed by a number of incremental ones, and ends when another full backup is uploaded.  Deleting one backup will render useless all the subsequent backups on the same chain.  Periodic full backups are required, in order to make previous backups discardable.
+to find the differences from previous backups and only then uploading the differences.  It is the only existing backup tool with extensive cloud support -- the [long list](http://duplicity.nongnu.org/duplicity.1.html#sect7) of storage backends covers almost every cloud provider one can think of.  However, duplicity's biggest flaw lies in its incremental model -- a chain of dependent backups starts with a full backup followed by a number of incremental ones, and ends when another full backup is uploaded.  Deleting one backup will render useless all the subsequent backups on the same chain.  Periodic full backups are required, in order to make previous backups disposable.
 
 [bup](https://github.com/bup/bup) also uses librsync to split files into chunks but save chunks in the git packfile format.  It doesn't support any cloud storage, or deletion of old backups.
 
