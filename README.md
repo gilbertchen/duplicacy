@@ -176,7 +176,7 @@ Multiple clients can back up to the same storage, but the access is made sequent
 It is unclear if lack of cloud storage is due to difficulties in porting the locking on-disk data structures to cloud storage APIs.
 
 [Attic](https://attic-backup.org) has been acclaimed by some as the [Holy Grail of bacups](https://www.stavros.io/posts/holy-grail-backups).  It follows the same incremental backup model as Obnam, but embraces the variable-size chunk algorithm for better performance and better deduplication.  Deletions of old backup is also supported.  However, no cloud backends are implemented, as in Obnam.  Although concurrent backups from multiple clients to the same storage is in theory possible by the use of locking, it is 
-[not recommended](http://librelist.com/browser//attic/2014/11/11/backing-up-multiple-servers-into-a-single-repository/#e96345aa5a3469a87786675d65da492b) by the developer due to chunk indices being kept locally. 
+[not recommended](http://librelist.com/browser//attic/2014/11/11/backing-up-multiple-servers-into-a-single-repository/#e96345aa5a3469a87786675d65da492b) by the developer due to chunk indices being kept in a local cache. 
 Concurrent access is not only a convenience; it is a necessity for better deduplicatio.  For instance, if multiple machines can back up their entire drives to the same storage, only one copy of the same OS files can be stored, greatly reducing the storage space regardless of the number of machines.  Attic still adopts the traditional approach of using a centralized indexing database to manage chunks, and relies heavily on caching to improve performance.  The presence of exclusive locking makes it hard to be adapted for cloud storage APIs.
 
 [restic](https://restic.github.io) is a more recent addition to the long list of backup tools.  It is worth mentioning here because like Duplicacy, it is written in Go.  Like bup, it uses a format similar to the git packfile format, but not exactly the same.  Multiple clients backing up to the same storage are still guarded by 
@@ -185,12 +185,12 @@ A command to delete old backups is in the developer's [plan](https://github.com/
 
 The followsing table compares the feature lists of all these backup tools:
 
-| Tool | Incremental Backup | Full Snapshot | Deduplication | Encryption | Deletion | Multiple Backup Clients |Cloud Support |
+| Tool | Incremental Backup | Full Snapshot | Deduplication | Encryption | Deletion | Concurrent Backups |Cloud Support |
 |:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|
 | duplicity | Yes | No  | Weak | Yes | No  | No | Full |
 | bup       | Yes | Yes | Yes  | Yes | No  | No | No   |
 | Obnam     | Yes | Yes | Weak | Yes | Yes | Exclusive Locking | No   |
 | Attic     | Yes | Yes | Yes  | Yes | Yes | Not Recommended | No   |
 | restic    | Yes | Yes | Yes  | Yes | No  | Exclusive Locking | S3 only |
-| **Duplicacy** | **Yes** | **Yes** | **Yes**  | **Yes** | **Yes** | **Concurrent** | **Full** |
+| **Duplicacy** | **Yes** | **Yes** | **Yes**  | **Yes** | **Yes** | **Lock-free** | **Full** |
 
