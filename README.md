@@ -189,8 +189,8 @@ The followsing table compares the feature lists of all these backup tools:
 |:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|
 | duplicity | Yes | No  | Weak | Yes | No  | No | Full |
 | bup       | Yes | Yes | Yes  | Yes | No  | No | No   |
-| Obnam     | Yes | Yes | Weak | Yes | Yes | Exclusive Locking | No   |
-| Attic     | Yes | Yes | Yes  | Yes | Yes | Not Recommended | No   |
-| restic    | Yes | Yes | Yes  | Yes | No  | Exclusive Locking | S3 only |
+| Obnam     | Yes | Yes | Weak | Yes | Yes | Exclusive locking | No   |
+| Attic     | Yes | Yes | Yes  | Yes | Yes | Not recommended | No   |
+| restic    | Yes | Yes | Yes  | Yes | No  | Exclusive locking | S3 only |
 | **Duplicacy** | **Yes** | **Yes** | **Yes**  | **Yes** | **Yes** | **Lock-free** | **Full** |
 
