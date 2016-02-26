@@ -32,7 +32,7 @@ The snapshot id is an id used to distinguish different repositories connected to
 
 The -e option controls whether or not encryption will be enabled for the storage.  If encryption is enabled, you will be prompted to enter a storage password.
 
-The three chunk size parametes are passed to the variable-size chunking algorithm.  Their values are important to the overall performance, espeically for cloud storages.  If the chunk size is too small, a lot of overhead will be in sending requests and receiving responses.  If the chunk size is too large, the effect of deduplication will be less obvious as more data will need to be transferred with each chunk.
+The three chunk size parameters are passed to the variable-size chunking algorithm.  Their values are important to the overall performance, especially for cloud storages.  If the chunk size is too small, a lot of overhead will be in sending requests and receiving responses.  If the chunk size is too large, the effect of deduplication will be less obvious as more data will need to be transferred with each chunk.
 
 The compression level parameter is passed to the zlib library.  Valid values are -1 through 9, with 0 meaning no compression, 9 best compression (slowest), and -1 being the default value (equivalent to level 6).
 
@@ -48,7 +48,7 @@ USAGE:
    duplicacy backup [command options]
 
 OPTIONS:
-   -hash                      detect file diferences by hash (rather than size and timestamp)
+   -hash                      detect file differences by hash (rather than size and timestamp)
    -t <tag>                   assign a tag to the backup
    -stats                     show statistics during and after backup
    -vss                       enable the Volume Shadow Copy service (Windows only)
@@ -56,7 +56,7 @@ OPTIONS:
 ```
 
 The *backup* command creates a snapshot of the repository and uploads it to the storage.  If -hash is not provided,
-it will upload new or modified files since last backup by comparing file sizes and timestmpas.
+it will upload new or modified files since last backup by comparing file sizes and timestmaps.
 Otherwise, every file is scanned to detect changes.
 
 You can assign a tag to the snapshot so that later you can refer to it by tag in other commands.
@@ -118,7 +118,7 @@ OPTIONS:
    -all, -a                    list snapshots with any id
    -id <snapshot id>           list snapshots with the specified id rather than the default one
    -r <revision> [+]           the revision number of the snapshot
-   -t <tag>                    list snaphots with the specified tag
+   -t <tag>                    list snapshots with the specified tag
    -files                      print the file list in each snapshot
    -chunks                     print chunks in each snapshot or all chunks if no snapshot specified
    -reset-password             take passwords from input rather than keychain/keyring or env
@@ -126,7 +126,7 @@ OPTIONS:
 ```
 
 The *list* command lists information about specified snapshots.  By default it will list snapshots created from the
-current respository, but you can list all snapshots stored in the storage by specifying the -all option, or list snapshots
+current repository, but you can list all snapshots stored in the storage by specifying the -all option, or list snapshots
 with a different snapshot id using the -id option, and/or snapshots with a particular tag with the -t option.
 
 The revision number is a number assigned to the snapshot when it is being created.  This number will keep increasing
@@ -139,7 +139,7 @@ contained in the snapshot.
 
 If -chunks is specified, the command will also print out every chunk the snapshot references.
 
-The -reset-password option is used to reset stored passwords and to allow passwords to be enterred again.  Please refer to the [Managing Passwords](https://github.com/gilbertchen/duplicacy-beta/blob/master/GUIDE.md#managing-passwords) section for more information.
+The -reset-password option is used to reset stored passwords and to allow passwords to be entered again.  Please refer to the [Managing Passwords](https://github.com/gilbertchen/duplicacy-beta/blob/master/GUIDE.md#managing-passwords) section for more information.
 
 When the repository can have multiple storages (added by the *add* command), you can specify the storage to list
 by specifying the storage name.
@@ -165,7 +165,7 @@ OPTIONS:
 The *check* command checks, for each specified snapshot, that all referenced chunks exist in the storage.
 
 By default the *check* command will check snapshots created from the
-current respository, but you can check all snapshots stored in the storage at once by specifying the -all option, or
+current repository, but you can check all snapshots stored in the storage at once by specifying the -all option, or
 snapshots from a different repository using the -id option, and/or snapshots with a particular tag with the -t option.
 
 The revision number is a number assigned to the snapshot when it is being created.  This number will keep increasing
@@ -198,13 +198,13 @@ OPTIONS:
    -storage <storage name>  retrieve the file from the specified storage
 ```
 
-The *cat* command prints a file or the entire snpashot content if no file is specified.
+The *cat* command prints a file or the entire snapshot content if no file is specified.
 
 The file must be specified with a path relative to the repository.
 
 You can specify a different snapshot id rather than the default id.
 
-The -r option is optional.  If not specified, the lastest revision will be selected.
+The -r option is optional.  If not specified, the latest revision will be selected.
 
 You can use the -storage option to select a different storage other than the default one.
 
@@ -217,7 +217,7 @@ USAGE:
    duplicacy diff [command options] [<file>]
 
 OPTIONS:
-   -id <snapshot id>        diff with the snpashot with the specified id
+   -id <snapshot id>        diff with the snapshot with the specified id
    -r <revision> [+]        the revision number of the snapshot
    -hash                    compute the hashes of on-disk files
    -storage <storage name>  retrieve files from the specified storage
@@ -243,7 +243,7 @@ USAGE:
    duplicacy history [command options] <file>
 
 OPTIONS:
-   -id <snapshot id>        find the file in the snpashot with the specified id
+   -id <snapshot id>        find the file in the snapshot with the specified id
    -r <revision> [+]        show history of the specified revisions
    -hash                    show the hash of the on-disk file
    -storage <storage name>  retrieve files from the specified storage
@@ -251,7 +251,7 @@ OPTIONS:
 
 The *history* command shows how the hash, size, and timestamp of a file change over the specified set of revisions.
 
-You can specify a different snapshot id rather than the default snapshot id, and multipe -r options to specify the
+You can specify a different snapshot id rather than the default snapshot id, and multiple -r options to specify the
 set of revisions.
 
 The -hash option is to compute the hash of the on-disk file.  Otherwise, only the size and timestamp of the on-disk
@@ -271,12 +271,12 @@ OPTIONS:
    -id <snapshot id>        delete snapshots with the specified id instead of the default one
    -all, -a                 match against all snapshot IDs
    -r <revision> [+]        delete snapshots with the specified revisions
-   -t <tag> [+]             delete snapshots with the specifed tags
+   -t <tag> [+]             delete snapshots with the specified tags
    -keep <n:m> [+]          keep 1 snapshot every n days for snapshots older than m days
    -exhaustive              find all unreferenced chunks by scanning the storage
-   -exclusive               assume exclusive acess to the storage (disable two-step fossil collection)
+   -exclusive               assume exclusive access to the storage (disable two-step fossil collection)
    -dry-run, -d             show what would have been deleted
-   -delete-only             delete fossils previsouly collected (if deletable) and don't collect fossils
+   -delete-only             delete fossils previously collected (if deletable) and don't collect fossils
    -collect-only            identify and collect fossils, but don't delete fossils previously collected
    -ignore <id> [+]         ignore the specified snapshot id when deciding if fossils can be deleted
    -storage <storage name>  prune snapshots from the specified storage
@@ -285,13 +285,13 @@ OPTIONS:
 The *prune* command implements the two-step fossil collection algorithm.  It will first find fossil collection files
 from previous runs and check if contained fossils are eligible for permanent deletion (the fossil deletion step).  Then it
 will search for snapshots to be deleted, mark unreferenced chunks as fossils (by renaming) and save them in a new fossil
-collection file stored locally (the fossil colleciton step).
+collection file stored locally (the fossil collection step).
 
 If a snapshot id is specified, that snapshot id will be used instead of the default one.  The -a option will find
-snaphshots with any id.  Snapshots to be deleted can be specified by revision numbers, by a tag, by retention policies,
+snapshots with any id.  Snapshots to be deleted can be specified by revision numbers, by a tag, by retention policies,
 or by any combination of them.
 
-The retention policies are specified by the -keep option, which accepts an argument in the form of two numbers *n:m*, where *n* indicates the number of days between two consective snapshots to keep, and *m* means that the policy only applies to snapshots at least *m* day old.  If *n* is zero, any snapshots older than *m* days will be removed.
+The retention policies are specified by the -keep option, which accepts an argument in the form of two numbers *n:m*, where *n* indicates the number of days between two consecutive snapshots to keep, and *m* means that the policy only applies to snapshots at least *m* day old.  If *n* is zero, any snapshots older than *m* days will be removed.
 
 Here are a few sample retention policies:
 
@@ -368,17 +368,17 @@ OPTIONS:
    -max-chunk-size, -max 16M       the maximum size of chunks (defaults to chunk-size * 4)
    -min-chunk-size, -min 1M        the minimum size of chunks (defaults to chunk-size / 4)
    -compression-level, -l <level>  compression level (defaults to -1)
-   -copy <storage name>            make the new storage copy-compatiable with an existing one
+   -copy <storage name>            make the new storage copy-compatible with an existing one
 ```
 
 The *add* command connects another storage to the current repository.  Like the *init* command, if the storage has not
-been intialized before, a storage configuraiton file derived from the command line options will be uploaded, but those
+been initialized before, a storage configuration file derived from the command line options will be uploaded, but those
 options will be ignored if the configuration file already exists in the storage.
 
 A unique storage name must be given in order to distinguish it from other storages.
 
 The -copy option is required if later you want to copy snapshots between this storage and another storage.
-Two storages are copy-compatiable if they have the same average chunk size, the same maximum chunk size,
+Two storages are copy-compatible if they have the same average chunk size, the same maximum chunk size,
 the same minimum chunk size, the same chunk seed (used in calculating the rolling hash in the variable-size chunks
 algorithm), and the same hash key.  If the -copy option is specified, these parameters will be copied from
 the existing storage rather than from the command line.
@@ -409,7 +409,7 @@ The -no-backup option will not allow backups from this repository to be created.
 
 The -no-restore option will not allow restoring this repository to a different revision.
 
-The -no-save-password opiton will require every password or token to be entered every time and not saved anywhere.
+The -no-save-password option will require every password or token to be entered every time and not saved anywhere.
 
 The -key and -value options are used to store (in plain text) access keys or tokens need by various storages.  Please
 refer to the [Managing Passwords](https://github.com/gilbertchen/duplicacy-beta/blob/master/GUIDE.md#managing-passwords) section for more details.
@@ -420,7 +420,7 @@ You can select a storage to change options for by specifying a storage name.
 #### Copy
 ```
 SYNOPSIS:
-   duplicacy copy - Copy snapshots between compatiable storages
+   duplicacy copy - Copy snapshots between compatible storages
 
 USAGE:
    duplicacy copy [command options]
@@ -432,8 +432,8 @@ OPTIONS:
    -to <storage name>    copy snapshots to the specified storage
 ```
 
-The *copy* command copies snapshots from one storage to another storage.  They must be copy-compatiable, i.e., some
-configuraiton parameters must be the same.  One storage must be initialized with the -copy option provided by the *add* command.
+The *copy* command copies snapshots from one storage to another storage.  They must be copy-compatible, i.e., some
+configuration parameters must be the same.  One storage must be initialized with the -copy option provided by the *add* command.
 
 Instead of copying all snapshots, you can specify a set of snapshots to copy by giving the -r options.  The *copy* command
 preserves the revision numbers, so if a revision number already exists on the destination storage the command will fail.
@@ -472,7 +472,7 @@ Duplicacy will attempt to retrieve in three ways the storage password and the st
 | Backblaze Application Key | DUPLICACY_B2_KEY | DUPLICACY_<STORAGENAME>_B2_KEY | b2_key |
 | Azure Access Key | DUPLICACY_AZURE_KEY | DUPLICACY_<STORAGENAME>_AZURE_KEY | azure_key |
 
-Note that the passwords stored in the environment variable and the preference need to be in plaintext and thus are insecure and should be avoided whenver possible.
+Note that the passwords stored in the environment variable and the preference need to be in plaintext and thus are insecure and should be avoided whenever possible.
 
 ## Scripts
 
