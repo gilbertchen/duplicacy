@@ -192,5 +192,5 @@ The following table compares the feature lists of all these backup tools:
 | Obnam     | Yes | Yes | Weak | Yes | Yes | Exclusive locking | No   |
 | Attic     | Yes | Yes | Yes  | Yes | Yes | Not recommended | No   |
 | restic    | Yes | Yes | Yes  | Yes | No  | Exclusive locking | S3 only |
-| **Duplicacy** | **Yes** | **Yes** | **Yes**  | **Yes** | **Yes** | **Lock-free** | **Amazon S3, Google Cloud Drive, Microsoft Azure, Dropbox, BackBlaze** |
+| **Duplicacy** | **Yes** | **Yes** | **Yes**  | **Yes** | **Yes** | **Lock-free** | **S3, GCS, Azure, Dropbox, BackBlaze** |
 
