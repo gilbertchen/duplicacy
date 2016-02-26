@@ -177,13 +177,13 @@ It is unclear if lack of cloud storage is due to difficulties in porting the loc
 
 [Attic](https://attic-backup.org) has been acclaimed by some as the [Holy Grail of bacups](https://www.stavros.io/posts/holy-grail-backups).  It follows the same incremental backup model as Obnam, but embraces the variable-size chunk algorithm for better performance and better deduplication.  Deletions of old backup is also supported.  However, no cloud backends are implemented, as in Obnam.  Although concurrent backups from multiple clients to the same storage is in theory possible by the use of locking, it is 
 [not recommended](http://librelist.com/browser//attic/2014/11/11/backing-up-multiple-servers-into-a-single-repository/#e96345aa5a3469a87786675d65da492b) by the developer due to chunk indices being kept in a local cache. 
-Concurrent access is not only a convenience; it is a necessity for better deduplicatio.  For instance, if multiple machines can back up their entire drives to the same storage, only one copy of the same OS files can be stored, greatly reducing the storage space regardless of the number of machines.  Attic still adopts the traditional approach of using a centralized indexing database to manage chunks, and relies heavily on caching to improve performance.  The presence of exclusive locking makes it hard to be adapted for cloud storage APIs.
+Concurrent access is not only a convenience; it is a necessity for better deduplication.  For instance, if multiple machines with the same OS installed can back up their entire drives to the same storage, only one copy of the system files needs to be stored, greatly reducing the storage space regardless of the number of machines.  Attic still adopts the traditional approach of using a centralized indexing database to manage chunks, and relies heavily on caching to improve performance.  The presence of exclusive locking makes it hard to be adapted for cloud storage APIs and reduces the level of deduplication.
 
-[restic](https://restic.github.io) is a more recent addition to the long list of backup tools.  It is worth mentioning here because like Duplicacy, it is written in Go.  Like bup, it uses a format similar to the git packfile format, but not exactly the same.  Multiple clients backing up to the same storage are still guarded by 
+[restic](https://restic.github.io) is a more recent addition to the long list of backup tools.  It is worth mentioning here because, like Duplicacy, it is written in Go.  It uses a format similar to the git packfile format, but not exactly the same.  Multiple clients backing up to the same storage are still guarded by 
 [locks](https://github.com/restic/restic/blob/master/doc/Design.md#locks).
-A command to delete old backups is in the developer's [plan](https://github.com/restic/restic/issues/18). S3 storage is supported, although it is unclear how hard it is to port it to other clould storage APIs because of the use of locks.  Overall, it still falls in the same category as Attic.  Whether it will eventually reach the same level as Attic remains to be seen.
+A command to delete old backups is in the developer's [plan](https://github.com/restic/restic/issues/18). S3 storage is supported, although it is unclear how hard it is to support other clould storage APIs because of the need for locking.  Overall, it still falls in the same category as Attic.  Whether it will eventually reach the same level as Attic remains to be seen.
 
-The followsing table compares the feature lists of all these backup tools:
+The following table compares the feature lists of all these backup tools:
 
 | Tool | Incremental Backup | Full Snapshot | Deduplication | Encryption | Deletion | Concurrent Backups |Cloud Support |
 |:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|
@@ -192,5 +192,5 @@ The followsing table compares the feature lists of all these backup tools:
 | Obnam     | Yes | Yes | Weak | Yes | Yes | Exclusive locking | No   |
 | Attic     | Yes | Yes | Yes  | Yes | Yes | Not recommended | No   |
 | restic    | Yes | Yes | Yes  | Yes | No  | Exclusive locking | S3 only |
-| **Duplicacy** | **Yes** | **Yes** | **Yes**  | **Yes** | **Yes** | **Lock-free** | **5 major cloud storages** |
+| **Duplicacy** | **Yes** | **Yes** | **Yes**  | **Yes** | **Yes** | **Lock-free** | **Amazon S3, Google Cloud Drive, Microsoft Azure, Dropbox, BackBlaze** |
 
