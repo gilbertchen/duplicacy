@@ -164,28 +164,28 @@ BackBlaze offers perhaps the least expensive cloud storage at 0.5 cent per GB pe
 
 ## Comparison with Other Backup Tools
 
-[duplicity](http://duplicity.nongnu.org) works by using the rsync algorithm (or more specific, the [librsync](https://github.com/librsync/librsync) library
-to find the differences from previous backups and only uploading the differences.  It is the only existing back tool with extensive cloud support -- the [long list](http://duplicity.nongnu.org/duplicity.1.html#sect7) of supported storages covers almost every cloud storage one can think of.  However, duplicity's biggest flaw lies in ints incremental model -- a chain of dependent backups starts with a full backup followed by a number of incremental ones, and ends when another full backup is uploaded.  Deleting one backup will render useless the subsequent backups on the same chain.  Periodically, a full backup is required, in order to make previous backups discardable.
+[duplicity](http://duplicity.nongnu.org) works by applying the rsync algorithm (or more specific, the [librsync](https://github.com/librsync/librsync) library)
+to find the differences from previous backups and only then uploading the differences.  It is the only existing backup tool with extensive cloud support -- the [long list](http://duplicity.nongnu.org/duplicity.1.html#sect7) of storage backends covers almost every cloud provider one can think of.  However, duplicity's biggest flaw lies in its incremental model -- a chain of dependent backups starts with a full backup followed by a number of incremental ones, and ends when another full backup is uploaded.  Deleting one backup will render useless all the subsequent backups on the same chain.  Periodic full backups are required, in order to make previous backups discardable.
 
 [bup](https://github.com/bup/bup) also uses librsync to split files into chunks but save chunks in the git packfile format.  It doesn't support any cloud storage, or deletion of old backups.
 
-[Obnam](http://obnam.org) got the incremental backup model right in the sense that every incremental backup is actuall a full snapshot.  Although Obnam also splits files into chunks, it does not adopt either the rsync algorithm or the variable-size chunking algorithm.  As a result, deletions or insertions of a few bytes will foil the
+[Obnam](http://obnam.org) got the incremental backup model right in the sense that every incremental backup is actually a full snapshot.  Although Obnam also splits files into chunks, it does not adopt either the rsync algorithm or the variable-size chunking algorithm.  As a result, deletions or insertions of a few bytes will foil the
 [deduplication](http://obnam.org/faq/dedup).
 Deletion of old backups is possible, but no cloud storages are supoprted.
-Multiple clients can back up to the same storage, but the access is made sequential by the [locking on-disk data structures](http://obnam.org/locking/).
-It is unclear if lack of cloud storage is due to difficulties in porting the locking on-disk data structures to cloud storage APIs.
+Multiple clients can back up to the same storage, but only sequential access is granted by the [locking on-disk data structures](http://obnam.org/locking/).
+It is unclear if the lack of cloud backends is due to difficulties in porting the locking data structures to cloud storage APIs.
 
 [Attic](https://attic-backup.org) has been acclaimed by some as the [Holy Grail of bacups](https://www.stavros.io/posts/holy-grail-backups).  It follows the same incremental backup model as Obnam, but embraces the variable-size chunk algorithm for better performance and better deduplication.  Deletions of old backup is also supported.  However, no cloud backends are implemented, as in Obnam.  Although concurrent backups from multiple clients to the same storage is in theory possible by the use of locking, it is 
 [not recommended](http://librelist.com/browser//attic/2014/11/11/backing-up-multiple-servers-into-a-single-repository/#e96345aa5a3469a87786675d65da492b) by the developer due to chunk indices being kept in a local cache. 
 Concurrent access is not only a convenience; it is a necessity for better deduplication.  For instance, if multiple machines with the same OS installed can back up their entire drives to the same storage, only one copy of the system files needs to be stored, greatly reducing the storage space regardless of the number of machines.  Attic still adopts the traditional approach of using a centralized indexing database to manage chunks, and relies heavily on caching to improve performance.  The presence of exclusive locking makes it hard to be adapted for cloud storage APIs and reduces the level of deduplication.
 
-[restic](https://restic.github.io) is a more recent addition to the long list of backup tools.  It is worth mentioning here because, like Duplicacy, it is written in Go.  It uses a format similar to the git packfile format, but not exactly the same.  Multiple clients backing up to the same storage are still guarded by 
+[restic](https://restic.github.io) is a more recent addition.  It is worth mentioning here because, like Duplicacy, it is written in Go.  It uses a format similar to the git packfile format, but not exactly the same.  Multiple clients backing up to the same storage are still guarded by 
 [locks](https://github.com/restic/restic/blob/master/doc/Design.md#locks).
 A command to delete old backups is in the developer's [plan](https://github.com/restic/restic/issues/18). S3 storage is supported, although it is unclear how hard it is to support other clould storage APIs because of the need for locking.  Overall, it still falls in the same category as Attic.  Whether it will eventually reach the same level as Attic remains to be seen.
 
 The following table compares the feature lists of all these backup tools:
 
-| Tool | Incremental Backup | Full Snapshot | Deduplication | Encryption | Deletion | Concurrent Backups |Cloud Support |
+| Tool | Incremental Backup | Full Snapshot | Deduplication | Encryption | Deletion | Concurrent Access |Cloud Support |
 |:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|
 | duplicity | Yes | No  | Weak | Yes | No  | No | Extensive |
 | bup       | Yes | Yes | Yes  | Yes | No  | No | No   |
