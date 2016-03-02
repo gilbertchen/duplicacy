@@ -90,7 +90,7 @@ $ duplicacy copy -r 1 -to s3   # Copy snapshot at revision 1 to the s3 storage
 $ duplicacy copy -to s3        # Copy every snapshot to the s3 storage
 ```
 
-The [User Guide](https://github.com/gilbertchen/duplicacy-beta/blob/master/DESIGN.md) contains a complete reference to
+The [User Guide](https://github.com/gilbertchen/duplicacy-beta/blob/master/GUIDE.md) contains a complete reference to
 all commands and other features of Duplicacy.
 
 ## Storages
