@@ -7,7 +7,7 @@ This repository contains only binary releases and documentation for Duplicacy.  
 Duplicacy supports major cloud storage providers (Amazon S3, Google Cloud Storage, Microsoft Azure, Dropbox, and BackBlaze) and offers all essential features of a modern backup tool:
 
 * Incremental backup: only back up what has been changed
-* Full snapshot : although each backup is incremental, it behaves like a full snapshot
+* Full snapshot : although each backup is incremental, it must behave like a full snapshot for easy restore and deletion
 * Deduplication: identical files must be stored as one copy (file-level deduplication), and identical parts from different files must be stored as one copy (block-level deduplication)
 * Encryption: encrypt not only file contents but also file paths, sizes, times, etc.
 * Deletion: every backup can be deleted independently without affecting others
