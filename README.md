@@ -12,6 +12,7 @@ Duplicacy supports major cloud storage providers (Amazon S3, Google Cloud Storag
 * Encryption: encrypt not only file contents but also file paths, sizes, times, etc.
 * Deletion: every backup can be deleted independently without affecting others
 * Concurrent access: multiple clients can back up to the same storage at the same time
+* Snapshot migration: all or selected snapshots can be migrated from one storage to another
 
 The key idea behind Duplicacy is a concept called **Lock-Free Deduplication**, which can be summarized as follows:
 
@@ -185,12 +186,15 @@ A command to delete old backups is in the developer's [plan](https://github.com/
 
 The following table compares the feature lists of all these backup tools:
 
-| Tool | Incremental Backup | Full Snapshot | Deduplication | Encryption | Deletion | Concurrent Access |Cloud Support |
-|:----:|:----:|:----:|:----:|:----:|:----:|:----:|:----:|
-| duplicity | Yes | No  | Weak | Yes | No  | No | Extensive |
-| bup       | Yes | Yes | Yes  | Yes | No  | No | No   |
-| Obnam     | Yes | Yes | Weak | Yes | Yes | Exclusive locking | No   |
-| Attic     | Yes | Yes | Yes  | Yes | Yes | Not recommended | No   |
-| restic    | Yes | Yes | Yes  | Yes | No  | Exclusive locking | S3 only |
-| **Duplicacy** | **Yes** | **Yes** | **Yes**  | **Yes** | **Yes** | **Lock-free** | **S3, GCS, Azure, Dropbox, BackBlaze** |
+
+| Tool               | duplicity | bup | Obnam             | Attic           | restic            | **Duplicacy** | 
+|:------------------:|:---------:|:---:|:-----------------:|:---------------:|:-----------------:|:-------------:|
+| Incremental Backup | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
+| Full Snapshot      | No        | Yes | Yes               | Yes             | Yes               | **Yes**       |
+| Deduplication      | Weak      | Yes | Weak              | Yes             | Yes               | **Yes**       |
+| Encryption         | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
+| Deletion           | No        | No  | Yes               | Yes             | No                | **Yes**       |
+| Concurrent Access  | No        | No  | Exclusive locking | Not recommended | Exclusive locking | **Lock-free** |
+| Cloud Support      | Extensive | No  | No                | No              | S3 only           | **S3, GCS, Azure, Dropbox, BackBlaze**|
+| Snapshot Migration | No        | No  | No                | No              | No                | **Yes**       |
 
