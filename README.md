@@ -187,7 +187,7 @@ A command to delete old backups is in the developer's [plan](https://github.com/
 The following table compares the feature lists of all these backup tools:
 
 
-| Tool               | duplicity | bup | Obnam             | Attic           | restic            | **Duplicacy** | 
+| Feature/Tool       | duplicity | bup | Obnam             | Attic           | restic            | **Duplicacy** | 
 |:------------------:|:---------:|:---:|:-----------------:|:---------------:|:-----------------:|:-------------:|
 | Incremental Backup | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
 | Full Snapshot      | No        | Yes | Yes               | Yes             | Yes               | **Yes**       |
