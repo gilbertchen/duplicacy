@@ -463,14 +463,14 @@ Duplicacy will attempt to retrieve in three ways the storage password and the st
 
 | password type | environment variable (default storage) | environment variable (non-default storage) | key in preferences  |
 |:----------------:|:----------------:|:----------------:|:----------------:|
-| storage password | DUPLICACY_PASSWORD | DUPLICACY_<STORAGENAME>_PASSWORD | password |
-| sftp password | DUPLICACY_SSH_PASSWORD | DUPLICACY_<STORAGENAME>_SSH_PASSWORD | ssh_password |
-| Dropbox Token | DUPLICACY_DROPBOX_TOKEN | DUPLICACY_<STORAGENAME>_DROPBOX_TOEKN | dropbox_token |
-| S3 Access ID | DUPLICACY_S3_ID | DUPLICACY_<STORAGENAME>_S3_ID | s3_id |
-| S3 Secret Key | DUPLICACY_S3_KEY | DUPLICACY_<STORAGENAME>_S3_KEY | s3_key |
-| BackBlaze Account ID | DUPLICACY_B2_ID | DUPLICACY_<STORAGENAME>_B2_ID | b2_id |
-| Backblaze Application Key | DUPLICACY_B2_KEY | DUPLICACY_<STORAGENAME>_B2_KEY | b2_key |
-| Azure Access Key | DUPLICACY_AZURE_KEY | DUPLICACY_<STORAGENAME>_AZURE_KEY | azure_key |
+| storage password | DUPLICACY_PASSWORD | DUPLICACY_&lt;STORAGENAME&gt;_PASSWORD | password |
+| sftp password | DUPLICACY_SSH_PASSWORD | DUPLICACY_&lt;STORAGENAME&gt;_SSH_PASSWORD | ssh_password |
+| Dropbox Token | DUPLICACY_DROPBOX_TOKEN | DUPLICACY_&lt;STORAGENAME>&gt;_DROPBOX_TOEKN | dropbox_token |
+| S3 Access ID | DUPLICACY_S3_ID | DUPLICACY_&lt;STORAGENAME&gt;_S3_ID | s3_id |
+| S3 Secret Key | DUPLICACY_S3_KEY | DUPLICACY_&lt;STORAGENAME&gt;_S3_KEY | s3_key |
+| BackBlaze Account ID | DUPLICACY_B2_ID | DUPLICACY_&lt;STORAGENAME&gt;_B2_ID | b2_id |
+| Backblaze Application Key | DUPLICACY_B2_KEY | DUPLICACY_&lt;STORAGENAME&gt;_B2_KEY | b2_key |
+| Azure Access Key | DUPLICACY_AZURE_KEY | DUPLICACY_&lt;STORAGENAME&gt;_AZURE_KEY | azure_key |
 
 Note that the passwords stored in the environment variable and the preference need to be in plaintext and thus are insecure and should be avoided whenever possible.
 
