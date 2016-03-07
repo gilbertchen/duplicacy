@@ -465,7 +465,7 @@ Duplicacy will attempt to retrieve in three ways the storage password and the st
 |:----------------:|:----------------:|:----------------:|:----------------:|
 | storage password | DUPLICACY_PASSWORD | DUPLICACY_&lt;STORAGENAME&gt;_PASSWORD | password |
 | sftp password | DUPLICACY_SSH_PASSWORD | DUPLICACY_&lt;STORAGENAME&gt;_SSH_PASSWORD | ssh_password |
-| Dropbox Token | DUPLICACY_DROPBOX_TOKEN | DUPLICACY_&lt;STORAGENAME>&gt;_DROPBOX_TOEKN | dropbox_token |
+| Dropbox Token | DUPLICACY_DROPBOX_TOKEN | DUPLICACY_&lt;STORAGENAME>&gt;_DROPBOX_TOKEN | dropbox_token |
 | S3 Access ID | DUPLICACY_S3_ID | DUPLICACY_&lt;STORAGENAME&gt;_S3_ID | s3_id |
 | S3 Secret Key | DUPLICACY_S3_KEY | DUPLICACY_&lt;STORAGENAME&gt;_S3_KEY | s3_key |
 | BackBlaze Account ID | DUPLICACY_B2_ID | DUPLICACY_&lt;STORAGENAME&gt;_B2_ID | b2_id |
