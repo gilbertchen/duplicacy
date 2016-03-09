@@ -111,7 +111,7 @@ Storage URL:  /path/to/storage (on Linux or Mac OS X)
 Storage URL:  sftp://username@server/path/to/storage
 ```
 
-Login methods include password authentication and public key authentication.  Due to a limitation of the underlying Go SSH library, the key pair for public key authentication be generated without a passphrase.  To work with a key that has a passphrase, you can set up SSH agent forwarding which is also supported by Duplicacy.
+Login methods include password authentication and public key authentication.  Due to a limitation of the underlying Go SSH library, the key pair for public key authentication must be generated without a passphrase.  To work with a key that has a passphrase, you can set up SSH agent forwarding which is also supported by Duplicacy.
 
 #### Dropbox
 
@@ -125,7 +125,7 @@ For Duplicacy to access your Dropbox storage, you must provide an access token t
 
 * Or authorize Duplicacy to access its app folder inside your Dropbox (following [this link](https://dl.dropboxusercontent.com/u/95866350/start_dropbox_token.html)), and Dropbox will generate the access token (which is not visible to us, as the redirect page showing the token is merely a static html hosted by Dropbox)
 
-Dropbox has two advantages over other cloud providers.  First, if you are already a paid user then to use the unused space as the backup storage is basically free.  Second, unlike other providers Dropbox does not charge API usage fees.
+Dropbox has two advantages over other cloud providers.  First, if you are already a paid user then to use the unused space as the backup storage is basically free.  Second, unlike other providers Dropbox does not charge bandwidth or API usage fees.
 
 #### Amazon S3
 
