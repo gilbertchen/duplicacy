@@ -4,7 +4,7 @@ This repository contains only binary releases and documentation for Duplicacy.  
 
 ## Overview
 
-Duplicacy supports major cloud storage providers (Amazon S3, Google Cloud Storage, Microsoft Azure, Dropbox, and BackBlaze) and offers all essential features of a modern backup tool:
+Duplicacy supports major cloud storage providers (Amazon S3, Google Cloud Storage, Microsoft Azure, Dropbox, and Backblaze) and offers all essential features of a modern backup tool:
 
 * Incremental backup: only back up what has been changed
 * Full snapshot : although each backup is incremental, it must behave like a full snapshot for easy restore and deletion
@@ -153,7 +153,7 @@ Storage URL:  azure://account/container
 
 You'll need to input the access key once prompted.
 
-#### BackBlaze
+#### Backblaze
 
 ```
 Storage URL: b2://bucket
@@ -161,7 +161,7 @@ Storage URL: b2://bucket
 
 You'll need to input the account id and application key.
 
-BackBlaze offers perhaps the least expensive cloud storage at 0.5 cent per GB per month.  Unfortunately their API does not support file renaming, so the -exclusive option is required when pruning old backups.  This means concurrent access and deletion can't be permitted at the same time.
+Backblaze offers perhaps the least expensive cloud storage at 0.5 cent per GB per month.  Unfortunately their API does not support file renaming, so the -exclusive option is required when pruning old backups.  This means concurrent access and deletion can't be permitted at the same time.
 
 ## Comparison with Other Backup Tools
 
@@ -195,6 +195,6 @@ The following table compares the feature lists of all these backup tools:
 | Encryption         | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
 | Deletion           | No        | No  | Yes               | Yes             | No                | **Yes**       |
 | Concurrent Access  | No        | No  | Exclusive locking | Not recommended | Exclusive locking | **Lock-free** |
-| Cloud Support      | Extensive | No  | No                | No              | S3 only           | **S3, GCS, Azure, Dropbox, BackBlaze**|
+| Cloud Support      | Extensive | No  | No                | No              | S3 only           | **S3, GCS, Azure, Dropbox, Backblaze**|
 | Snapshot Migration | No        | No  | No                | No              | No                | **Yes**       |
 
