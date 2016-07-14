@@ -1,10 +1,12 @@
 # Duplicacy: A new generation cloud backup tool
 
-This repository contains only binary releases and documentation for Duplicacy.  It also serves as an issue tracker for user-developer communication during the beta testing phase.
+Duplicacy is a new generation cross-platform cloud backup tool based on the idea of [Lock-Free Dedeuplication]([design document](https://github.com/gilbertchen/duplicacy-beta/blob/master/DESIGN.md)).  Duplicacy is the only backup tool capable of cross-computer deduplication which allows multiple computers to back up to the same storage simultaneously without using any locks (thus readily amenable to various cloud storage services).
 
-## Overview
+The repository hosts design documents as well as binary releases of the command line version.  There is also a Duplicacy GUI frontend built for Windows and Mac OS X downloadable from https://duplicacy.com.  The source code of the command line version is available to the commerical users of the Duplicacy GUI version upon request.
 
-Duplicacy supports major cloud storage providers (Amazon S3, Google Cloud Storage, Microsoft Azure, Dropbox, and Backblaze) and offers all essential features of a modern backup tool:
+## Features
+
+Duplicacy currently supports major cloud storage providers (Amazon S3, Google Cloud Storage, Microsoft Azure, Dropbox, and Backblaze) and offers all essential features of a modern backup tool:
 
 * Incremental backup: only back up what has been changed
 * Full snapshot : although each backup is incremental, it must behave like a full snapshot for easy restore and deletion
@@ -14,7 +16,7 @@ Duplicacy supports major cloud storage providers (Amazon S3, Google Cloud Storag
 * Concurrent access: multiple clients can back up to the same storage at the same time
 * Snapshot migration: all or selected snapshots can be migrated from one storage to another
 
-The key idea behind Duplicacy is a concept called **Lock-Free Deduplication**, which can be summarized as follows:
+The key idea of **Lock-Free Deduplication** can be summarized as follows:
 
 * Use variable-size chunking algorithm to split files into chunks
 * Store each chunk in the storage using a file name derived from its hash, and rely on the file system API to manage chunks without using a centralized indexing database
@@ -198,3 +200,7 @@ The following table compares the feature lists of all these backup tools:
 | Cloud Support      | Extensive | No  | No                | No              | S3 only           | **S3, GCS, Azure, Dropbox, Backblaze**|
 | Snapshot Migration | No        | No  | No                | No              | No                | **Yes**       |
 
+
+##License
+
+Duplicacy is free for personal use but any commercial use must be accompanied by a valid [subscription](https://duplicacy.com/buy.html).  This rule applis to both the CLI and GUI versions.
