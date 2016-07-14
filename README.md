@@ -1,6 +1,6 @@
 # Duplicacy: A new generation cloud backup tool
 
-Duplicacy is a new generation cross-platform cloud backup tool based on the idea of [Lock-Free Dedeuplication](https://github.com/gilbertchen/duplicacy-beta/blob/master/DESIGN.md).  It is the only clould backup tool that allows multiple computers to back up to the same storage simultaneously without using any locks (thus readily amenable to various cloud storage services).
+Duplicacy is a new generation cross-platform cloud backup tool based on the idea of [Lock-Free Deduplication](https://github.com/gilbertchen/duplicacy-beta/blob/master/DESIGN.md).  It is the only clould backup tool that allows multiple computers to back up to the same storage simultaneously without using any locks (thus readily amenable to various cloud storage services).
 
 The repository hosts design documents as well as binary releases of the command line version.  There is also a Duplicacy GUI frontend built for Windows and Mac OS X downloadable from https://duplicacy.com.  The source code of the command line version is available to the commerical users of the Duplicacy GUI version upon request.
 
