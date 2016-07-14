@@ -203,4 +203,4 @@ The following table compares the feature lists of all these backup tools:
 
 ##License
 
-Duplicacy is free for personal use but any commercial use must be accompanied by a valid [subscription](https://duplicacy.com/buy.html).  This rule applis to both the CLI and GUI versions.
+Duplicacy is free for personal use but any commercial use must be accompanied by a valid [subscription](https://duplicacy.com/buy.html).  This applies to both the CLI and GUI versions.
