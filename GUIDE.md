@@ -160,6 +160,7 @@ OPTIONS:
    -fossils                 search fossils if a chunk can't be found
    -resurrect               turn referenced fossils back into chunks
    -files                   verify the integrity of every file
+   -stats 			show deduplication statistics (imply -all and all revisions)
    -storage <storage name>  retrieve snapshots from the specified storage```
 ```
 The *check* command checks, for each specified snapshot, that all referenced chunks exist in the storage.
