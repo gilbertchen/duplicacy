@@ -137,7 +137,7 @@ hasn't been found, the next file, if there is one, will be read in and the chunk
 files were packed into a big tar file which is then split into chunks.
 
 The *content* field of a file indicates the indexes of starting and ending chunks and the corresponding offsets. For
-instance, *fiel1* starts at chunk 0 offset 0 while ends at chunk 2 offset 6108, immediately followed by *file2*.
+instance, *file1* starts at chunk 0 offset 0 while ends at chunk 2 offset 6108, immediately followed by *file2*.
 
 The backup procedure can run in one of two modes. In the default quick mode, only modified or new files are scanned. Chunks only
 referenced by old files that have been modified are removed from the chunk sequence, and then chunks referenced by new 
