@@ -210,6 +210,6 @@ Chunk content is encrypted by AES-GCM, with an encryption key that is the HMAC-S
 
 The snapshot is encrypted by AES-GCM too, using an encrypt key that is the HMAC-SHA256 of the file path with the *File Key* as the secret key.
 
-There four random keys are saved in a file named 'config' in the file storage, encrypted with a master key derived from the PBKDF2 function on
+These four random keys are saved in a file named 'config' in the file storage, encrypted with a master key derived from the PBKDF2 function on
 the storage password chosen by the user.
 
