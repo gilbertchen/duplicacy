@@ -172,7 +172,7 @@ Storage URL: gcd://path/to/storage
 ```
 
 To use Google Drive as the storage,  you first need to download a token file from https://duplicacy.com/gcd_start by
-authorizing Duplicacy to access your Google Drive, and then provide the path to this token file to Duplicacy when prompted.
+authorizing Duplicacy to access your Google Drive, and then enter the path to this token file to Duplicacy when prompted.
 
 ## Comparison with Other Backup Tools
 
