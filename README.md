@@ -6,7 +6,7 @@ The repository hosts design documents as well as binary releases of the command 
 
 ## Features
 
-Duplicacy currently supports major cloud storage providers (Amazon S3, Google Cloud Storage, Microsoft Azure, Dropbox, and Backblaze) and offers all essential features of a modern backup tool:
+Duplicacy currently supports major cloud storage providers (Amazon S3, Google Cloud Storage, Microsoft Azure, Dropbox, Backblaze, and Google Drive) and offers all essential features of a modern backup tool:
 
 * Incremental backup: only back up what has been changed
 * Full snapshot : although each backup is incremental, it must behave like a full snapshot for easy restore and deletion
@@ -206,7 +206,7 @@ The following table compares the feature lists of all these backup tools:
 | Encryption         | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
 | Deletion           | No        | No  | Yes               | Yes             | No                | **Yes**       |
 | Concurrent Access  | No        | No  | Exclusive locking | Not recommended | Exclusive locking | **Lock-free** |
-| Cloud Support      | Extensive | No  | No                | No              | S3 only           | **S3, GCS, Azure, Dropbox, Backblaze**|
+| Cloud Support      | Extensive | No  | No                | No              | S3 only           | **S3, GCS, Azure, Dropbox, Backblaze, Google Drive**|
 | Snapshot Migration | No        | No  | No                | No              | No                | **Yes**       |
 
 
