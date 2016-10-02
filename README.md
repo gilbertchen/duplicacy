@@ -174,6 +174,15 @@ Storage URL: gcd://path/to/storage
 To use Google Drive as the storage,  you first need to download a token file from https://duplicacy.com/gcd_start by
 authorizing Duplicacy to access your Google Drive, and then enter the path to this token file to Duplicacy when prompted.
 
+#### Microsoft OneDrive
+
+```
+Storage URL: one://path/to/storage
+```
+
+To use Microsoft OneDrive as the storage,  you first need to download a token file from https://duplicacy.com/one_start by
+authorizing Duplicacy to access your OneDrive, and then enter the path to this token file to Duplicacy when prompted.
+
 ## Comparison with Other Backup Tools
 
 [duplicity](http://duplicity.nongnu.org) works by applying the rsync algorithm (or more specific, the [librsync](https://github.com/librsync/librsync) library)
@@ -206,7 +215,7 @@ The following table compares the feature lists of all these backup tools:
 | Encryption         | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
 | Deletion           | No        | No  | Yes               | Yes             | No                | **Yes**       |
 | Concurrent Access  | No        | No  | Exclusive locking | Not recommended | Exclusive locking | **Lock-free** |
-| Cloud Support      | Extensive | No  | No                | No              | S3 only           | **S3, GCS, Azure, Dropbox, Backblaze, Google Drive**|
+| Cloud Support      | Extensive | No  | No                | No              | S3 only           | **S3, GCS, Azure, Dropbox, Backblaze, Google Drive, OneDrive**|
 | Snapshot Migration | No        | No  | No                | No              | No                | **Yes**       |
 
 
