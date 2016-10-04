@@ -6,7 +6,7 @@ The repository hosts design documents as well as binary releases of the command 
 
 ## Features
 
-Duplicacy currently supports major cloud storage providers (Amazon S3, Google Cloud Storage, Microsoft Azure, Dropbox, Backblaze, and Google Drive) and offers all essential features of a modern backup tool:
+Duplicacy currently supports major cloud storage providers (Amazon S3, Google Cloud Storage, Microsoft Azure, Dropbox, Backblaze, Google Drive, Microsoft OneDrive, and Hubic) and offers all essential features of a modern backup tool:
 
 * Incremental backup: only back up what has been changed
 * Full snapshot : although each backup is incremental, it must behave like a full snapshot for easy restore and deletion
@@ -183,6 +183,15 @@ Storage URL: one://path/to/storage
 To use Microsoft OneDrive as the storage,  you first need to download a token file from https://duplicacy.com/one_start by
 authorizing Duplicacy to access your OneDrive, and then enter the path to this token file to Duplicacy when prompted.
 
+#### Hubic
+
+```
+Storage URL: hubic://path/to/storage
+```
+
+To use Hubic as the storage,  you first need to download a token file from https://duplicacy.com/hubic_start by
+authorizing Duplicacy to access your Hubic drive, and then enter the path to this token file to Duplicacy when prompted.
+
 ## Comparison with Other Backup Tools
 
 [duplicity](http://duplicity.nongnu.org) works by applying the rsync algorithm (or more specific, the [librsync](https://github.com/librsync/librsync) library)
@@ -215,7 +224,7 @@ The following table compares the feature lists of all these backup tools:
 | Encryption         | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
 | Deletion           | No        | No  | Yes               | Yes             | No                | **Yes**       |
 | Concurrent Access  | No        | No  | Exclusive locking | Not recommended | Exclusive locking | **Lock-free** |
-| Cloud Support      | Extensive | No  | No                | No              | S3 only           | **S3, GCS, Azure, Dropbox, Backblaze, Google Drive, OneDrive**|
+| Cloud Support      | Extensive | No  | No                | No              | S3 only           | **S3, GCS, Azure, Dropbox, Backblaze, Google Drive, OneDrive, and Hubic**|
 | Snapshot Migration | No        | No  | No                | No              | No                | **Yes**       |
 
 
