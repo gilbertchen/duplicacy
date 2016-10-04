@@ -473,6 +473,8 @@ Duplicacy will attempt to retrieve in three ways the storage password and the st
 | Backblaze Application Key | DUPLICACY_B2_KEY | DUPLICACY_&lt;STORAGENAME&gt;_B2_KEY | b2_key |
 | Azure Access Key | DUPLICACY_AZURE_KEY | DUPLICACY_&lt;STORAGENAME&gt;_AZURE_KEY | azure_key |
 | Google Drive Token File | DUPLICACY_GCD_TOKEN | DUPLICACY_&lt;STORAGENAME&gt;_GCD_TOKEN | gcd_token |
+| Microsoft OneDrive Token File | DUPLICACY_ONE_TOKEN | DUPLICACY_&lt;STORAGENAME&gt;_ONE_TOKEN | one_token |
+| Hubic Token File | DUPLICACY_HUBIC_TOKEN | DUPLICACY_&lt;STORAGENAME&gt;_HUBIC_TOKEN | hubic_token |
 
 Note that the passwords stored in the environment variable and the preference need to be in plaintext and thus are insecure and should be avoided whenever possible.
 
