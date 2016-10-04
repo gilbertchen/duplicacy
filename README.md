@@ -192,6 +192,9 @@ Storage URL: hubic://path/to/storage
 To use Hubic as the storage,  you first need to download a token file from https://duplicacy.com/hubic_start by
 authorizing Duplicacy to access your Hubic drive, and then enter the path to this token file to Duplicacy when prompted.
 
+Hubic offers the most free space (25GB) of all major cloud providers and there is no bandwidth charge (same as Google Drive and OneDrive), so it may be worth a try.
+
+
 ## Comparison with Other Backup Tools
 
 [duplicity](http://duplicity.nongnu.org) works by applying the rsync algorithm (or more specific, the [librsync](https://github.com/librsync/librsync) library)
