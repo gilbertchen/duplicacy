@@ -235,4 +235,4 @@ The following table compares the feature lists of all these backup tools:
 
 Duplicacy CLI is free for personal use without restrictions.
 
-For commercial use, a valid [commercial license](https://duplicacy.com/buy.html) is required for each computer on which backups will be created..  There are no restrictions if Duplicacy CLI is used to restore files from backups or check the integrity of backups.
+For commercial use, a valid [commercial license](https://duplicacy.com/buy.html) is required for each computer on which backups will be created.  There are no restrictions if Duplicacy CLI is used to restore files from backups or check the integrity of backups.
