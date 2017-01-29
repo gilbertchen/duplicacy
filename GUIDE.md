@@ -466,6 +466,7 @@ Duplicacy will attempt to retrieve in three ways the storage password and the st
 |:----------------:|:----------------:|:----------------:|:----------------:|
 | storage password | DUPLICACY_PASSWORD | DUPLICACY_&lt;STORAGENAME&gt;_PASSWORD | password |
 | sftp password | DUPLICACY_SSH_PASSWORD | DUPLICACY_&lt;STORAGENAME&gt;_SSH_PASSWORD | ssh_password |
+| sftp key file | DUPLICACY_SSH_KEY_FILE | DUPLICACY_&lt;STORAGENAME&gt;_SSH_KEY_FILE | ssh_keyfile |
 | Dropbox Token | DUPLICACY_DROPBOX_TOKEN | DUPLICACY_&lt;STORAGENAME>&gt;_DROPBOX_TOKEN | dropbox_token |
 | S3 Access ID | DUPLICACY_S3_ID | DUPLICACY_&lt;STORAGENAME&gt;_S3_ID | s3_id |
 | S3 Secret Key | DUPLICACY_S3_SECRET | DUPLICACY_&lt;STORAGENAME&gt;_S3_SECRET | s3_secret |
