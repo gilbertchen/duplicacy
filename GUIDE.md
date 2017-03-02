@@ -448,11 +448,20 @@ An include pattern starts with +, and an exclude pattern starts with -.  Pattern
 
 When matching a path against a list of patterns, the path is compared with the part after + or -, one pattern at a time.  Therefore, the order of the patterns is significant.  If a match with an include pattern is found, the path is said to be included without further comparisons.  If a match with an exclude pattern is found, the path is said to be excluded without further comparison.  If a match is not found, the path will be excluded if all patterns are include patterns, but included otherwise.
 
-Note that the path in Duplicacy for a directory always ends with a /, even on Windows.  The path of a file does not end with a /.  This can be used to exclude directories only.
+Patterns ending with a / apply to directories only, and patterns not ending with a / apply to files only.  When a directory is excluded, all files and subdirectires under it will also be excluded.  Note that the path separator is always /, even on Windows.
+
+The following pattern list includes only files under the directory foo/ but not files under the subdirectory foo/bar:
+
+```
+-foo/bar/
++foo/*
+-*
+```
 
 For the *backup* command, the include/exclude patterns are read from a file named *filters* under the *.duplicacy* directory.
 
 For the *restore* command, the include/exclude patterns are specified as the command line arguments.
+
 
 ## Managing Passwords
 
