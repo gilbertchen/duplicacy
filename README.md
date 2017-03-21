@@ -231,7 +231,8 @@ The following table compares the feature lists of all these backup tools:
 | Snapshot Migration | No        | No  | No                | No              | No                | **Yes**       |
 
 
-##License
+
+## License
 
 Duplicacy CLI is free for personal use without restrictions.
 
