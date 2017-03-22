@@ -51,6 +51,8 @@ OPTIONS:
    -hash                      detect file differences by hash (rather than size and timestamp)
    -t <tag>                   assign a tag to the backup
    -stats                     show statistics during and after backup
+   -threads <n>			      number of uploading threads (Backblaze only)
+   -limit-rate <kB/s>		   the maximum upload rate (in kilobytes/sec)   
    -vss                       enable the Volume Shadow Copy service (Windows only)
    -storage <storage name>    backup to the specified storage instead of the default one
 ```
@@ -61,8 +63,12 @@ Otherwise, every file is scanned to detect changes.
 
 You can assign a tag to the snapshot so that later you can refer to it by tag in other commands.
 
-If the -stats option is specified, statistical information such as transfer speed, number of chunks will be displayed
+If the -stats option is specified, statistical information such as transfer speed, the number of chunks will be displayed
 throughout the backup procedure.
+
+The -threads option can be used to specify more than one thread to upload chunks.  Currently this option is available only when the Backblaze B2 storage is selected.
+
+The -limit-rate option sets a cape on the maximum upload rate.
 
 The -vss option works on Windows only to turn on the Volume Shadow Copy service such that files opened by other
 processes with exclusive locks can be read as usual.
@@ -86,6 +92,7 @@ OPTIONS:
    -overwrite               overwrite existing files in the repository
    -delete                  delete files not in the snapshot
    -stats                   show statistics during and after restore
+   -limit-rate <kB/s>		the maximum download rate (in kilobytes/sec)
    -storage <storage name>  restore from the specified storage instead of the default one
 ```
 
@@ -98,6 +105,8 @@ The -delete option indicates that files not in the snapshot will be removed.
 
 If the -stats option is specified, statistical information such as transfer speed, number of chunks will be displayed
 throughout the restore procedure.
+
+The -limit-rate option sets a cape on the maximum upload rate.
 
 When the repository can have multiple storages (added by the *add* command), you can select the storage to restore from by specifying the storage name.
 
