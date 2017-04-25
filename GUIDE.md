@@ -169,7 +169,7 @@ OPTIONS:
    -fossils                 search fossils if a chunk can't be found
    -resurrect               turn referenced fossils back into chunks
    -files                   verify the integrity of every file
-   -stats 			show deduplication statistics (imply -all and all revisions)
+   -stats                   show deduplication statistics (imply -all and all revisions)
    -storage <storage name>  retrieve snapshots from the specified storage```
 ```
 The *check* command checks, for each specified snapshot, that all referenced chunks exist in the storage.
@@ -407,7 +407,7 @@ OPTIONS:
    -no-restore[=true]       restore from this storage is prohibited
    -no-save-password[=true] don't save password or access keys to keychain/keyring
    -key                     add a key/password whose value is supplied by the -value option
-   -value  			          the value of the key/password
+   -value                   the value of the key/password
    -storage <storage name>  use the specified storage instead of the default one
 ```
 
