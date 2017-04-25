@@ -51,8 +51,8 @@ OPTIONS:
    -hash                      detect file differences by hash (rather than size and timestamp)
    -t <tag>                   assign a tag to the backup
    -stats                     show statistics during and after backup
-   -threads <n>			      number of uploading threads (Backblaze only)
-   -limit-rate <kB/s>		   the maximum upload rate (in kilobytes/sec)   
+   -threads <n>               number of uploading threads (Backblaze only)
+   -limit-rate <kB/s>         the maximum upload rate (in kilobytes/sec)   
    -vss                       enable the Volume Shadow Copy service (Windows only)
    -storage <storage name>    backup to the specified storage instead of the default one
 ```
@@ -92,7 +92,7 @@ OPTIONS:
    -overwrite               overwrite existing files in the repository
    -delete                  delete files not in the snapshot
    -stats                   show statistics during and after restore
-   -limit-rate <kB/s>		the maximum download rate (in kilobytes/sec)
+   -limit-rate <kB/s>	    the maximum download rate (in kilobytes/sec)
    -storage <storage name>  restore from the specified storage instead of the default one
 ```
 
