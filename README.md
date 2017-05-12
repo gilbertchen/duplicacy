@@ -163,7 +163,7 @@ Storage URL: b2://bucket
 
 You'll need to input the account id and application key.
 
-Backblaze's B2 storage is not only the least expensive (at 0.5 cent per GB per month), but also the fastest.  We have been working closely with their developers to leverage the full potentials provided by the B2 API in order to maximumize the transfer speed.  As a result, the B2 storage is the only one to support the multi-threading option which can easily max out your upload link.
+Backblaze's B2 storage is not only the least expensive (at 0.5 cent per GB per month), but also the fastest.  We have been working closely with their developers to leverage the full potentials provided by the B2 API in order to maximumize the transfer speed.
 
 #### Google Drive
 
