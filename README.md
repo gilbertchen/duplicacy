@@ -142,10 +142,12 @@ You'll need to input an access key and a secret key to access your Amazon S3 sto
 #### Google Cloud Storage
 
 ```
-Storage URL:  s3://storage.googleapis.com/bucket/path/to/storage
+Storage URL:  gcs://bucket
 ```
 
-Duplicacy uses the s3 protocol to access Google Cloud Storage, so you must enable the [s3 interoperability](https://cloud.google.com/storage/docs/migrating#migration-simple) in your Google Cloud Storage settings.
+Starting from version 2.0.0, a new Google Cloud Storage backend is added which is implemented using the [official Google client library] (https://godoc.org/cloud.google.com/go/storage).  You must first obtain a credential file by [authroizing](https://duplicacy.com/gcp_start) Dupliacy to access your Google Cloud Storage account or by [downloading](https://console.cloud.google.com/projectselector/iam-admin/serviceaccounts) a service account credential file.
+ 
+You can also use the s3 protocol to access Google Cloud Storage.  To do this, you must enable the [s3 interoperability](https://cloud.google.com/storage/docs/migrating#migration-simple) in your Google Cloud Storage settings and set the storage url as s3://storage.googleapis.com/bucket/path/to/storage.
 
 #### Microsoft Azure
 
