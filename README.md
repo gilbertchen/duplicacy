@@ -142,7 +142,7 @@ You'll need to input an access key and a secret key to access your Amazon S3 sto
 #### Google Cloud Storage
 
 ```
-Storage URL:  gcs://bucket
+Storage URL:  gcs://bucket/path/to/storage
 ```
 
 Starting from version 2.0.0, a new Google Cloud Storage backend is added which is implemented using the [official Google client library](https://godoc.org/cloud.google.com/go/storage).  You must first obtain a credential file by [authorizing](https://duplicacy.com/gcp_start) Dupliacy to access your Google Cloud Storage account or by [downloading](https://console.cloud.google.com/projectselector/iam-admin/serviceaccounts) a service account credential file.
