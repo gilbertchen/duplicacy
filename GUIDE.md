@@ -16,7 +16,6 @@ OPTIONS:
    -chunk-size, -c 4M              the average size of chunks
    -max-chunk-size, -max 16M       the maximum size of chunks (defaults to chunk-size * 4)
    -min-chunk-size, -min 1M        the minimum size of chunks (defaults to chunk-size / 4)
-   -compression-level, -l <level>  compression level (defaults to -1)
 ```
 
 The *init* command first connects to the storage specified by the storage URL.  If the storage has been already been
@@ -33,8 +32,6 @@ The snapshot id is an id used to distinguish different repositories connected to
 The -e option controls whether or not encryption will be enabled for the storage.  If encryption is enabled, you will be prompted to enter a storage password.
 
 The three chunk size parameters are passed to the variable-size chunking algorithm.  Their values are important to the overall performance, especially for cloud storages.  If the chunk size is too small, a lot of overhead will be in sending requests and receiving responses.  If the chunk size is too large, the effect of deduplication will be less obvious as more data will need to be transferred with each chunk.
-
-The compression level parameter is passed to the zlib library.  Valid values are -1 through 9, with 0 meaning no compression, 9 best compression (slowest), and -1 being the default value (equivalent to level 6).
 
 Once a storage has been initialized with these parameters, these parameters cannot be modified any more.
 
