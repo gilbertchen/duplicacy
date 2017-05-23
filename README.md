@@ -1,8 +1,8 @@
 # Duplicacy: A lock-free deduplication cloud backup tool
 
-Duplicacy is a new generation cross-platform cloud backup tool based on the idea of [Lock-Free Deduplication](https://github.com/gilbertchen/duplicacy-beta/blob/master/DESIGN.md).  It is the only cloud backup tool that allows multiple computers to back up to the same storage simultaneously without using any locks (thus readily amenable to various cloud storage services).
+Duplicacy is a new generation cross-platform cloud backup tool based on the idea of [Lock-Free Deduplication](https://github.com/gilbertchen/duplicacy-cli/blob/master/DESIGN.md).  It is the only cloud backup tool that allows multiple computers to back up to the same storage simultaneously without using any locks (thus readily amenable to various cloud storage services).
 
-The repository hosts design documents as well as binary releases of the command line version.  There is also a Duplicacy GUI frontend built for Windows and Mac OS X downloadable from https://duplicacy.com.  The source code of the command line version is available to the commercial users of the Duplicacy GUI version upon request.
+The repository hosts source code, design documents, and binary releases of the command line version.  There is also a Duplicacy GUI frontend built for Windows and Mac OS X available from https://duplicacy.com.
 
 ## Features
 
@@ -22,11 +22,11 @@ The key idea of **Lock-Free Deduplication** can be summarized as follows:
 * Store each chunk in the storage using a file name derived from its hash, and rely on the file system API to manage chunks without using a centralized indexing database
 * Apply a *two-step fossil collection* algorithm to remove chunks that become unreferenced after a backup is deleted
 
-The [design document](https://github.com/gilbertchen/duplicacy-beta/blob/master/DESIGN.md) explains lock-free deduplication in detail.
+The [design document](https://github.com/gilbertchen/duplicacy-cli/blob/master/DESIGN.md) explains lock-free deduplication in detail.
 
 ## Getting Started
 
-During beta testing only binaries are available.  Please visit the [releases page](https://github.com/gilbertchen/duplicacy-beta/releases/latest) to download and run the executable for your platform.  Installation is not needed.
+Duplicacy is written in Go.  You can build the executable by cloning this repository or visiting the [releases page](https://github.com/gilbertchen/duplicacy-cli/releases/latest) to download the version suitable for your platform.  Installation is not needed.
 
 Once you have the Duplicacy executable under your path, you can change to the directory that you want to back up (called *repository*) and run the *init* command:
 
@@ -34,6 +34,7 @@ Once you have the Duplicacy executable under your path, you can change to the di
 $ cd path/to/your/repository
 $ duplicacy init mywork sftp://192.168.1.100/path/to/storage
 ```
+
 This *init* command connects the repository with the remote storage at 192.168.1.00 via SFTP.  It will initialize the remote storage if this has not been done before.  It also assigns the snapshot id *mywork* to the repository.  This snapshot id is used to uniquely identify this repository if there are other repositories that also back up to the same storage.
 
 You can now create snapshots of the repository by invoking the *backup* command.  The first snapshot may take a while depending on the size of the repository and the upload bandwidth.  Subsequent snapshots will be much faster, as only new or modified files will be uploaded.  Each snapshot is identified by the snapshot id and an increasing revision number starting from 1.
@@ -93,7 +94,7 @@ $ duplicacy copy -r 1 -to s3   # Copy snapshot at revision 1 to the s3 storage
 $ duplicacy copy -to s3        # Copy every snapshot to the s3 storage
 ```
 
-The [User Guide](https://github.com/gilbertchen/duplicacy-beta/blob/master/GUIDE.md) contains a complete reference to
+The [User Guide](https://github.com/gilbertchen/duplicacy-cli/blob/master/GUIDE.md) contains a complete reference to
 all commands and other features of Duplicacy.
 
 ## Storages
@@ -236,6 +237,6 @@ The following table compares the feature lists of all these backup tools:
 
 ## License
 
-Duplicacy CLI is free for personal use without restrictions.
+Duplicacy CLI is released under the [Fair Source 5 License](https://fair.io), which means it is free for individual users or any company or organization with less than 5 users.  If your company or oganization has 5 or more users, then a license for the actual number of users must be purchased from [duplicacy.com](https://duplicacy.com/customer).
 
-For commercial use, a valid [commercial license](https://duplicacy.com/buy.html) is required for each computer on which backups will be created.  There are no restrictions if Duplicacy CLI is used to restore files from backups or check the integrity of backups.
+A user is defined as the owner of any files to be backed up by Duplicacy.  If you are an IT administrator who uses Duplicacy to back up files for your colleagues, then each colleague will be counted in the user limit permitted by the license.
