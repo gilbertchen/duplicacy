@@ -26,13 +26,13 @@ The [design document](https://github.com/gilbertchen/duplicacy-cli/blob/master/D
 
 ## Getting Started
 
-Duplicacy is written in Go.  You can build the executable by cloning this repository or visiting the [releases page](https://github.com/gilbertchen/duplicacy-cli/releases/latest) to download the version suitable for your platform.  Installation is not needed.
+Duplicacy is written in Go.  You can build the executable by cloning this github repository and then running `go build main\duplicacy_main.go`.  Or you can simply visit the [releases page](https://github.com/gilbertchen/duplicacy-cli/releases/latest) to download the version suitable for your platform.  Installation is not needed.
 
-Once you have the Duplicacy executable under your path, you can change to the directory that you want to back up (called *repository*) and run the *init* command:
+Once you have the Duplicacy executable on your path, you can change to the directory that you want to back up (called *repository*) and run the *init* command:
 
 ```
 $ cd path/to/your/repository
-$ duplicacy init mywork sftp://192.168.1.100/path/to/storage
+$ duplicacy init mywork sftp://user@192.168.1.100/path/to/storage
 ```
 
 This *init* command connects the repository with the remote storage at 192.168.1.00 via SFTP.  It will initialize the remote storage if this has not been done before.  It also assigns the snapshot id *mywork* to the repository.  This snapshot id is used to uniquely identify this repository if there are other repositories that also back up to the same storage.
