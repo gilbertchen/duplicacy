@@ -29,8 +29,8 @@ The [design document](https://github.com/gilbertchen/duplicacy-cli/blob/master/D
 Duplicacy is written in Go.  You can build the executable by running the following commands:
 
 ```
-git clone https://github.com/gilbertchen/duplicacy-cli.git ~/go/src/github.com/gilbertchen/duplicacy
-cd ~/go/src/github.com/gilbertchen/duplicacy/src
+git clone https://github.com/gilbertchen/duplicacy.git
+cd duplicacy
 go get ./...
 go build main/duplicacy_main.go
 ```
