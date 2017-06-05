@@ -71,8 +71,9 @@ func CreateBackupManager(snapshotID string, storage Storage, top string, passwor
 // SetupSnapshotCache creates the snapshot cache, which is merely a local storage under the default .duplicacy
 // directory
 func (manager *BackupManager) SetupSnapshotCache(top string, storageName string) bool {
-
-    cacheDir := path.Join(top, DUPLICACY_DIRECTORY, "cache", storageName)
+    
+    duplicacyDirectory := GetDotDuplicacyPathName(top)
+    cacheDir := path.Join(duplicacyDirectory, "cache", storageName)
 
     storage, err := CreateFileStorage(cacheDir, 1)
     if err != nil {
@@ -600,6 +601,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
         }
     }
 
+    // How will behave restore when repo created using -repo-dir ,??
     err = os.Mkdir(path.Join(top, DUPLICACY_DIRECTORY), 0744)
     if err != nil && !os.IsExist(err) {
         LOG_ERROR("RESTORE_MKDIR", "Failed to create the preference directory: %v", err)
@@ -978,8 +980,9 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 
     var existingFile, newFile *os.File
     var err error
-
-    temporaryPath := path.Join(top, DUPLICACY_DIRECTORY, "temporary")
+    
+    duplicacyDirectory := GetDotDuplicacyPathName(top)
+    temporaryPath := path.Join(duplicacyDirectory, "temporary")
     fullPath := joinPath(top, entry.Path)
 
     defer func() {

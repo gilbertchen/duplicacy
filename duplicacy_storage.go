@@ -81,7 +81,7 @@ func checkHostKey(repository string, hostname string, remote net.Addr, key ssh.P
         return nil
     }
 
-    duplicacyDirectory := path.Join(repository, DUPLICACY_DIRECTORY)
+    duplicacyDirectory := GetDotDuplicacyPathName(repository)
     hostFile := path.Join(duplicacyDirectory, "knowns_hosts")
     file, err := os.OpenFile(hostFile, os.O_RDWR | os.O_CREATE, 0600)
     if err != nil {

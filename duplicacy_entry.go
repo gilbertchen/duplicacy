@@ -22,6 +22,7 @@ import (
 
 // This is the hidden directory in the repository for storing various files.
 var DUPLICACY_DIRECTORY = ".duplicacy"
+var DUPLICACY_FILE = ".duplicacy"
 
 // Regex for matching 'StartChunk:StartOffset:EndChunk:EndOffset'
 var contentRegex = regexp.MustCompile(`^([0-9]+):([0-9]+):([0-9]+):([0-9]+)`)
