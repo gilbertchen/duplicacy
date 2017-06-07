@@ -510,10 +510,8 @@ func CreateShadowCopy(top string, shadowCopy bool) (shadowTop string) {
 
     snapshotPath := uint16ArrayToString(properties.SnapshotDeviceObject)
     
-    duplicacyDirectory := GetDotDuplicacyPathName(top)
-    shadowLink = path.Join(duplicacyDirectory, "shadow")
-    // FIXME: Not using path.Join : is this intentional ?
-    //shadowLink = path.Join(top, DUPLICACY_DIRECTORY) + "\\shadow"
+    preferencePath := GetDuplicacyPreferencePath(top)
+    shadowLink =  preferencePath + "\\shadow"
     os.Remove(shadowLink)
     err = os.Symlink(snapshotPath + "\\", shadowLink)
     if err != nil {

@@ -1511,8 +1511,8 @@ func (manager *SnapshotManager) PruneSnapshots(top string, selfID string, snapsh
         LOG_WARN("DELETE_OPTIONS", "Tags or retention policy will be ignored if at least one revision is specified")
     }
     
-    duplicacyDirectory := GetDotDuplicacyPathName(top)
-    logDir := path.Join(duplicacyDirectory, "logs")
+    preferencePath := GetDuplicacyPreferencePath(top)
+    logDir := path.Join(preferencePath, "logs")
     os.Mkdir(logDir, 0700)
     logFileName := path.Join(logDir, time.Now().Format("prune-log-20060102-150405"))
     logFile, err := os.OpenFile(logFileName, os.O_WRONLY | os.O_CREATE | os.O_TRUNC, 0600)

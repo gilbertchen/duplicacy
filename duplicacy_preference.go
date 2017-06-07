@@ -30,11 +30,11 @@ var Preferences [] Preference
 //  - if .duplicacy is a directory -> compute absolute path name and return it
 //  - if .duplicacy is a file -> assumed this file contains the real path name of .duplicacy
 //  - if pointed directory does not exits... return error
-func GetDotDuplicacyPathName( repository string) (duplicacyDirectory string){
+func GetDuplicacyPreferencePath( repository string) (preferencePath string){
     
-    dotDuplicacy := path.Join(repository, DUPLICACY_DIRECTORY) //TOKEEP
+    preferencePath = path.Join(repository, DUPLICACY_DIRECTORY) //TOKEEP
     
-    stat, err := os.Stat(dotDuplicacy)
+    stat, err := os.Stat(preferencePath)
     if err != nil && !os.IsNotExist(err) {
         LOG_ERROR("DOT_DUPLICACY_PATH", "Failed to retrieve the information about the directory %s: %v",
             repository, err)
@@ -43,18 +43,18 @@ func GetDotDuplicacyPathName( repository string) (duplicacyDirectory string){
     
     if stat != nil && stat.IsDir() {
         // $repository/.duplicacy exists and is a directory --> we found the .duplicacy directory
-        return path.Clean(dotDuplicacy)
+        return path.Clean(preferencePath)
     }
     
     if stat != nil && stat.Mode().IsRegular() {
-        b, err := ioutil.ReadFile(dotDuplicacy) // just pass the file name
+        b, err := ioutil.ReadFile(preferencePath) // just pass the file name
         if err != nil {
             LOG_ERROR("DOT_DUPLICACY_PATH", "Failed to read file %s: %v",
-                dotDuplicacy, err)
+                preferencePath, err)
             return ""
         }
-        dot_duplicacy := string(b) // convert content to a 'string'
-        stat, err := os.Stat(dot_duplicacy)
+        dotDuplicacyContent := string(b) // convert content to a 'string'
+        stat, err := os.Stat(dotDuplicacyContent)
         if err != nil && !os.IsNotExist(err) {
             LOG_ERROR("DOT_DUPLICACY_PATH", "Failed to retrieve the information about the directory %s: %v",
                 repository, err)
@@ -62,7 +62,7 @@ func GetDotDuplicacyPathName( repository string) (duplicacyDirectory string){
         }
         if stat != nil && stat.IsDir() {
             // If expression read from .duplicacy file is a directory --> we found the .duplicacy directory
-            return path.Clean( dot_duplicacy)
+            return path.Clean(dotDuplicacyContent)
         }
     }
     return ""
@@ -70,8 +70,8 @@ func GetDotDuplicacyPathName( repository string) (duplicacyDirectory string){
 
 func LoadPreferences(repository string) (bool) {
     
-    duplicacyDirectory := GetDotDuplicacyPathName(repository)
-    description, err := ioutil.ReadFile(path.Join(duplicacyDirectory, "preferences"))
+    preferencePath := GetDuplicacyPreferencePath(repository)
+    description, err := ioutil.ReadFile(path.Join(preferencePath, "preferences"))
     if err != nil {
         LOG_ERROR("PREFERENCE_OPEN", "Failed to read the preference file from repository %s: %v", repository, err)
         return false
@@ -97,8 +97,8 @@ func SavePreferences(repository string) (bool) {
         LOG_ERROR("PREFERENCE_MARSHAL", "Failed to marshal the repository preferences: %v", err)
         return false
     }
-    duplicacyDirectory := GetDotDuplicacyPathName(repository)
-    preferenceFile := path.Join(duplicacyDirectory, "/preferences")
+    preferencePath := GetDuplicacyPreferencePath(repository)
+    preferenceFile := path.Join(preferencePath, "/preferences")
     
     err = ioutil.WriteFile(preferenceFile, description, 0644)
     if err != nil {

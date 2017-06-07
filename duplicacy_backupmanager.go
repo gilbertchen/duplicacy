@@ -72,8 +72,8 @@ func CreateBackupManager(snapshotID string, storage Storage, top string, passwor
 // directory
 func (manager *BackupManager) SetupSnapshotCache(top string, storageName string) bool {
     
-    duplicacyDirectory := GetDotDuplicacyPathName(top)
-    cacheDir := path.Join(duplicacyDirectory, "cache", storageName)
+    preferencePath := GetDuplicacyPreferencePath(top)
+    cacheDir := path.Join(preferencePath, "cache", storageName)
 
     storage, err := CreateFileStorage(cacheDir, 1)
     if err != nil {
@@ -981,8 +981,8 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
     var existingFile, newFile *os.File
     var err error
     
-    duplicacyDirectory := GetDotDuplicacyPathName(top)
-    temporaryPath := path.Join(duplicacyDirectory, "temporary")
+    preferencePath := GetDuplicacyPreferencePath(top)
+    temporaryPath := path.Join(preferencePath, "temporary")
     fullPath := joinPath(top, entry.Path)
 
     defer func() {

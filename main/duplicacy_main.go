@@ -58,8 +58,8 @@ func getRepositoryPreference(context *cli.Context, storageName string) (reposito
     }
     duplicacy.LoadPreferences(repository)
     
-    duplicacyDirectory := duplicacy.GetDotDuplicacyPathName(repository)
-    duplicacy.SetKeyringFile(path.Join(duplicacyDirectory, "keyring"))
+    preferencePath := duplicacy.GetDuplicacyPreferencePath(repository)
+    duplicacy.SetKeyringFile(path.Join(preferencePath, "keyring"))
 
     if storageName == "" {
         storageName = context.String("storage")
@@ -145,8 +145,8 @@ func runScript(context *cli.Context, repository string, storageName string, phas
         return false
     }
     
-    duplicacyDirectory := duplicacy.GetDotDuplicacyPathName(repository)
-    scriptDir, _ := filepath.Abs(path.Join(duplicacyDirectory, "scripts"))
+    preferencePath := duplicacy.GetDuplicacyPreferencePath(repository)
+    scriptDir, _ := filepath.Abs(path.Join(preferencePath, "scripts"))
     scriptName := phase + "-" + context.Command.Name
 
     script := path.Join(scriptDir, scriptName)
@@ -224,37 +224,37 @@ func configRepository(context *cli.Context, init bool) {
             return
         }
     
-        duplicacyDirectory :=  context.String("pref-dir")
-        if duplicacyDirectory == "" {
+        preferencePath :=  context.String("pref-dir")
+        if preferencePath == "" {
             
-            duplicacyDirectory = path.Join(repository, duplicacy.DUPLICACY_DIRECTORY) // TOKEEP
+            preferencePath = path.Join(repository, duplicacy.DUPLICACY_DIRECTORY) // TOKEEP
         }
-        duplicacy.LOG_INFO("PREF_PATH", "-pref-dir value: --|%s|-- ", duplicacyDirectory)
+        duplicacy.LOG_INFO("PREF_PATH", "-pref-dir value: --|%s|-- ", preferencePath)
         
         
-        if stat, _ := os.Stat(path.Join(duplicacyDirectory, "preferences")); stat != nil {
+        if stat, _ := os.Stat(path.Join(preferencePath, "preferences")); stat != nil {
             duplicacy.LOG_ERROR("REPOSITORY_INIT", "The repository %s has already been initialized", repository)
             return
         }
 
-        err = os.Mkdir(duplicacyDirectory, 0744)
+        err = os.Mkdir(preferencePath, 0744)
         if err != nil && !os.IsExist(err) {
             duplicacy.LOG_ERROR("REPOSITORY_INIT", "Failed to create the directory %s: %v",
-                duplicacyDirectory, err)
+                preferencePath, err)
             return
         }
         if context.String("pref-dir") != "" {
             // out of tree preference file
             // write real path into .duplicacy file inside repository
             duplicacyFileName := path.Join(repository, duplicacy.DUPLICACY_FILE)
-            d1 := []byte(duplicacyDirectory)
+            d1 := []byte(preferencePath)
             err = ioutil.WriteFile(duplicacyFileName, d1, 0644)
             if err != nil {
                 duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to write %s file inside repository  %v", duplicacyFileName, err)
                 return
             }
         }
-        duplicacy.SetKeyringFile(path.Join(duplicacyDirectory, "keyring"))
+        duplicacy.SetKeyringFile(path.Join(preferencePath, "keyring"))
 
     } else {
         repository, _ = getRepositoryPreference(context, "")
@@ -1090,8 +1090,8 @@ func infoStorage(context *cli.Context) {
 
     repository := context.String("repository")
     if repository != "" {
-        duplicacyDirectory := duplicacy.GetDotDuplicacyPathName(repository)
-        duplicacy.SetKeyringFile(path.Join(duplicacyDirectory, "keyring"))
+        preferencePath := duplicacy.GetDuplicacyPreferencePath(repository)
+        duplicacy.SetKeyringFile(path.Join(preferencePath, "keyring"))
     }
 
     isEncrypted := context.Bool("e")
