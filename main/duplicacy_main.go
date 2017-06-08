@@ -229,7 +229,6 @@ func configRepository(context *cli.Context, init bool) {
             
             preferencePath = path.Join(repository, duplicacy.DUPLICACY_DIRECTORY) // TOKEEP
         }
-        duplicacy.LOG_INFO("PREF_PATH", "-pref-dir value: --|%s|-- ", preferencePath)
         
         
         if stat, _ := os.Stat(path.Join(preferencePath, "preferences")); stat != nil {
