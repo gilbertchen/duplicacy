@@ -135,7 +135,7 @@ func CreateStorage(repository string, preference Preference, resetPassword bool,
     if strings.HasPrefix(storageURL, "/") {
         isFileStorage = true
     } else if runtime.GOOS == "windows" {
-        if len(storageURL) > 3 && storageURL[1] == ':' && (storageURL[2] == '/' || storageURL[2] == '\\') {
+        if len(storageURL) >= 3 && storageURL[1] == ':' && (storageURL[2] == '/' || storageURL[2] == '\\') {
             volume := strings.ToLower(storageURL[:1])
             if volume[0] >= 'a' && volume[0] <= 'z' {
                 isFileStorage = true
