@@ -17,8 +17,7 @@ import (
 
     "github.com/gilbertchen/cli"
 
-    "github.com/gilbertchen/duplicacy"
-    
+    "github.com/gilbertchen/duplicacy/src"
     "io/ioutil"
 )
 
