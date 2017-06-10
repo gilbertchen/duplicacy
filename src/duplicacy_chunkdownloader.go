@@ -110,7 +110,7 @@ func (downloader *ChunkDownloader) AddFiles(snapshot *Snapshot, files [] *Entry)
                 }
                 downloader.taskList = append(downloader.taskList, task)
             } else {
-                downloader.taskList[lastChunkIndex].needed = true
+                downloader.taskList[len(downloader.taskList) - 1].needed = true
             }
             lastChunkIndex = i
         }
@@ -353,7 +353,7 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
         }
     }
 
-    if downloader.showStatistics || IsTracing() {
+    if (downloader.showStatistics || IsTracing()) && downloader.totalFileSize > 0 {
 
         atomic.AddInt64(&downloader.downloadedFileSize, int64(chunk.GetLength()))
         downloadFileSize := atomic.LoadInt64(&downloader.downloadedFileSize)

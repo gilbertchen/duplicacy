@@ -28,7 +28,6 @@ const (
 
 var ScriptEnabled bool
 
-
 func getRepositoryPreference(context *cli.Context, storageName string) (repository string,
                                                                         preference *duplicacy.Preference) {
 
@@ -37,6 +36,7 @@ func getRepositoryPreference(context *cli.Context, storageName string) (reposito
         duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
         return "", nil
     }
+
     for {
         stat, err := os.Stat(path.Join(repository, duplicacy.DUPLICACY_DIRECTORY)) //TOKEEP
         if err != nil && !os.IsNotExist(err) {
@@ -1682,7 +1682,7 @@ func main() {
     app.Name = "duplicacy"
     app.HelpName = "duplicacy"
     app.Usage = "A new generation cloud backup tool based on lock-free deduplication"
-    app.Version = "2.0.0"
+    app.Version = "2.0.2"
     err := app.Run(os.Args)
     if err != nil {
         os.Exit(2)

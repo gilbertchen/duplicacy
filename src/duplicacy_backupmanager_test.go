@@ -267,6 +267,20 @@ func TestBackupManager(t *testing.T) {
         }
     }
 
+    // Remove file2 and dir1/file3 and restore them from revision 3
+    os.Remove(testDir + "/repository1/file2")
+    os.Remove(testDir + "/repository1/dir1/file3")
+    backupManager.Restore(testDir + "/repository1", 3, /*inPlace=*/true, /*quickMode=*/false, threads, /*overwrite=*/true,
+                          /*deleteMode=*/false, /*showStatistics=*/false, /*patterns=*/[]string{"+file2", "+dir1/file3", "-*"})
+
+    for _, f := range []string{ "file1", "file2", "dir1/file3" } {
+        hash1 := getFileHash(testDir + "/repository1/" + f)
+        hash2 := getFileHash(testDir + "/repository2/" + f)
+        if hash1 != hash2 {
+            t.Errorf("File %s has different hashes: %s vs %s", f, hash1, hash2)
+        }
+    }
+
     /*buf := make([]byte, 1<<16)
     runtime.Stack(buf, true)
     fmt.Printf("%s", buf)*/
