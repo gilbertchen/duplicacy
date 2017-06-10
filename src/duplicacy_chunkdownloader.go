@@ -110,7 +110,7 @@ func (downloader *ChunkDownloader) AddFiles(snapshot *Snapshot, files [] *Entry)
                 }
                 downloader.taskList = append(downloader.taskList, task)
             } else {
-                downloader.taskList[lastChunkIndex].needed = true
+                downloader.taskList[len(downloader.taskList) - 1].needed = true
             }
             lastChunkIndex = i
         }
