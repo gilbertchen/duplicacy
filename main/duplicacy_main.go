@@ -1153,7 +1153,7 @@ func main() {
                 cli.StringFlag{
                     Name: "pref-dir",
                     Usage: "Specify alternate location for .duplicacy preferences directory (absolute or relative to current directory)",
-                    Argument: "<preference directory path>",
+                    Argument: "<preferences directory path>",
                 },
             },
             Usage:  "Initialize the storage if necessary and the current directory as the repository",
