@@ -32,7 +32,7 @@ Duplicacy is written in Go.  You can run the following command to build the exec
 go get -u github.com/gilbertchen/duplicacy/...
 ```
 
-You can also visit the [releases page](https://github.com/gilbertchen/duplicacy-cli/releases/latest) to download the version suitable for your platform..
+You can also visit the [releases page](https://github.com/gilbertchen/duplicacy-cli/releases/latest) to download the pre-built binary suitable for your platform..
 
 Once you have the Duplicacy executable on your path, you can change to the directory that you want to back up (called *repository*) and run the *init* command:
 
