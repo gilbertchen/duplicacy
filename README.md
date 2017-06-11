@@ -26,16 +26,13 @@ The [design document](https://github.com/gilbertchen/duplicacy-cli/blob/master/D
 
 ## Getting Started
 
-Duplicacy is written in Go.  You can build the executable by running the following commands:
+Duplicacy is written in Go.  You can run the following command to build the executeable (which will be created under `$GOPATH/bin`):
 
 ```
-git clone https://github.com/gilbertchen/duplicacy.git
-cd duplicacy
-go get ./...
-go build main/duplicacy_main.go
+go get -u github.com/gilbertchen/duplicacy/...
 ```
 
-You can also visit the [releases page](https://github.com/gilbertchen/duplicacy-cli/releases/latest) to download the version suitable for your platform.  Installation is not needed.
+You can also visit the [releases page](https://github.com/gilbertchen/duplicacy-cli/releases/latest) to download the version suitable for your platform..
 
 Once you have the Duplicacy executable on your path, you can change to the directory that you want to back up (called *repository*) and run the *init* command:
 
