@@ -67,7 +67,9 @@ func CreateSnapshotFromDirectory(id string, top string) (snapshot *Snapshot, ski
     }
 
     var patterns []string
-    patternFile, err := ioutil.ReadFile(path.Join(top, DUPLICACY_DIRECTORY, "filters"))
+    
+    preferencePath := GetDuplicacyPreferencePath(top)
+    patternFile, err := ioutil.ReadFile(path.Join(preferencePath, "filters"))
     if err == nil {
         for _, pattern := range strings.Split(string(patternFile), "\n") {
             pattern = strings.TrimSpace(pattern)

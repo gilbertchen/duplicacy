@@ -16,6 +16,7 @@ OPTIONS:
    -chunk-size, -c 4M              the average size of chunks
    -max-chunk-size, -max 16M       the maximum size of chunks (defaults to chunk-size * 4)
    -min-chunk-size, -min 1M        the minimum size of chunks (defaults to chunk-size / 4)
+   -pref-dir <preference directory path> 	Specify alternate location for .duplicacy preferences directory
 ```
 
 The *init* command first connects to the storage specified by the storage URL.  If the storage has been already been
@@ -32,6 +33,8 @@ The snapshot id is an id used to distinguish different repositories connected to
 The -e option controls whether or not encryption will be enabled for the storage.  If encryption is enabled, you will be prompted to enter a storage password.
 
 The three chunk size parameters are passed to the variable-size chunking algorithm.  Their values are important to the overall performance, especially for cloud storages.  If the chunk size is too small, a lot of overhead will be in sending requests and receiving responses.  If the chunk size is too large, the effect of deduplication will be less obvious as more data will need to be transferred with each chunk.
+
+The -pref-dir controls the location of the preferences directory. If not specified, a directory named .duplicacy is created in the repository. If specified, it must point to a non-existing directory. The directory is created and a .duplicacy file is created in the repository. The .duplicacy file contains the absolute path name to the preferences directory.
 
 Once a storage has been initialized with these parameters, these parameters cannot be modified any more.
 

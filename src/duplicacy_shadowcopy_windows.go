@@ -509,8 +509,9 @@ func CreateShadowCopy(top string, shadowCopy bool) (shadowTop string) {
     LOG_INFO("VSS_DONE", "Shadow copy %s created", SnapshotIDString)
 
     snapshotPath := uint16ArrayToString(properties.SnapshotDeviceObject)
-
-    shadowLink = path.Join(top, DUPLICACY_DIRECTORY) + "\\shadow"
+    
+    preferencePath := GetDuplicacyPreferencePath(top)
+    shadowLink =  preferencePath + "\\shadow"
     os.Remove(shadowLink)
     err = os.Symlink(snapshotPath + "\\", shadowLink)
     if err != nil {
