@@ -26,7 +26,7 @@ The [design document](https://github.com/gilbertchen/duplicacy-cli/blob/master/D
 
 ## Getting Started
 
-Duplicacy is written in Go.  You can run the following command to build the executeable (which will be created under `$GOPATH/bin`):
+Duplicacy is written in Go.  You can run the following command to build the executable (which will be created under `$GOPATH/bin`):
 
 ```
 go get -u github.com/gilbertchen/duplicacy/...
@@ -152,7 +152,7 @@ You'll need to input an access key and a secret key to access your Amazon S3 sto
 Storage URL:  gcs://bucket/path/to/storage
 ```
 
-Starting from version 2.0.0, a new Google Cloud Storage backend is added which is implemented using the [official Google client library](https://godoc.org/cloud.google.com/go/storage).  You must first obtain a credential file by [authorizing](https://duplicacy.com/gcp_start) Dupliacy to access your Google Cloud Storage account or by [downloading](https://console.cloud.google.com/projectselector/iam-admin/serviceaccounts) a service account credential file.
+Starting from version 2.0.0, a new Google Cloud Storage backend is added which is implemented using the [official Google client library](https://godoc.org/cloud.google.com/go/storage).  You must first obtain a credential file by [authorizing](https://duplicacy.com/gcp_start) Duplicacy to access your Google Cloud Storage account or by [downloading](https://console.cloud.google.com/projectselector/iam-admin/serviceaccounts) a service account credential file.
  
 You can also use the s3 protocol to access Google Cloud Storage.  To do this, you must enable the [s3 interoperability](https://cloud.google.com/storage/docs/migrating#migration-simple) in your Google Cloud Storage settings and set the storage url as `s3://storage.googleapis.com/bucket/path/to/storage`.
 
@@ -172,7 +172,7 @@ Storage URL: b2://bucket
 
 You'll need to input the account id and application key.
 
-Backblaze's B2 storage is not only the least expensive (at 0.5 cent per GB per month), but also the fastest.  We have been working closely with their developers to leverage the full potentials provided by the B2 API in order to maximumize the transfer speed.
+Backblaze's B2 storage is not only the least expensive (at 0.5 cent per GB per month), but also the fastest.  We have been working closely with their developers to leverage the full potentials provided by the B2 API in order to maximize the transfer speed.
 
 #### Google Drive
 
