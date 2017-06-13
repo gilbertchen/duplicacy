@@ -82,7 +82,7 @@ func checkHostKey(repository string, hostname string, remote net.Addr, key ssh.P
     }
     
     preferencePath := GetDuplicacyPreferencePath(repository)
-    hostFile := path.Join(preferencePath, "knowns_hosts")
+    hostFile := path.Join(preferencePath, "known_hosts")
     file, err := os.OpenFile(hostFile, os.O_RDWR | os.O_CREATE, 0600)
     if err != nil {
         return err
