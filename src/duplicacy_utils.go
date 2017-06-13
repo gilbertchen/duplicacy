@@ -48,6 +48,16 @@ func (reader *RateLimitedReader) Reset() {
     reader.Next = 0
 }
 
+func (reader *RateLimitedReader)  Seek(offset int64, whence int) (int64, error) {
+    if whence == io.SeekStart {
+        reader.Next = int(offset)
+    } else if whence == io.SeekCurrent {
+        reader.Next += int(offset)
+    } else {
+        reader.Next = len(reader.Content) - int(offset)
+    }
+    return int64(reader.Next), nil
+}
 
 func (reader *RateLimitedReader) Read(p []byte) (n int, err error) {
 
