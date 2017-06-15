@@ -502,4 +502,4 @@ Note that the passwords stored in the environment variable and the preference ne
 
 ## Scripts
 
-You can instruct Duplicay to run a script before or after executing a command.  For example, if you create a bash script with the name *pre-prune* under the *.duplicacy/scripts* directory, this bash script will be run before the *prune* command starts.  A script named *post-prune* will be run after the *prune* command finishes.  This rule applies to all commands except *init*.
+You can instruct Duplicacy to run a script before or after executing a command.  For example, if you create a bash script with the name *pre-prune* under the *.duplicacy/scripts* directory, this bash script will be run before the *prune* command starts.  A script named *post-prune* will be run after the *prune* command finishes.  This rule applies to all commands except *init*.
