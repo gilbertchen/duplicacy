@@ -1337,6 +1337,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
             } else {
                 LOG_INFO("SNAPSHOT_COPY", "Copied chunk %s (%d/%d)", chunk.GetID(), chunkIndex, len(chunks))
             }
+            otherManager.config.PutChunk(chunk)
         })
     chunkUploader.Start()
 
@@ -1350,7 +1351,10 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 
         i := chunkDownloader.AddChunk(chunkHash)
         chunk := chunkDownloader.WaitForChunk(i)
-        chunkUploader.StartChunk(chunk, chunkIndex)
+        newChunk := otherManager.config.GetChunk()
+        newChunk.Reset(true)
+        newChunk.Write(chunk.GetBytes())
+        chunkUploader.StartChunk(newChunk, chunkIndex)
     }
 
     chunkDownloader.Stop()

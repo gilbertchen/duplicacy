@@ -13,5 +13,5 @@ add_file file4
 backup
 add_file file5
 restore
-
+check
 

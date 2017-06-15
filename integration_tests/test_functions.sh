@@ -26,6 +26,9 @@ TEST_REPO=$TEST_ZONE/TEST_REPO
 # Storage for test ( For now, only local path storage is supported by test suite)
 TEST_STORAGE=$TEST_ZONE/TEST_STORAGE
 
+# Extra storage for copy operation
+SECONDARY_STORAGE=$TEST_ZONE/SECONDARY_STORAGE
+
 # Preference directory ( for testing the -pref-dir option)
 DUPLICACY_PREF_DIR=$TEST_ZONE/TEST_DUPLICACY_PREF_DIR
 
@@ -46,6 +49,11 @@ function fixture()
   rm -rf $TEST_STORAGE
   mkdir -p $TEST_STORAGE
 
+  # clean SECONDARY_STORAGE
+  rm -rf $SECONDARY_STORAGE
+  mkdir -p $SECONDARY_STORAGE
+  
+
   # clean TEST_DOT_DUPLICACY
   rm -rf $DUPLICACY_PREF_DIR
   mkdir -p $DUPLICACY_PREF_DIR
@@ -64,6 +72,7 @@ function init_repo()
 {
   pushd ${TEST_REPO}
   ${DUPLICACY} init integration-tests $TEST_STORAGE
+  ${DUPLICACY} add -copy default secondary integration-tests $SECONDARY_STORAGE
   ${DUPLICACY} backup
   popd
 
@@ -73,6 +82,7 @@ function init_repo_pref_dir()
 {
   pushd ${TEST_REPO}
   ${DUPLICACY} init -pref-dir "${DUPLICACY_PREF_DIR}"  integration-tests ${TEST_STORAGE}
+  ${DUPLICACY} add -copy default secondary integration-tests $SECONDARY_STORAGE
   ${DUPLICACY} backup
   popd
 
@@ -82,6 +92,7 @@ function add_file()
 {
   FILE_NAME=$1
   pushd ${TEST_REPO}
+  dd if=/dev/urandom of=${FILE_NAME} bs=1000 count=20000
     echo ${FILE_NAME} > "${FILE_NAME}"
   popd
 }
@@ -91,6 +102,7 @@ function backup()
 {
   pushd ${TEST_REPO}
   ${DUPLICACY} backup
+  ${DUPLICACY} copy -from default -to secondary
   popd
 }
 
@@ -99,5 +111,13 @@ function restore()
 {
   pushd ${TEST_REPO}
   ${DUPLICACY} restore -r 2 -delete
+  popd
+}
+
+function check()
+{
+  pushd ${TEST_REPO}
+  ${DUPLICACY} check -files
+  ${DUPLICACY} check -storage secondary -files
   popd
 }
