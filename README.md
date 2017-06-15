@@ -4,6 +4,8 @@ Duplicacy is a new generation cross-platform cloud backup tool based on the idea
 
 The repository hosts source code, design documents, and binary releases of the command line version.  There is also a Duplicacy GUI frontend built for Windows and Mac OS X available from https://duplicacy.com.
 
+There is a special edition of Duplicacy developed for VMware vSphere (ESXi) named [Vertical Backup](https://www.verticalbackup.com) that can back up virtual machine files on ESXi to local drives, network or cloud storages.
+
 ## Features
 
 Duplicacy currently supports major cloud storage providers (Amazon S3, Google Cloud Storage, Microsoft Azure, Dropbox, Backblaze, Google Drive, Microsoft OneDrive, and Hubic) and offers all essential features of a modern backup tool:
