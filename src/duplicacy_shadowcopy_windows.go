@@ -9,7 +9,6 @@ import (
     "unsafe"
     "time"
     "os"
-    "path"
     "runtime"
 
     ole "github.com/gilbertchen/go-ole"
