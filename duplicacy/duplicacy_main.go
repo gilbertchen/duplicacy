@@ -1681,7 +1681,7 @@ func main() {
     app.Name = "duplicacy"
     app.HelpName = "duplicacy"
     app.Usage = "A new generation cloud backup tool based on lock-free deduplication"
-    app.Version = "2.0.2"
+    app.Version = "2.0.3"
     err := app.Run(os.Args)
     if err != nil {
         os.Exit(2)
