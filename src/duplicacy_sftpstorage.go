@@ -215,7 +215,11 @@ func (storage *SFTPStorage) FindChunk(threadIndex int, chunkID string, isFossil 
 
             err = storage.client.Mkdir(subDir)
             if err != nil {
-                return "", false, 0, fmt.Errorf("Failed to create the directory %s: %v", subDir, err)
+                // The directory may have been created by other threads so check it again.
+                stat, _ := storage.client.Stat(subDir)
+                if stat == nil || !stat.IsDir() {
+                    return "", false, 0, fmt.Errorf("Failed to create the directory %s: %v", subDir, err)
+                }
             }
 
             dir = subDir

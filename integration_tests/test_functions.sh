@@ -93,7 +93,6 @@ function add_file()
   FILE_NAME=$1
   pushd ${TEST_REPO}
   dd if=/dev/urandom of=${FILE_NAME} bs=1000 count=20000
-    echo ${FILE_NAME} > "${FILE_NAME}"
   popd
 }
 

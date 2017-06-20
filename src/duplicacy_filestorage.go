@@ -158,7 +158,11 @@ func (storage *FileStorage) FindChunk(threadIndex int, chunkID string, isFossil 
 
             err = os.Mkdir(subDir, 0744)
             if err != nil {
-                return "", false, 0, err
+                // The directory may have been created by other threads so check it again.
+                stat, _ := os.Stat(subDir)
+                if stat == nil || !stat.IsDir() {
+                    return "", false, 0, err
+                }
             }
 
             dir = subDir
