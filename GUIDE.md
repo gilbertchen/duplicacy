@@ -28,7 +28,7 @@ for those commands.  This default storage actually has a name, *default*.
 After that, it will prepare the the current working directory as the repository to be backed up.  Under the hood, it will create a directory
 named *.duplicacy* in the repository and put a file named *preferences* that stores the snapshot id and encryption and storage options.
 
-The snapshot id is an id used to distinguish different repositories connected to the same storage.  Each repository must have a unique snapshot id.
+The snapshot id is an id used to distinguish different repositories connected to the same storage.  Each repository must have a unique snapshot id.  A snapshot id must contain only characters valid in Linux and Windows paths (alphabet, digits, underscore, dash, etc), but cannot include `/`, `\`, or `@`.
 
 The -e option controls whether or not encryption will be enabled for the storage.  If encryption is enabled, you will be prompted to enter a storage password.
 
