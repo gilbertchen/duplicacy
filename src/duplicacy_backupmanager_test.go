@@ -215,8 +215,9 @@ func TestBackupManager(t *testing.T) {
 
     time.Sleep(time.Duration(delay) * time.Second)
 
+    SetDuplicacyPreferencePath(testDir + "/repository1")
     backupManager := CreateBackupManager("host1", storage, testDir, password)
-    backupManager.SetupSnapshotCache(testDir + "/repository1", "default")
+    backupManager.SetupSnapshotCache("default")
 
     backupManager.Backup(testDir + "/repository1", /*quickMode=*/true, threads, "first", false, false)
     time.Sleep(time.Duration(delay) * time.Second)

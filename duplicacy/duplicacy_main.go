@@ -13,6 +13,7 @@ import (
     "strings"
     "strconv"
     "os/exec"
+    "os/signal"
     "encoding/json"
 
     "github.com/gilbertchen/cli"
@@ -57,7 +58,7 @@ func getRepositoryPreference(context *cli.Context, storageName string) (reposito
     }
     duplicacy.LoadPreferences(repository)
     
-    preferencePath := duplicacy.GetDuplicacyPreferencePath(repository)
+    preferencePath := duplicacy.GetDuplicacyPreferencePath()
     duplicacy.SetKeyringFile(path.Join(preferencePath, "keyring"))
 
     if storageName == "" {
@@ -138,13 +139,13 @@ func setGlobalOptions(context *cli.Context) {
     duplicacy.RunInBackground = context.GlobalBool("background")
 }
 
-func runScript(context *cli.Context, repository string, storageName string, phase string) bool {
+func runScript(context *cli.Context, storageName string, phase string) bool {
 
     if !ScriptEnabled {
         return false
     }
     
-    preferencePath := duplicacy.GetDuplicacyPreferencePath(repository)
+    preferencePath := duplicacy.GetDuplicacyPreferencePath()
     scriptDir, _ := filepath.Abs(path.Join(preferencePath, "scripts"))
     scriptName := phase + "-" + context.Command.Name
 
@@ -225,7 +226,6 @@ func configRepository(context *cli.Context, init bool) {
     
         preferencePath :=  context.String("pref-dir")
         if preferencePath == "" {
-            
             preferencePath = path.Join(repository, duplicacy.DUPLICACY_DIRECTORY) // TOKEEP
         }
         
@@ -252,6 +252,7 @@ func configRepository(context *cli.Context, init bool) {
                 return
             }
         }
+        duplicacy.SetDuplicacyPreferencePath(preferencePath)
         duplicacy.SetKeyringFile(path.Join(preferencePath, "keyring"))
 
     } else {
@@ -269,7 +270,7 @@ func configRepository(context *cli.Context, init bool) {
         Encrypted: context.Bool("encrypt"),
     }
 
-    storage := duplicacy.CreateStorage(repository, preference, true, 1)
+    storage := duplicacy.CreateStorage(preference, true, 1)
     storagePassword := ""
     if preference.Encrypted {
         prompt := fmt.Sprintf("Enter storage password for %s:", preference.StorageURL)
@@ -359,7 +360,7 @@ func configRepository(context *cli.Context, init bool) {
 
             }
 
-            otherStorage := duplicacy.CreateStorage(repository, *otherPreference, false, 1)
+            otherStorage := duplicacy.CreateStorage(*otherPreference, false, 1)
 
             otherPassword := ""
             if otherPreference.Encrypted {
@@ -386,7 +387,7 @@ func configRepository(context *cli.Context, init bool) {
 
     duplicacy.Preferences = append(duplicacy.Preferences, preference)
 
-    duplicacy.SavePreferences(repository)
+    duplicacy.SavePreferences()
 
     duplicacy.LOG_INFO("REPOSITORY_INIT", "%s will be backed up to %s with id %s",
                        repository, preference.StorageURL, preference.SnapshotID)
@@ -507,7 +508,7 @@ func setPreference(context *cli.Context) {
                            oldPreference.StorageURL)
     } else {
         *oldPreference = newPreference
-        duplicacy.SavePreferences(repository)
+        duplicacy.SavePreferences()
         duplicacy.LOG_INFO("STORAGE_SET", "New options for storage %s have been saved", oldPreference.StorageURL)
     }
 }
@@ -524,9 +525,9 @@ func changePassword(context *cli.Context) {
         os.Exit(ArgumentExitCode)
     }
 
-    repository, preference := getRepositoryPreference(context, "")
+    _, preference := getRepositoryPreference(context, "")
 
-    storage := duplicacy.CreateStorage(repository, *preference, false, 1)
+    storage := duplicacy.CreateStorage(*preference, false, 1)
     if storage == nil {
         return
     }
@@ -583,7 +584,7 @@ func backupRepository(context *cli.Context) {
         return
     }
 
-    runScript(context, repository,  preference.Name, "pre")
+    runScript(context, preference.Name, "pre")
 
     threads := context.Int("threads")
     if threads < 1 {
@@ -591,7 +592,7 @@ func backupRepository(context *cli.Context) {
     }
 
     duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
-    storage := duplicacy.CreateStorage(repository, *preference, false, threads)
+    storage := duplicacy.CreateStorage(*preference, false, threads)
     if storage == nil {
         return
     }
@@ -615,10 +616,10 @@ func backupRepository(context *cli.Context) {
     backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password)
     duplicacy.SavePassword(*preference, "password", password)
 
-    backupManager.SetupSnapshotCache(repository, preference.Name)
+    backupManager.SetupSnapshotCache(preference.Name)
     backupManager.Backup(repository, quickMode, threads, context.String("t"), showStatistics, enableVSS)
 
-    runScript(context, repository,  preference.Name, "post")
+    runScript(context, preference.Name, "post")
 }
 
 func restoreRepository(context *cli.Context) {
@@ -640,7 +641,7 @@ func restoreRepository(context *cli.Context) {
         return
     }
 
-    runScript(context, repository,  preference.Name, "pre")
+    runScript(context, preference.Name, "pre")
 
     threads := context.Int("threads")
     if threads < 1 {
@@ -648,7 +649,7 @@ func restoreRepository(context *cli.Context) {
     }
 
     duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
-    storage := duplicacy.CreateStorage(repository, *preference, false, threads)
+    storage := duplicacy.CreateStorage(*preference, false, threads)
     if storage == nil {
         return
     }
@@ -690,10 +691,10 @@ func restoreRepository(context *cli.Context) {
     backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password)
     duplicacy.SavePassword(*preference, "password", password)
 
-    backupManager.SetupSnapshotCache(repository, preference.Name)
+    backupManager.SetupSnapshotCache(preference.Name)
     backupManager.Restore(repository, revision, true, quickMode, threads, overwrite, deleteMode, showStatistics, patterns)
 
-    runScript(context, repository,  preference.Name, "post")
+    runScript(context, preference.Name, "post")
 }
 
 func listSnapshots(context *cli.Context) {
@@ -710,10 +711,10 @@ func listSnapshots(context *cli.Context) {
 
     duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
 
-    runScript(context, repository,  preference.Name, "pre")
+    runScript(context, preference.Name, "pre")
 
     resetPassword := context.Bool("reset-passwords")
-    storage := duplicacy.CreateStorage(repository, *preference, resetPassword, 1)
+    storage := duplicacy.CreateStorage(*preference, resetPassword, 1)
     if storage == nil {
         return
     }
@@ -740,10 +741,10 @@ func listSnapshots(context *cli.Context) {
     showFiles := context.Bool("files")
     showChunks := context.Bool("chunks")
 
-    backupManager.SetupSnapshotCache(repository, preference.Name)
+    backupManager.SetupSnapshotCache(preference.Name)
     backupManager.SnapshotManager.ListSnapshots(id, revisions, tag, showFiles, showChunks)
 
-    runScript(context, repository,  preference.Name, "post")
+    runScript(context, preference.Name, "post")
 }
 
 func checkSnapshots(context *cli.Context) {
@@ -760,9 +761,9 @@ func checkSnapshots(context *cli.Context) {
 
     duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
 
-    runScript(context, repository,  preference.Name, "pre")
+    runScript(context, preference.Name, "pre")
 
-    storage := duplicacy.CreateStorage(repository, *preference, false, 1)
+    storage := duplicacy.CreateStorage(*preference, false, 1)
     if storage == nil {
         return
     }
@@ -790,10 +791,10 @@ func checkSnapshots(context *cli.Context) {
     searchFossils := context.Bool("fossils")
     resurrect := context.Bool("resurrect")
 
-    backupManager.SetupSnapshotCache(repository, preference.Name)
+    backupManager.SetupSnapshotCache(preference.Name)
     backupManager.SnapshotManager.CheckSnapshots(id, revisions, tag, showStatistics, checkFiles, searchFossils, resurrect)
 
-    runScript(context, repository,  preference.Name, "post")
+    runScript(context, preference.Name, "post")
 }
 
 func printFile(context *cli.Context) {
@@ -808,11 +809,11 @@ func printFile(context *cli.Context) {
 
     repository, preference := getRepositoryPreference(context, "")
 
-    runScript(context, repository,  preference.Name, "pre")
+    runScript(context, preference.Name, "pre")
 
     // Do not print out storage for this command
     //duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
-    storage := duplicacy.CreateStorage(repository, *preference, false, 1)
+    storage := duplicacy.CreateStorage(*preference, false, 1)
     if storage == nil {
         return
     }
@@ -832,7 +833,7 @@ func printFile(context *cli.Context) {
     backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password)
     duplicacy.SavePassword(*preference, "password", password)
 
-    backupManager.SetupSnapshotCache(repository, preference.Name)
+    backupManager.SetupSnapshotCache(preference.Name)
 
     file := ""
     if len(context.Args()) > 0 {
@@ -840,7 +841,7 @@ func printFile(context *cli.Context) {
     }
     backupManager.SnapshotManager.PrintFile(snapshotID, revision, file)
 
-    runScript(context, repository,  preference.Name, "post")
+    runScript(context, preference.Name, "post")
 }
 
 func diff(context *cli.Context) {
@@ -855,10 +856,10 @@ func diff(context *cli.Context) {
 
     repository, preference := getRepositoryPreference(context, "")
 
-    runScript(context, repository,  preference.Name, "pre")
+    runScript(context, preference.Name, "pre")
 
     duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
-    storage := duplicacy.CreateStorage(repository, *preference, false, 1)
+    storage := duplicacy.CreateStorage(*preference, false, 1)
     if storage == nil {
         return
     }
@@ -889,10 +890,10 @@ func diff(context *cli.Context) {
     backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password)
     duplicacy.SavePassword(*preference, "password", password)
 
-    backupManager.SetupSnapshotCache(repository, preference.Name)
+    backupManager.SetupSnapshotCache(preference.Name)
     backupManager.SnapshotManager.Diff(repository, snapshotID, revisions, path, compareByHash)
 
-    runScript(context, repository,  preference.Name, "post")
+    runScript(context, preference.Name, "post")
 }
 
 func showHistory(context *cli.Context) {
@@ -907,10 +908,10 @@ func showHistory(context *cli.Context) {
 
     repository, preference := getRepositoryPreference(context, "")
 
-    runScript(context, repository,  preference.Name, "pre")
+    runScript(context, preference.Name, "pre")
 
     duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
-    storage := duplicacy.CreateStorage(repository, *preference, false, 1)
+    storage := duplicacy.CreateStorage(*preference, false, 1)
     if storage == nil {
         return
     }
@@ -932,10 +933,10 @@ func showHistory(context *cli.Context) {
     backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password)
     duplicacy.SavePassword(*preference, "password", password)
 
-    backupManager.SetupSnapshotCache(repository, preference.Name)
+    backupManager.SetupSnapshotCache(preference.Name)
     backupManager.SnapshotManager.ShowHistory(repository, snapshotID, revisions, path, showLocalHash)
 
-    runScript(context, repository,  preference.Name, "post")
+    runScript(context, preference.Name, "post")
 }
 
 func pruneSnapshots(context *cli.Context) {
@@ -950,10 +951,10 @@ func pruneSnapshots(context *cli.Context) {
 
     repository, preference := getRepositoryPreference(context, "")
 
-    runScript(context, repository,  preference.Name, "pre")
+    runScript(context, preference.Name, "pre")
 
     duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
-    storage := duplicacy.CreateStorage(repository, *preference, false, 1)
+    storage := duplicacy.CreateStorage(*preference, false, 1)
     if storage == nil {
         return
     }
@@ -990,11 +991,11 @@ func pruneSnapshots(context *cli.Context) {
     backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password)
     duplicacy.SavePassword(*preference, "password", password)
 
-    backupManager.SetupSnapshotCache(repository, preference.Name)
-    backupManager.SnapshotManager.PruneSnapshots(repository, selfID, snapshotID, revisions, tags, retentions,
+    backupManager.SetupSnapshotCache(preference.Name)
+    backupManager.SnapshotManager.PruneSnapshots(selfID, snapshotID, revisions, tags, retentions,
                                                  exhaustive, exclusive, ignoredIDs, dryRun, deleteOnly, collectOnly)
 
-    runScript(context, repository,  preference.Name, "post")
+    runScript(context, preference.Name, "post")
 }
 
 func copySnapshots(context *cli.Context) {
@@ -1009,10 +1010,10 @@ func copySnapshots(context *cli.Context) {
 
     repository, source := getRepositoryPreference(context, context.String("from"))
 
-    runScript(context, repository,  source.Name, "pre")
+    runScript(context, source.Name, "pre")
 
     duplicacy.LOG_INFO("STORAGE_SET", "Source storage set to %s", source.StorageURL)
-    sourceStorage := duplicacy.CreateStorage(repository, *source, false, 1)
+    sourceStorage := duplicacy.CreateStorage(*source, false, 1)
     if sourceStorage == nil {
         return
     }
@@ -1023,7 +1024,7 @@ func copySnapshots(context *cli.Context) {
     }
 
     sourceManager := duplicacy.CreateBackupManager(source.SnapshotID, sourceStorage, repository, sourcePassword)
-    sourceManager.SetupSnapshotCache(repository, source.Name)
+    sourceManager.SetupSnapshotCache(source.Name)
     duplicacy.SavePassword(*source, "password", sourcePassword)
 
 
@@ -1042,7 +1043,7 @@ func copySnapshots(context *cli.Context) {
 
 
     duplicacy.LOG_INFO("STORAGE_SET", "Destination storage set to %s", destination.StorageURL)
-    destinationStorage := duplicacy.CreateStorage(repository, *destination, false, 1)
+    destinationStorage := duplicacy.CreateStorage(*destination, false, 1)
     if destinationStorage == nil {
         return
     }
@@ -1059,7 +1060,7 @@ func copySnapshots(context *cli.Context) {
     destinationManager := duplicacy.CreateBackupManager(destination.SnapshotID, destinationStorage, repository,
                                                         destinationPassword)
     duplicacy.SavePassword(*destination, "password", destinationPassword)
-    destinationManager.SetupSnapshotCache(repository, destination.Name)
+    destinationManager.SetupSnapshotCache(destination.Name)
 
     revisions := getRevisions(context)
     snapshotID := ""
@@ -1073,7 +1074,7 @@ func copySnapshots(context *cli.Context) {
     }
 
     sourceManager.CopySnapshots(destinationManager, snapshotID, revisions, threads)
-    runScript(context, repository,  source.Name, "post")
+    runScript(context, source.Name, "post")
 }
 
 func infoStorage(context *cli.Context) {
@@ -1088,7 +1089,8 @@ func infoStorage(context *cli.Context) {
 
     repository := context.String("repository")
     if repository != "" {
-        preferencePath := duplicacy.GetDuplicacyPreferencePath(repository)
+        preferencePath := path.Join(repository, duplicacy.DUPLICACY_DIRECTORY)
+        duplicacy.SetDuplicacyPreferencePath(preferencePath)
         duplicacy.SetKeyringFile(path.Join(preferencePath, "keyring"))
     }
 
@@ -1106,7 +1108,7 @@ func infoStorage(context *cli.Context) {
         password = duplicacy.GetPassword(preference, "password", "Enter the storage password:", false, false)
     }
 
-    storage := duplicacy.CreateStorage("", preference, context.Bool("reset-passwords"), 1)
+    storage := duplicacy.CreateStorage(preference, context.Bool("reset-passwords"), 1)
     config, isStorageEncrypted, err := duplicacy.DownloadConfig(storage, password)
 
     if isStorageEncrypted {
@@ -1682,6 +1684,17 @@ func main() {
     app.HelpName = "duplicacy"
     app.Usage = "A new generation cloud backup tool based on lock-free deduplication"
     app.Version = "2.0.3"
+
+    // If the program is interrupted, call the RunAtError function.
+    c := make(chan os.Signal, 1)                                       
+    signal.Notify(c, os.Interrupt)                                     
+    go func() {                                                        
+        for _ = range c {
+            duplicacy.RunAtError()                                             
+            os.Exit(1)                                                     
+        }                                                                
+    }()        
+
     err := app.Run(os.Args)
     if err != nil {
         os.Exit(2)

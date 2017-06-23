@@ -68,8 +68,7 @@ func CreateSnapshotFromDirectory(id string, top string) (snapshot *Snapshot, ski
 
     var patterns []string
     
-    preferencePath := GetDuplicacyPreferencePath(top)
-    patternFile, err := ioutil.ReadFile(path.Join(preferencePath, "filters"))
+    patternFile, err := ioutil.ReadFile(path.Join(GetDuplicacyPreferencePath(), "filters"))
     if err == nil {
         for _, pattern := range strings.Split(string(patternFile), "\n") {
             pattern = strings.TrimSpace(pattern)
@@ -136,6 +135,96 @@ func CreateSnapshotFromDirectory(id string, top string) (snapshot *Snapshot, ski
     snapshot.Files = snapshot.Files[1:]
 
     return snapshot, skippedDirectories, skippedFiles, nil
+}
+
+// This is the struct used to save/load incomplete snapshots
+type IncompleteSnapshot struct {
+    Files [] *Entry
+    ChunkHashes []string
+    ChunkLengths [] int
+}
+
+// LoadIncompleteSnapshot loads the incomplete snapshot if it exists
+func LoadIncompleteSnapshot() (snapshot *Snapshot) {
+    snapshotFile := path.Join(GetDuplicacyPreferencePath(), "incomplete")
+    description, err := ioutil.ReadFile(snapshotFile)    
+    if err != nil {
+        return nil
+    }
+
+    var incompleteSnapshot IncompleteSnapshot
+
+    err = json.Unmarshal(description, &incompleteSnapshot)
+    if err != nil {
+        return nil
+    }
+
+    var chunkHashes []string
+    for _, chunkHash := range incompleteSnapshot.ChunkHashes {
+        hash, err := hex.DecodeString(chunkHash)
+        if err != nil {
+            return nil
+        }
+        chunkHashes = append(chunkHashes, string(hash))
+    }
+
+    snapshot = &Snapshot {
+        Files: incompleteSnapshot.Files,
+        ChunkHashes: chunkHashes,
+        ChunkLengths: incompleteSnapshot.ChunkLengths,
+    }      
+    LOG_INFO("INCOMPLETE_LOAD", "Incomplete snpashot loaded from %s", snapshotFile)
+    return snapshot
+}
+
+// SaveIncompleteSnapshot saves the incomplete snapshot under the preference directory
+func SaveIncompleteSnapshot(snapshot *Snapshot) {
+    var files []*Entry
+    for _, file := range snapshot.Files {
+        if file.EndChunk >= 0 {
+            file.Attributes = nil
+            files = append(files, file)
+        } else {
+            break
+        }
+    }
+    var chunkHashes []string
+    for _, chunkHash := range snapshot.ChunkHashes {
+        chunkHashes = append(chunkHashes, hex.EncodeToString([]byte(chunkHash)))
+    }
+
+    incompleteSnapshot := IncompleteSnapshot {
+        Files: files,
+        ChunkHashes: chunkHashes,
+        ChunkLengths: snapshot.ChunkLengths,
+    }
+
+    description, err := json.Marshal(incompleteSnapshot)
+    if err != nil {
+        LOG_WARN("INCOMPLETE_ENCODE", "Failed to encode the incomplete snapshot: %v", err)
+        return
+    }
+
+    snapshotFile := path.Join(GetDuplicacyPreferencePath(), "incomplete")    
+    err = ioutil.WriteFile(snapshotFile, description, 0644)
+    if err != nil {
+        LOG_WARN("INCOMPLETE_WRITE", "Failed to save the incomplete snapshot: %v", err)        
+        return
+    }
+
+    LOG_INFO("INCOMPLETE_SAVE", "Incomplete snapshot saved to %s", snapshotFile)
+}
+
+func RemoveIncompleteSnapshot() {
+    snapshotFile := path.Join(GetDuplicacyPreferencePath(), "incomplete")    
+    if stat, err := os.Stat(snapshotFile); err == nil && !stat.IsDir() {
+        err = os.Remove(snapshotFile)
+        if err != nil {
+            LOG_INFO("INCOMPLETE_SAVE", "Failed to remove ncomplete snapshot: %v", err)
+        } else {
+            LOG_INFO("INCOMPLETE_SAVE", "Removed incomplete snapshot %s", snapshotFile)    
+        }
+    }
 }
 
 // CreateSnapshotFromDescription creates a snapshot from json decription.

@@ -24,53 +24,38 @@ type Preference struct {
     Keys map[string]string    `json:"keys"`
 }
 
+var preferencePath string
 var Preferences [] Preference
 
-// Compute .duplicacy directory path name:
-//  - if .duplicacy is a directory -> compute absolute path name and return it
-//  - if .duplicacy is a file -> assumed this file contains the real path name of .duplicacy
-//  - if pointed directory does not exits... return error
-func GetDuplicacyPreferencePath( repository string) (preferencePath string){
+func LoadPreferences(repository string) bool {
     
-    preferencePath = path.Join(repository, DUPLICACY_DIRECTORY) //TOKEEP
+    preferencePath = path.Join(repository, DUPLICACY_DIRECTORY)
     
     stat, err := os.Stat(preferencePath)
-    if err != nil && !os.IsNotExist(err) {
-        LOG_ERROR("DOT_DUPLICACY_PATH", "Failed to retrieve the information about the directory %s: %v",
-            repository, err)
-        return ""
+    if err != nil {
+        LOG_ERROR("PREFERENCE_PATH", "Failed to retrieve the information about the directory %s: %v", repository, err)
+        return false
     }
     
-    if stat != nil && stat.IsDir() {
-        // $repository/.duplicacy exists and is a directory --> we found the .duplicacy directory
-        return path.Clean(preferencePath)
-    }
-    
-    if stat != nil && stat.Mode().IsRegular() {
-        b, err := ioutil.ReadFile(preferencePath) // just pass the file name
+    if !stat.IsDir() {
+        content, err := ioutil.ReadFile(preferencePath)
         if err != nil {
-            LOG_ERROR("DOT_DUPLICACY_PATH", "Failed to read file %s: %v",
-                preferencePath, err)
-            return ""
+            LOG_ERROR("DOT_DUPLICACY_PATH", "Failed to locate the preference path: %v", err)
+            return false
         }
-        dotDuplicacyContent := string(b) // convert content to a 'string'
-        stat, err := os.Stat(dotDuplicacyContent)
-        if err != nil && !os.IsNotExist(err) {
-            LOG_ERROR("DOT_DUPLICACY_PATH", "Failed to retrieve the information about the directory %s: %v",
-                repository, err)
-            return ""
+        realPreferencePath := string(content)
+        stat, err := os.Stat(realPreferencePath)
+        if err != nil {
+            LOG_ERROR("PREFERENCE_PATH", "Failed to retrieve the information about the directory %s: %v", content, err)
+            return false
         }
-        if stat != nil && stat.IsDir() {
-            // If expression read from .duplicacy file is a directory --> we found the .duplicacy directory
-            return path.Clean(dotDuplicacyContent)
+        if !stat.IsDir() {
+            LOG_ERROR("PREFERENCE_PATH", "The preference path %s is not a directory",  realPreferencePath)
         }
-    }
-    return ""
-}
 
-func LoadPreferences(repository string) (bool) {
+        preferencePath = realPreferencePath
+    }
     
-    preferencePath := GetDuplicacyPreferencePath(repository)
     description, err := ioutil.ReadFile(path.Join(preferencePath, "preferences"))
     if err != nil {
         LOG_ERROR("PREFERENCE_OPEN", "Failed to read the preference file from repository %s: %v", repository, err)
@@ -91,14 +76,27 @@ func LoadPreferences(repository string) (bool) {
     return true
 }
 
-func SavePreferences(repository string) (bool) {
+func GetDuplicacyPreferencePath() string {
+    if preferencePath == "" {
+        LOG_ERROR("PREFERENCE_PATH", "The preference path has not been set")
+        return ""
+    }
+    return preferencePath
+}
+
+// Normally 'preferencePath' is set in LoadPreferences; however, if LoadPreferences is not called, this function
+// provide another change to set 'preferencePath'
+func SetDuplicacyPreferencePath(p string) {
+    preferencePath = p
+}
+
+func SavePreferences() (bool) {
     description, err := json.MarshalIndent(Preferences, "", "    ")
     if err != nil {
         LOG_ERROR("PREFERENCE_MARSHAL", "Failed to marshal the repository preferences: %v", err)
         return false
     }
-    preferencePath := GetDuplicacyPreferencePath(repository)
-    preferenceFile := path.Join(preferencePath, "/preferences")
+    preferenceFile := path.Join(GetDuplicacyPreferencePath(), "preferences")
     
     err = ioutil.WriteFile(preferenceFile, description, 0644)
     if err != nil {

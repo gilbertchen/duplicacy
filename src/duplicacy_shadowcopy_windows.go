@@ -509,7 +509,7 @@ func CreateShadowCopy(top string, shadowCopy bool) (shadowTop string) {
 
     snapshotPath := uint16ArrayToString(properties.SnapshotDeviceObject)
     
-    preferencePath := GetDuplicacyPreferencePath(top)
+    preferencePath := GetDuplicacyPreferencePath()
     shadowLink =  preferencePath + "\\shadow"
     os.Remove(shadowLink)
     err = os.Symlink(snapshotPath + "\\", shadowLink)

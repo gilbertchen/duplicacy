@@ -1496,7 +1496,7 @@ func (manager *SnapshotManager) resurrectChunk(fossilPath string, chunkID string
 // Note that a snapshot being created when step 2 is in progress may reference a fossil.  To avoid this
 // problem, never remove the lastest revision (unless exclusive is true), and only cache chunks referenced
 // by the lastest revision.
-func (manager *SnapshotManager) PruneSnapshots(top string, selfID string, snapshotID string, revisionsToBeDeleted []int,
+func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string, revisionsToBeDeleted []int,
                                                tags []string, retentions []string,
                                                exhaustive bool, exclusive bool, ignoredIDs []string,
                                                dryRun bool, deleteOnly bool, collectOnly bool) bool {
@@ -1511,7 +1511,7 @@ func (manager *SnapshotManager) PruneSnapshots(top string, selfID string, snapsh
         LOG_WARN("DELETE_OPTIONS", "Tags or retention policy will be ignored if at least one revision is specified")
     }
     
-    preferencePath := GetDuplicacyPreferencePath(top)
+    preferencePath := GetDuplicacyPreferencePath()
     logDir := path.Join(preferencePath, "logs")
     os.Mkdir(logDir, 0700)
     logFileName := path.Join(logDir, time.Now().Format("prune-log-20060102-150405"))

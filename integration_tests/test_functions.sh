@@ -91,8 +91,9 @@ function init_repo_pref_dir()
 function add_file()
 {
   FILE_NAME=$1
+  FILE_SIZE=${2:-20000000}
   pushd ${TEST_REPO}
-  dd if=/dev/urandom of=${FILE_NAME} bs=1000 count=20000
+  dd if=/dev/urandom of=${FILE_NAME} bs=1 count=$(($RANDOM % ${FILE_SIZE})) &> /dev/null
   popd
 }
 

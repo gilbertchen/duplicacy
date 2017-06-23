@@ -160,6 +160,9 @@ const (
     otherExitCode     = 101
 )
 
+// This is the function to be called before exiting when an error occurs.
+var RunAtError func() = func() {}
+
 func CatchLogException() {
     if r := recover(); r != nil {
         switch e := r.(type) {
@@ -167,10 +170,12 @@ func CatchLogException() {
             if printStackTrace {
                 debug.PrintStack()
             }
+            RunAtError()
             os.Exit(duplicacyExitCode)
         default:
             fmt.Fprintf(os.Stderr, "%v\n", e)
             debug.PrintStack()
+            RunAtError()
             os.Exit(otherExitCode)
         }
     }

@@ -75,13 +75,9 @@ func (storage *RateLimitedStorage) SetRateLimits(downloadRateLimit int, uploadRa
     storage.UploadRateLimit = uploadRateLimit
 }
 
-func checkHostKey(repository string, hostname string, remote net.Addr, key ssh.PublicKey) error {
-
-    if len(repository) == 0 {
-        return nil
-    }
+func checkHostKey(hostname string, remote net.Addr, key ssh.PublicKey) error {
     
-    preferencePath := GetDuplicacyPreferencePath(repository)
+    preferencePath := GetDuplicacyPreferencePath()
     hostFile := path.Join(preferencePath, "known_hosts")
     file, err := os.OpenFile(hostFile, os.O_RDWR | os.O_CREATE, 0600)
     if err != nil {
@@ -126,7 +122,7 @@ func checkHostKey(repository string, hostname string, remote net.Addr, key ssh.P
 }
 
 // CreateStorage creates a storage object based on the provide storage URL.
-func CreateStorage(repository string, preference Preference, resetPassword bool, threads int) (storage Storage) {
+func CreateStorage(preference Preference, resetPassword bool, threads int) (storage Storage) {
 
     storageURL := preference.StorageURL
 
@@ -282,7 +278,7 @@ func CreateStorage(repository string, preference Preference, resetPassword bool,
         }
 
         hostKeyChecker := func(hostname string, remote net.Addr, key ssh.PublicKey) error {
-            return checkHostKey(repository, hostname, remote, key)
+            return checkHostKey(hostname, remote, key)
         }
 
         sftpStorage, err := CreateSFTPStorage(server, port, username, storageDir, authMethods, hostKeyChecker, threads)
