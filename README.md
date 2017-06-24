@@ -223,9 +223,9 @@ It is unclear if the lack of cloud backends is due to difficulties in porting th
 [not recommended](http://librelist.com/browser//attic/2014/11/11/backing-up-multiple-servers-into-a-single-repository/#e96345aa5a3469a87786675d65da492b) by the developer due to chunk indices being kept in a local cache. 
 Concurrent access is not only a convenience; it is a necessity for better deduplication.  For instance, if multiple machines with the same OS installed can back up their entire drives to the same storage, only one copy of the system files needs to be stored, greatly reducing the storage space regardless of the number of machines.  Attic still adopts the traditional approach of using a centralized indexing database to manage chunks, and relies heavily on caching to improve performance.  The presence of exclusive locking makes it hard to be adapted for cloud storage APIs and reduces the level of deduplication.
 
-[restic](https://restic.github.io) is a more recent addition.  It is worth mentioning here because, like Duplicacy, it is written in Go.  It uses a format similar to the git packfile format, but not exactly the same.  Multiple clients backing up to the same storage are still guarded by 
-[locks](https://github.com/restic/restic/blob/master/doc/Design.md#locks).
-A command to delete old backups is in the developer's [plan](https://github.com/restic/restic/issues/18). S3 storage is supported, although it is unclear how hard it is to support other cloud storage APIs because of the need for locking.  Overall, it still falls in the same category as Attic.  Whether it will eventually reach the same level as Attic remains to be seen.
+[restic](https://restic.github.io) is a more recent addition.  It is worth mentioning here because, like Duplicacy, it is written in Go.  It uses a format similar to the git packfile format.  Multiple clients backing up to the same storage are still guarded by 
+[locks](https://github.com/restic/restic/blob/master/doc/Design.md#locks).  A prune operation will therefore completely block all other clients connected to the storage from doing their regular backups.  Moreover, since most cloud storage services do not provide a locking service, the best effort is to use some basic file operations to simulate a lock, but distributed locking is known to be a hard problem and it is unclear how reliable restic's lock implementation is.  A faulty implementation may cause a prune operation to accidentally delete data still in use, resulting in unrecoverable data loss.  This is the exact problem that we avoided by taking the lock-free approach.
+
 
 The following table compares the feature lists of all these backup tools:
 
@@ -238,7 +238,7 @@ The following table compares the feature lists of all these backup tools:
 | Encryption         | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
 | Deletion           | No        | No  | Yes               | Yes             | No                | **Yes**       |
 | Concurrent Access  | No        | No  | Exclusive locking | Not recommended | Exclusive locking | **Lock-free** |
-| Cloud Support      | Extensive | No  | No                | No              | S3 only           | **S3, GCS, Azure, Dropbox, Backblaze, Google Drive, OneDrive, and Hubic**|
+| Cloud Support      | Extensive | No  | No                | No              | S3, B2, OpenStack | **S3, GCS, Azure, Dropbox, Backblaze B2, Google Drive, OneDrive, and Hubic**|
 | Snapshot Migration | No        | No  | No                | No              | No                | **Yes**       |
 
 
