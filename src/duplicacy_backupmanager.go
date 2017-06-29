@@ -1132,7 +1132,7 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
                 fileHash = hash
                 return nil, false
             })
-        if fileHash == entry.Hash {
+        if fileHash == entry.Hash && fileHash != "" {
             LOG_TRACE("DOWNLOAD_SKIP", "File %s unchanged (by hash)", entry.Path)
             return false
         }

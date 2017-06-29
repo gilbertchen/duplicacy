@@ -146,7 +146,6 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
         }
 
         for {
-            startNewChunk()
             maker.bufferStart = 0
             for maker.bufferStart < maker.minimumChunkSize && !isEOF {
                 count, err := reader.Read(maker.buffer[maker.bufferStart : maker.minimumChunkSize])
@@ -174,6 +173,7 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
                     return
                 } else {
                     endOfChunk(chunk, false)
+                    startNewChunk()
                     fileSize = 0
                     fileHasher = maker.config.NewFileHasher()
                     isEOF = false
