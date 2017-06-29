@@ -128,12 +128,6 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
             Error:  OneDriveError { Status: response.StatusCode },
         }
 
-        if err := json.NewDecoder(response.Body).Decode(errorResponse); err != nil {
-            return nil, 0, OneDriveError { Status: response.StatusCode, Message: fmt.Sprintf("Unexpected response"), }
-        }
-
-        errorResponse.Error.Status = response.StatusCode
-
         if response.StatusCode == 401 {
 
             if url == OneDriveRefreshTokenURL {
@@ -152,6 +146,12 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
             backoff *= 2
             continue
         } else {
+            if err := json.NewDecoder(response.Body).Decode(errorResponse); err != nil {
+                return nil, 0, OneDriveError { Status: response.StatusCode, Message: fmt.Sprintf("Unexpected response"), }
+            }
+
+            errorResponse.Error.Status = response.StatusCode
+
             return nil, 0, errorResponse.Error
         }
     }
