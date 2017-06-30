@@ -1084,7 +1084,7 @@ func (manager *SnapshotManager) RetrieveFile(snapshot *Snapshot, file *Entry, ou
     if alternateHash {
         fileHash = "#" + fileHash
     }
-    if strings.ToLower(fileHash) != strings.ToLower(file.Hash) {
+    if strings.ToLower(fileHash) != strings.ToLower(file.Hash) && !SkipFileHash {
         LOG_WARN("SNAPSHOT_HASH", "File %s has mismatched hashes: %s vs %s", file.Path, file.Hash, fileHash)
         return false
     }

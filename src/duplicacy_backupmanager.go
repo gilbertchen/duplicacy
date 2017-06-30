@@ -1233,7 +1233,7 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 
         // Verify the download by hash
         hash := hex.EncodeToString(hasher.Sum(nil))
-        if hash != entry.Hash {
+        if hash != entry.Hash && hash != "" && entry.Hash != "" && !strings.HasPrefix(entry.Hash, "#") {
             LOG_ERROR("DOWNLOAD_HASH", "File %s has a mismatched hash: %s instead of %s (in-place)",
                       fullPath, "", entry.Hash)
             return false
@@ -1306,7 +1306,7 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
         }
 
         hash := hex.EncodeToString(hasher.Sum(nil))
-        if hash != entry.Hash {
+        if hash != entry.Hash && hash != "" && entry.Hash != "" && !strings.HasPrefix(entry.Hash, "#") {
             LOG_ERROR("DOWNLOAD_HASH", "File %s has a mismatched hash: %s instead of %s",
                       entry.Path, hash, entry.Hash)
             return false

@@ -225,8 +225,41 @@ func (config *Config) NewKeyedHasher(key []byte) hash.Hash {
     }
 }
 
+var SkipFileHash = false
+
+func init() {
+    if value, found := os.LookupEnv("DUPLICACY_SKIP_FILE_HASH"); found && value != "" && value != "0" {
+        SkipFileHash = true
+    }
+}
+
+// Implement a dummy hasher to be used when SkipFileHash is true.
+type DummyHasher struct {
+}
+
+func (hasher *DummyHasher) Write(p []byte) (int, error) {
+    return len(p), nil
+}
+
+func (hasher *DummyHasher) Sum(b []byte) []byte {
+    return []byte("")
+}
+
+func (hasher *DummyHasher) Reset() {
+}
+
+func (hasher *DummyHasher) Size() int {
+    return 0
+}
+
+func (hasher *DummyHasher) BlockSize() int {
+    return 0
+}
+
 func (config *Config) NewFileHasher() hash.Hash {
-    if config.CompressionLevel == DEFAULT_COMPRESSION_LEVEL {
+    if SkipFileHash {
+        return &DummyHasher {}
+    } else if config.CompressionLevel == DEFAULT_COMPRESSION_LEVEL {
         hasher, _ := blake2.New(&blake2.Config{ Size: 32 })
         return hasher
     } else {
