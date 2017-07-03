@@ -32,6 +32,7 @@ type GCDStorage struct {
     idCacheLock *sync.Mutex
     backoff int
 
+    isConnected bool
     numberOfThreads int
     TestMode bool
 
@@ -64,6 +65,12 @@ func (storage *GCDStorage) shouldRetry(err error) (bool, error) {
             // User Rate Limit Exceeded
             message = "User Rate Limit Exceeded"
             retry = true
+        } else if e.Code == 401 {
+            // Only retry on authorization error when storage has been connected before
+            if storage.isConnected {
+                message = "Authorization Error"
+                retry = true
+            }
         }
     } else if e, ok := err.(*url.Error); ok {
         message = e.Error()
@@ -294,6 +301,8 @@ func CreateGCDStorage(tokenFile string, storagePath string, threads int) (storag
             storage.idCache[dir] = dirID
         }
     }
+
+    storage.isConnected = true
 
     return storage, nil
 
