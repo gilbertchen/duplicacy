@@ -1683,7 +1683,7 @@ func main() {
     app.Name = "duplicacy"
     app.HelpName = "duplicacy"
     app.Usage = "A new generation cloud backup tool based on lock-free deduplication"
-    app.Version = "2.0.4"
+    app.Version = "2.0.5"
 
     // If the program is interrupted, call the RunAtError function.
     c := make(chan os.Signal, 1)                                       
