@@ -135,7 +135,7 @@ func (client *B2Client) call(url string, input interface{}) (io.ReadCloser, int6
             return nil, 0, err
         }
 
-        if response.StatusCode < 400 {
+        if response.StatusCode < 300 {
             return response.Body, response.ContentLength, nil
         }
 
@@ -158,6 +158,10 @@ func (client *B2Client) call(url string, input interface{}) (io.ReadCloser, int6
             backoff = client.retry(backoff, response)
             continue
         } else if response.StatusCode >= 500 && response.StatusCode <= 599 {
+            backoff = client.retry(backoff, response)
+            continue
+        } else {
+            LOG_INFO("BACKBLAZE_CALL", "URL request '%s' returned status code %d", url, response.StatusCode)
             backoff = client.retry(backoff, response)
             continue
         }
@@ -487,7 +491,7 @@ func (client *B2Client) UploadFile(filePath string, content []byte, rateLimit in
         io.Copy(ioutil.Discard, response.Body)
         response.Body.Close()
 
-        if response.StatusCode < 400 {
+        if response.StatusCode < 300 {
             return nil
         }
 
