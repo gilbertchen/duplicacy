@@ -749,6 +749,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
     i := 0
     for _, entry := range remoteSnapshot.Files {
 
+        skipped := false
         // Find local files that don't exist in the remote snapshot
         for i < len(localSnapshot.Files) {
             local := localSnapshot.Files[i]
@@ -760,9 +761,16 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
             } else {
                 if compare == 0 {
                     i++
+                    if quickMode && local.IsSameAs(entry) {
+                        skipped = true
+                    }
                 }
                 break
             }
+        }
+
+        if skipped {
+            continue
         }
 
         fullPath := joinPath(top, entry.Path)
