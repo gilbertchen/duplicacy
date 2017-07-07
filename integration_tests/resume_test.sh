@@ -6,32 +6,25 @@
 fixture
 
 pushd ${TEST_REPO}
-${DUPLICACY} init integration-tests $TEST_STORAGE -c 4k
+${DUPLICACY} init integration-tests $TEST_STORAGE -c  4 
 
-# Create 10 20k files
-add_file file1 20000
-add_file file2 20000
-add_file file3 20000
-add_file file4 20000
-add_file file5 20000
-add_file file6 20000
-add_file file7 20000
-add_file file8 20000
-add_file file9 20000
-add_file file10 20000
+# Create 10 20 files
+add_file file1 20
+add_file file2 20
+add_file file3 20
+add_file file4 20
+add_file file5 20
+add_file file6 20
+add_file file7 20
+add_file file8 20
+add_file file9 20
+add_file file10 20
 
-# Limit the rate to 10k/s so the backup will take about 10 seconds
-${DUPLICACY} backup -limit-rate 10 -threads 4 &
-# Kill the backup after 3 seconds
-DUPLICACY_PID=$!
-sleep 3
-kill -2 ${DUPLICACY_PID}
+# Fail at the 10th chunk
+env DUPLICACY_FAIL_CHUNK=10 ${DUPLICACY} backup
 
 # Try it again to test the multiple-resume case
-${DUPLICACY} backup -limit-rate 10  -threads 4&
-DUPLICACY_PID=$!
-sleep 3
-kill -2 ${DUPLICACY_PID}
+env DUPLICACY_FAIL_CHUNK=5 ${DUPLICACY} backup
 
 # Fail the backup before uploading the snapshot
 env DUPLICACY_FAIL_SNAPSHOT=true ${DUPLICACY} backup

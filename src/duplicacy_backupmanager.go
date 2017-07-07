@@ -142,6 +142,12 @@ func setEntryContent(entries[] *Entry, chunkLengths[]int, offset int) {
         }
         totalChunkSize += int64(length)
     }
+
+    // If there are some unvisited entries (which happens when saving an incomplete snapshot), 
+    // set their sizes to -1 so they won't be saved to the incomplete snapshot
+    for j := i; j < len(entries); j++ {
+        entries[j].Size = -1
+    }
 }
 
 // Backup creates a snapshot for the repository 'top'.  If 'quickMode' is true, only files with different sizes
@@ -248,6 +254,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
             incompleteSnapshot.ChunkHashes = incompleteSnapshot.ChunkHashes[:lastCompleteChunk + 1]
             incompleteSnapshot.ChunkLengths = incompleteSnapshot.ChunkLengths[:lastCompleteChunk + 1]            
             remoteSnapshot = incompleteSnapshot
+            LOG_INFO("FILE_SKIP", "Skipped %d files from previous incomplete backup", len(files))
         }
 
     }
@@ -358,6 +365,10 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
     // the file reader implements the Reader interface. When an EOF is encounter, it opens the next file unless it
     // is the last file.
     fileReader := CreateFileReader(shadowTop, modifiedEntries)
+    // Set all file sizes to -1 to indicate they haven't been processed
+    for _, entry := range modifiedEntries {
+        entry.Size = -1
+    }
 
     startUploadingTime := time.Now().Unix()
 
@@ -374,6 +385,14 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
         keepUploadAlive = int64(value)
     }
 
+    // Fail at the chunk specified by DUPLICACY_FAIL_CHUNK to simulate a backup error
+    chunkToFail := -1
+    if value, found := os.LookupEnv("DUPLICACY_FAIL_CHUNK"); found {
+        chunkToFail, _ = strconv.Atoi(value)
+        LOG_INFO("SNAPSHOT_FAIL", "Will abort the backup on chunk %d", chunkToFail)
+    }
+
+
     chunkMaker := CreateChunkMaker(manager.config, false)
     chunkUploader := CreateChunkUploader(manager.config, manager.storage, nil, threads, nil)
 
@@ -388,16 +407,16 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
                     if !localSnapshotReady {
                         // Lock it to gain exclusive access to uploadedChunkHashes and uploadedChunkLengths
                         uploadedChunkLock.Lock()
-                        for _, entry := range uploadedEntries {
-                            entry.EndChunk = -1
-                        }
                         setEntryContent(uploadedEntries, uploadedChunkLengths, len(preservedChunkHashes))
                         if len(preservedChunkHashes) > 0 {
+                            //localSnapshot.Files = preservedEntries
+                            //localSnapshot.Files = append(preservedEntries, uploadedEntries...)
                             localSnapshot.ChunkHashes = preservedChunkHashes
                             localSnapshot.ChunkHashes = append(localSnapshot.ChunkHashes, uploadedChunkHashes...)
                             localSnapshot.ChunkLengths = preservedChunkLengths
                             localSnapshot.ChunkLengths = append(localSnapshot.ChunkLengths, uploadedChunkLengths...)
                         } else {
+                            //localSnapshot.Files = uploadedEntries
                             localSnapshot.ChunkHashes = uploadedChunkHashes
                             localSnapshot.ChunkLengths = uploadedChunkLengths
                         }
@@ -494,8 +513,17 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
                 uploadedChunkLengths = append(uploadedChunkLengths, chunkSize)
                 uploadedChunkLock.Unlock()
 
+                if len(uploadedChunkHashes) == chunkToFail {
+                    LOG_ERROR("SNAPSHOT_FAIL", "Artificially fail the chunk %d for testing purposes", chunkToFail)
+                }
+
             },
             func (fileSize int64, hash string) (io.Reader, bool) {
+
+                // Must lock here because the RunAtError function called by other threads may access uploadedEntries
+                uploadedChunkLock.Lock()
+                defer uploadedChunkLock.Unlock()
+
                 // This function is called when a new file is needed
                 entry := fileReader.CurrentEntry
                 entry.Hash = hash
@@ -508,7 +536,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
                 if !showStatistics || IsTracing() || RunInBackground {
                     LOG_INFO("PACK_END", "Packed %s (%d)", entry.Path, entry.Size)
                 }
-
+                
                 fileReader.NextFile()
 
                 if fileReader.CurrentFile != nil {
@@ -544,6 +572,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
     err = manager.SnapshotManager.CheckSnapshot(localSnapshot)
     if err != nil {
+        RunAtError = func() {} // Don't save the incomplete snapshot
         LOG_ERROR("SNAPSHOT_CHECK", "The snapshot contains an error: %v", err)
         return false
     }

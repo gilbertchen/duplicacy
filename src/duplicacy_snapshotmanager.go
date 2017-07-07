@@ -2181,7 +2181,9 @@ func (manager *SnapshotManager) CheckSnapshot(snapshot *Snapshot) (err error) {
     if len(entries) > 0 && entries[0].StartChunk != 0 {
         return fmt.Errorf("The first file starts at chunk %d", entries[0].StartChunk )
     }
-    if lastChunk < numberOfChunks - 1 {
+
+    // There may be a last chunk whose size is 0 so we allow this to happen
+    if lastChunk < numberOfChunks - 2 {
         return fmt.Errorf("The last file ends at chunk %d but the number of chunks is %d", lastChunk, numberOfChunks)
     }
 
