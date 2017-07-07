@@ -149,6 +149,7 @@ func LoadIncompleteSnapshot() (snapshot *Snapshot) {
     snapshotFile := path.Join(GetDuplicacyPreferencePath(), "incomplete")
     description, err := ioutil.ReadFile(snapshotFile)    
     if err != nil {
+        LOG_DEBUG("INCOMPLETE_LOCATE", "Failed to locate incomplete snapshot: %v", err)
         return nil
     }
 
@@ -156,6 +157,7 @@ func LoadIncompleteSnapshot() (snapshot *Snapshot) {
 
     err = json.Unmarshal(description, &incompleteSnapshot)
     if err != nil {
+        LOG_DEBUG("INCOMPLETE_PARSE", "Failed to parse incomplete snapshot: %v", err)
         return nil
     }
 
@@ -163,6 +165,7 @@ func LoadIncompleteSnapshot() (snapshot *Snapshot) {
     for _, chunkHash := range incompleteSnapshot.ChunkHashes {
         hash, err := hex.DecodeString(chunkHash)
         if err != nil {
+            LOG_DEBUG("INCOMPLETE_DECODE", "Failed to decode incomplete snapshot: %v", err)
             return nil
         }
         chunkHashes = append(chunkHashes, string(hash))
@@ -181,7 +184,8 @@ func LoadIncompleteSnapshot() (snapshot *Snapshot) {
 func SaveIncompleteSnapshot(snapshot *Snapshot) {
     var files []*Entry
     for _, file := range snapshot.Files {
-        if file.EndChunk >= 0 {
+        // All unprocessed files will have a size of -1
+        if file.Size >= 0 {
             file.Attributes = nil
             files = append(files, file)
         } else {
@@ -199,7 +203,7 @@ func SaveIncompleteSnapshot(snapshot *Snapshot) {
         ChunkLengths: snapshot.ChunkLengths,
     }
 
-    description, err := json.Marshal(incompleteSnapshot)
+    description, err := json.MarshalIndent(incompleteSnapshot, "", "  ")
     if err != nil {
         LOG_WARN("INCOMPLETE_ENCODE", "Failed to encode the incomplete snapshot: %v", err)
         return

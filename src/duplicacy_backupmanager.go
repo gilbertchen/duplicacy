@@ -259,11 +259,10 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
     }
 
-    var numberOfNewFileChunks int                 // number of new file chunks
+    var numberOfNewFileChunks int64                 // number of new file chunks
     var totalUploadedFileChunkLength int64        // total length of uploaded file chunks
     var totalUploadedFileChunkBytes int64         // how many actual bytes have been uploaded
 
-    var numberOfNewSnapshotChunks int             // number of new snapshot chunks
     var totalUploadedSnapshotChunkLength int64    // size of uploaded snapshot chunks
     var totalUploadedSnapshotChunkBytes int64     // how many actual bytes have been uploaded
 
@@ -447,16 +446,16 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
                 LOG_DEBUG("CHUNK_CACHE", "Skipped chunk %s in cache", chunk.GetID())
             } else {
                 if uploadSize > 0 {
-                    numberOfNewFileChunks++
-                    totalUploadedFileChunkLength += int64(chunkSize)
-                    totalUploadedFileChunkBytes += int64(uploadSize)
+                    atomic.AddInt64(&numberOfNewFileChunks, 1)
+                    atomic.AddInt64(&totalUploadedFileChunkLength, int64(chunkSize))
+                    atomic.AddInt64(&totalUploadedFileChunkBytes, int64(uploadSize))
                     action = "Uploaded"
                 } else {
                     LOG_DEBUG("CHUNK_EXIST", "Skipped chunk %s in the storage", chunk.GetID())
                 }
             }
 
-            uploadedModifiedFileSize += int64(chunkSize)
+            uploadedModifiedFileSize := atomic.AddInt64(&uploadedModifiedFileSize, int64(chunkSize))
 
             if IsTracing() || showStatistics {
                 now := time.Now().Unix()
@@ -527,10 +526,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
                 // This function is called when a new file is needed
                 entry := fileReader.CurrentEntry
                 entry.Hash = hash
-                if entry.Size != fileSize {
-                    totalModifiedFileSize += fileSize - entry.Size
-                    entry.Size = fileSize
-                }
+                entry.Size = fileSize
                 uploadedEntries = append(uploadedEntries, entry)
 
                 if !showStatistics || IsTracing() || RunInBackground {
@@ -659,7 +655,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
         LOG_INFO("BACKUP_STATS", "All chunks: %d total, %s bytes; %d new, %s bytes, %s bytes uploaded",
                 len(localSnapshot.ChunkHashes) + totalSnapshotChunks,
                 PrettyNumber(totalFileChunkLength + totalSnapshotChunkLength),
-                numberOfNewFileChunks + numberOfNewSnapshotChunks,
+                int(numberOfNewFileChunks) + numberOfNewSnapshotChunks,
                 PrettyNumber(totalUploadedFileChunkLength + totalUploadedSnapshotChunkLength),
                 PrettyNumber(totalUploadedFileChunkBytes + totalUploadedSnapshotChunkBytes))
 
