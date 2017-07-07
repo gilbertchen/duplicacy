@@ -92,6 +92,11 @@ func (uploader *ChunkUploader) Upload(threadIndex int, task ChunkUploadTask) boo
     chunkSize := chunk.GetLength()
     chunkID := chunk.GetID()
 
+    // For a snapshot chunk, verify that its chunk id is correct
+    if uploader.snapshotCache != nil {
+        chunk.VerifyID()
+    }
+
     if uploader.snapshotCache != nil && uploader.storage.IsCacheNeeded() {
         // Save a copy to the local snapshot.
         chunkPath, exist, _, err := uploader.snapshotCache.FindChunk(threadIndex, chunkID, false)

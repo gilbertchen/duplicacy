@@ -154,6 +154,18 @@ func (chunk *Chunk) GetID() string {
     return chunk.id
 }
 
+func (chunk *Chunk) VerifyID() {
+    hasher := chunk.config.NewKeyedHasher(chunk.config.HashKey)
+    hasher.Write(chunk.buffer.Bytes())
+    hash := hasher.Sum(nil)
+    hasher = chunk.config.NewKeyedHasher(chunk.config.IDKey)
+    hasher.Write([]byte(hash))
+    chunkID := hex.EncodeToString(hasher.Sum(nil))
+    if chunkID != chunk.GetID() {
+        LOG_ERROR("CHUNK_ID", "The chunk id should be %s instead of %s, length: %d", chunkID, chunk.GetID(), len(chunk.buffer.Bytes()))
+    }
+}
+
 // Encrypt encrypts the plain data stored in the chunk buffer.  If derivationKey is not nil, the actual
 // encryption key will be HMAC-SHA256(encryptionKey, derivationKey).
 func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err error) {
