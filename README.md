@@ -28,7 +28,9 @@ The [design document](https://github.com/gilbertchen/duplicacy-cli/blob/master/D
 
 ## Getting Started
 
-<details> <summary>Installation</summary>
+<details>
+<summary>Installation</summary>
+
 Duplicacy is written in Go.  You can run the following command to build the executable (which will be created under `$GOPATH/bin`):
 
 ```
@@ -39,7 +41,8 @@ You can also visit the [releases page](https://github.com/gilbertchen/duplicacy-
 
 </details>
 
-<details> <summary>Commands</summary>
+<details>
+<summary>Commands</summary>
 
 Once you have the Duplicacy executable on your path, you can change to the directory that you want to back up (called *repository*) and run the *init* command:
 
