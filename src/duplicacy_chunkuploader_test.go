@@ -104,7 +104,7 @@ func TestUploaderAndDownloader(t *testing.T) {
 
 
     chunkDownloader := CreateChunkDownloader(config, storage, nil, true, testThreads)
-    chunkDownloader.totalFileSize = int64(totalFileSize)
+    chunkDownloader.totalChunkSize = int64(totalFileSize)
 
     for _, chunk := range chunks {
         chunkDownloader.AddChunk(chunk.GetHash())
