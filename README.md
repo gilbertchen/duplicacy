@@ -109,12 +109,16 @@ all commands and other features of Duplicacy.
 
 Duplicacy currently supports local file storage, SFTP, and 5 cloud storage providers.
 
+<details>
+ <summary>Local disk</summary>
+
 #### Local disk
 
 ```
 Storage URL:  /path/to/storage (on Linux or Mac OS X)
               C:\path\to\storage (on Windows)
 ```
+</details>
 
 #### SFTP
 
