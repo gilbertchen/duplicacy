@@ -206,7 +206,7 @@ authorizing Duplicacy to access your Hubic drive, and then enter the path to thi
 Hubic offers the most free space (25GB) of all major cloud providers and there is no bandwidth charge (same as Google Drive and OneDrive), so it may be worth a try.
 
 
-## Comparison with Other Backup Tools
+## Feature Comparison with Other Backup Tools
 
 [duplicity](http://duplicity.nongnu.org) works by applying the rsync algorithm (or more specific, the [librsync](https://github.com/librsync/librsync) library)
 to find the differences from previous backups and only then uploading the differences.  It is the only existing backup tool with extensive cloud support -- the [long list](http://duplicity.nongnu.org/duplicity.1.html#sect7) of storage backends covers almost every cloud provider one can think of.  However, duplicity's biggest flaw lies in its incremental model -- a chain of dependent backups starts with a full backup followed by a number of incremental ones, and ends when another full backup is uploaded.  Deleting one backup will render useless all the subsequent backups on the same chain.  Periodic full backups are required, in order to make previous backups disposable.
@@ -242,6 +242,26 @@ The following table compares the feature lists of all these backup tools:
 | Snapshot Migration | No        | No  | No                | No              | No                | **Yes**       |
 
 
+## Performance Comparison with Other Backup Tools
+
+Duplicacy is not only more feature-rich but also faster than other backup tools.  The following table lists the running times in seconds of backing up the [Linux code base](https://github.com/torvalds/linux) using Duplicacy and 3 other tools.  Clearly Duplicacy is the faster by a comfortable margin.
+
+|                    |   Duplicacy  |   restic   |   Attic    |  duplicity  | 
+|:------------------:|:----------------:|:----------:|:----------:|:-----------:|
+| Initial backup | 13.7 | 20.7 | 26.9 | 44.2 | 
+| 2nd backup | 4.8  |  8.0 | 15.4 | 19.5 | 
+| 3rd backup | 6.9  | 11.9 | 19.6 | 29.8 | 
+| 4th backup | 3.3  | 7.0  | 13.7 | 18.6 | 
+| 5th backup | 9.9  | 11.4 | 19.9 | 28.0 | 
+| 6th backup | 3.8  | 8.0  | 16.8 | 22.0 | 
+| 7th backup | 5.1  | 7.8  | 14.3 | 21.6 | 
+| 8th backup | 9.5  | 13.5 | 18.3 | 35.0 | 
+| 9th backup | 4.3  | 9.0  | 15.7 | 24.9 | 
+| 10th backup | 7.9 | 20.2 | 32.2 | 35.0 | 
+| 11th backup | 4.6 | 9.1  | 16.8 | 28.1 | 
+| 12th backup | 7.4 | 12.0 | 21.7 | 37.4 | 
+
+For more details and other speed comparison results, please visit https://github.com/gilbertchen/backup-tools-comparison.  There you can also find test scripts that allow you to run your own experiments.
 
 ## License
 
