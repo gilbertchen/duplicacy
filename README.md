@@ -28,6 +28,7 @@ The [design document](https://github.com/gilbertchen/duplicacy-cli/blob/master/D
 
 ## Getting Started
 
+<details> <summary>Installation</summary>
 Duplicacy is written in Go.  You can run the following command to build the executable (which will be created under `$GOPATH/bin`):
 
 ```
@@ -35,6 +36,10 @@ go get -u github.com/gilbertchen/duplicacy/...
 ```
 
 You can also visit the [releases page](https://github.com/gilbertchen/duplicacy-cli/releases/latest) to download the pre-built binary suitable for your platform..
+
+</details>
+
+<details> <summary>Commands</summary>
 
 Once you have the Duplicacy executable on your path, you can change to the directory that you want to back up (called *repository*) and run the *init* command:
 
@@ -57,10 +62,9 @@ $ duplicacy restore -r 1
 ```
 
 
-<details>
-<summary>
+
 Duplicacy provides a set of commands, such as list, check, diff, cat history, to manage snapshots:
-</summary>
+
 
 ```makefile
 $ duplicacy list            # List all snapshots
@@ -108,6 +112,7 @@ $ duplicacy copy -to s3        # Copy every snapshot to the s3 storage
 ```
 
 </details>
+
 
 The [User Guide](https://github.com/gilbertchen/duplicacy-cli/blob/master/GUIDE.md) contains a complete reference to
 all commands and other features of Duplicacy.
