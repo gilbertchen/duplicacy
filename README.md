@@ -123,7 +123,7 @@ all commands and other features of Duplicacy.
 
 ## Storages
 
-Duplicacy currently supports local file storage, SFTP, and 5 cloud storage providers.
+Duplicacy currently supports local file storage, SFTP, and many cloud storage providers.
 
 <details> <summary>Local disk</summary>
 
