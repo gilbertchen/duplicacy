@@ -109,18 +109,14 @@ all commands and other features of Duplicacy.
 
 Duplicacy currently supports local file storage, SFTP, and 5 cloud storage providers.
 
-<details>
- <summary>Local disk</summary>
-
-#### Local disk
-
+<details> <summary>Local disk</summary>
 ```
 Storage URL:  /path/to/storage (on Linux or Mac OS X)
               C:\path\to\storage (on Windows)
 ```
 </details>
 
-#### SFTP
+</details> <summary>SFTP</summary 
 
 ```
 Storage URL:  sftp://username@server/path/to/storage
@@ -128,7 +124,9 @@ Storage URL:  sftp://username@server/path/to/storage
 
 Login methods include password authentication and public key authentication.  Due to a limitation of the underlying Go SSH library, the key pair for public key authentication must be generated without a passphrase.  To work with a key that has a passphrase, you can set up SSH agent forwarding which is also supported by Duplicacy.
 
-#### Dropbox
+</details>
+
+</details> <summary>Dropbox</summary>
 
 ```
 Storage URL:  dropbox://path/to/storage
@@ -142,7 +140,9 @@ For Duplicacy to access your Dropbox storage, you must provide an access token t
 
 Dropbox has two advantages over other cloud providers.  First, if you are already a paid user then to use the unused space as the backup storage is basically free.  Second, unlike other providers Dropbox does not charge bandwidth or API usage fees.
 
-#### Amazon S3
+</details>
+
+</details> <summary>Amazon S3</summary>
 
 ```
 Storage URL:  s3://amazon.com/bucket/path/to/storage (default region is us-east-1)
@@ -152,7 +152,9 @@ Storage URL:  s3://amazon.com/bucket/path/to/storage (default region is us-east-
 You'll need to input an access key and a secret key to access your Amazon S3 storage.
 
 
-#### Google Cloud Storage
+</details>
+
+</details>  <summary>Google Cloud Storage</summary>
 
 ```
 Storage URL:  gcs://bucket/path/to/storage
@@ -162,7 +164,9 @@ Starting from version 2.0.0, a new Google Cloud Storage backend is added which i
  
 You can also use the s3 protocol to access Google Cloud Storage.  To do this, you must enable the [s3 interoperability](https://cloud.google.com/storage/docs/migrating#migration-simple) in your Google Cloud Storage settings and set the storage url as `s3://storage.googleapis.com/bucket/path/to/storage`.
 
-#### Microsoft Azure
+</details>
+
+</details> <summary>Microsoft Azure</summary>
 
 ```
 Storage URL:  azure://account/container
@@ -170,7 +174,9 @@ Storage URL:  azure://account/container
 
 You'll need to input the access key once prompted.
 
-#### Backblaze
+</details>
+
+</details> <summary>Backblaze B2</summary>
 
 ```
 Storage URL: b2://bucket
@@ -180,7 +186,9 @@ You'll need to input the account id and application key.
 
 Backblaze's B2 storage is not only the least expensive (at 0.5 cent per GB per month), but also the fastest.  We have been working closely with their developers to leverage the full potentials provided by the B2 API in order to maximize the transfer speed.
 
-#### Google Drive
+</details>
+
+</details> <summary>Google Drive</summary>
 
 ```
 Storage URL: gcd://path/to/storage
@@ -189,7 +197,9 @@ Storage URL: gcd://path/to/storage
 To use Google Drive as the storage,  you first need to download a token file from https://duplicacy.com/gcd_start by
 authorizing Duplicacy to access your Google Drive, and then enter the path to this token file to Duplicacy when prompted.
 
-#### Microsoft OneDrive
+</details>
+
+</details> <summary>Microsoft OneDrive</summary>
 
 ```
 Storage URL: one://path/to/storage
@@ -198,7 +208,9 @@ Storage URL: one://path/to/storage
 To use Microsoft OneDrive as the storage,  you first need to download a token file from https://duplicacy.com/one_start by
 authorizing Duplicacy to access your OneDrive, and then enter the path to this token file to Duplicacy when prompted.
 
-#### Hubic
+</details>
+
+</details> <summary>Hubic</summary>
 
 ```
 Storage URL: hubic://path/to/storage
