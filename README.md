@@ -26,7 +26,8 @@ The key idea of **Lock-Free Deduplication** can be summarized as follows:
 
 The [design document](https://github.com/gilbertchen/duplicacy-cli/blob/master/DESIGN.md) explains lock-free deduplication in detail.
 
-## Getting Started
+<details> <summary>## Getting Started</summary>
+
 
 Duplicacy is written in Go.  You can run the following command to build the executable (which will be created under `$GOPATH/bin`):
 
@@ -104,6 +105,8 @@ $ duplicacy copy -to s3        # Copy every snapshot to the s3 storage
 
 The [User Guide](https://github.com/gilbertchen/duplicacy-cli/blob/master/GUIDE.md) contains a complete reference to
 all commands and other features of Duplicacy.
+
+</details>
 
 ## Storages
 
