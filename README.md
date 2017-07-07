@@ -28,6 +28,9 @@ The [design document](https://github.com/gilbertchen/duplicacy-cli/blob/master/D
 
 ## Getting Started
 
+<details>
+<summary>Installation</summary>
+
 Duplicacy is written in Go.  You can run the following command to build the executable (which will be created under `$GOPATH/bin`):
 
 ```
@@ -35,6 +38,11 @@ go get -u github.com/gilbertchen/duplicacy/...
 ```
 
 You can also visit the [releases page](https://github.com/gilbertchen/duplicacy-cli/releases/latest) to download the pre-built binary suitable for your platform..
+
+</details>
+
+<details>
+<summary>Commands</summary>
 
 Once you have the Duplicacy executable on your path, you can change to the directory that you want to back up (called *repository*) and run the *init* command:
 
@@ -51,7 +59,15 @@ You can now create snapshots of the repository by invoking the *backup* command.
 $ duplicacy backup -stats
 ```
 
+The *restore* command rolls back the repository to a previous revision:
+```sh
+$ duplicacy restore -r 1
+```
+
+
+
 Duplicacy provides a set of commands, such as list, check, diff, cat history, to manage snapshots:
+
 
 ```makefile
 $ duplicacy list            # List all snapshots
@@ -61,10 +77,6 @@ $ duplicacy cat             # Print a file in a snapshot
 $ duplicacy history         # Show how a file changes over time
 ```
 
-The *restore* command rolls back the repository to a previous revision:
-```sh
-$ duplicacy restore -r 1
-```
 
 The *prune* command removes snapshots by revisions, or tags, or retention policies:
 
@@ -102,21 +114,26 @@ $ duplicacy copy -r 1 -to s3   # Copy snapshot at revision 1 to the s3 storage
 $ duplicacy copy -to s3        # Copy every snapshot to the s3 storage
 ```
 
+</details>
+
+
 The [User Guide](https://github.com/gilbertchen/duplicacy-cli/blob/master/GUIDE.md) contains a complete reference to
 all commands and other features of Duplicacy.
 
+
 ## Storages
 
-Duplicacy currently supports local file storage, SFTP, and 5 cloud storage providers.
+Duplicacy currently supports local file storage, SFTP, and many cloud storage providers.
 
-#### Local disk
+<details> <summary>Local disk</summary>
 
 ```
 Storage URL:  /path/to/storage (on Linux or Mac OS X)
               C:\path\to\storage (on Windows)
 ```
+</details>
 
-#### SFTP
+<details> <summary>SFTP</summary> 
 
 ```
 Storage URL:  sftp://username@server/path/to/storage
@@ -124,7 +141,9 @@ Storage URL:  sftp://username@server/path/to/storage
 
 Login methods include password authentication and public key authentication.  Due to a limitation of the underlying Go SSH library, the key pair for public key authentication must be generated without a passphrase.  To work with a key that has a passphrase, you can set up SSH agent forwarding which is also supported by Duplicacy.
 
-#### Dropbox
+</details>
+
+<details> <summary>Dropbox</summary>
 
 ```
 Storage URL:  dropbox://path/to/storage
@@ -138,7 +157,9 @@ For Duplicacy to access your Dropbox storage, you must provide an access token t
 
 Dropbox has two advantages over other cloud providers.  First, if you are already a paid user then to use the unused space as the backup storage is basically free.  Second, unlike other providers Dropbox does not charge bandwidth or API usage fees.
 
-#### Amazon S3
+</details>
+
+<details> <summary>Amazon S3</summary>
 
 ```
 Storage URL:  s3://amazon.com/bucket/path/to/storage (default region is us-east-1)
@@ -148,7 +169,9 @@ Storage URL:  s3://amazon.com/bucket/path/to/storage (default region is us-east-
 You'll need to input an access key and a secret key to access your Amazon S3 storage.
 
 
-#### Google Cloud Storage
+</details>
+
+<details>  <summary>Google Cloud Storage</summary>
 
 ```
 Storage URL:  gcs://bucket/path/to/storage
@@ -158,7 +181,9 @@ Starting from version 2.0.0, a new Google Cloud Storage backend is added which i
  
 You can also use the s3 protocol to access Google Cloud Storage.  To do this, you must enable the [s3 interoperability](https://cloud.google.com/storage/docs/migrating#migration-simple) in your Google Cloud Storage settings and set the storage url as `s3://storage.googleapis.com/bucket/path/to/storage`.
 
-#### Microsoft Azure
+</details>
+
+<details> <summary>Microsoft Azure</summary>
 
 ```
 Storage URL:  azure://account/container
@@ -166,7 +191,9 @@ Storage URL:  azure://account/container
 
 You'll need to input the access key once prompted.
 
-#### Backblaze
+</details>
+
+<details> <summary>Backblaze B2</summary>
 
 ```
 Storage URL: b2://bucket
@@ -176,7 +203,9 @@ You'll need to input the account id and application key.
 
 Backblaze's B2 storage is not only the least expensive (at 0.5 cent per GB per month), but also the fastest.  We have been working closely with their developers to leverage the full potentials provided by the B2 API in order to maximize the transfer speed.
 
-#### Google Drive
+</details>
+
+<details> <summary>Google Drive</summary>
 
 ```
 Storage URL: gcd://path/to/storage
@@ -185,7 +214,9 @@ Storage URL: gcd://path/to/storage
 To use Google Drive as the storage,  you first need to download a token file from https://duplicacy.com/gcd_start by
 authorizing Duplicacy to access your Google Drive, and then enter the path to this token file to Duplicacy when prompted.
 
-#### Microsoft OneDrive
+</details>
+
+<details> <summary>Microsoft OneDrive</summary>
 
 ```
 Storage URL: one://path/to/storage
@@ -194,7 +225,9 @@ Storage URL: one://path/to/storage
 To use Microsoft OneDrive as the storage,  you first need to download a token file from https://duplicacy.com/one_start by
 authorizing Duplicacy to access your OneDrive, and then enter the path to this token file to Duplicacy when prompted.
 
-#### Hubic
+</details>
+
+<details> <summary>Hubic</summary>
 
 ```
 Storage URL: hubic://path/to/storage
@@ -205,6 +238,7 @@ authorizing Duplicacy to access your Hubic drive, and then enter the path to thi
 
 Hubic offers the most free space (25GB) of all major cloud providers and there is no bandwidth charge (same as Google Drive and OneDrive), so it may be worth a try.
 
+</details>
 
 ## Feature Comparison with Other Backup Tools
 
@@ -246,6 +280,7 @@ The following table compares the feature lists of all these backup tools:
 
 Duplicacy is not only more feature-rich but also faster than other backup tools.  The following table lists the running times in seconds of backing up the [Linux code base](https://github.com/torvalds/linux) using Duplicacy and 3 other tools.  Clearly Duplicacy is the faster by a comfortable margin.
 
+
 |                    |   Duplicacy  |   restic   |   Attic    |  duplicity  | 
 |:------------------:|:----------------:|:----------:|:----------:|:-----------:|
 | Initial backup | 13.7 | 20.7 | 26.9 | 44.2 | 
@@ -260,6 +295,7 @@ Duplicacy is not only more feature-rich but also faster than other backup tools.
 | 10th backup | 7.9 | 20.2 | 32.2 | 35.0 | 
 | 11th backup | 4.6 | 9.1  | 16.8 | 28.1 | 
 | 12th backup | 7.4 | 12.0 | 21.7 | 37.4 | 
+
 
 For more details and other speed comparison results, please visit https://github.com/gilbertchen/backup-tools-comparison.  There you can also find test scripts that allow you to run your own experiments.
 
