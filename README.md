@@ -26,8 +26,7 @@ The key idea of **Lock-Free Deduplication** can be summarized as follows:
 
 The [design document](https://github.com/gilbertchen/duplicacy-cli/blob/master/DESIGN.md) explains lock-free deduplication in detail.
 
-<details> <summary>## Getting Started</summary>
-
+## Getting Started
 
 Duplicacy is written in Go.  You can run the following command to build the executable (which will be created under `$GOPATH/bin`):
 
@@ -52,7 +51,13 @@ You can now create snapshots of the repository by invoking the *backup* command.
 $ duplicacy backup -stats
 ```
 
-Duplicacy provides a set of commands, such as list, check, diff, cat history, to manage snapshots:
+The *restore* command rolls back the repository to a previous revision:
+```sh
+$ duplicacy restore -r 1
+```
+
+
+<details> <summaryDuplicacy provides a set of commands, such as list, check, diff, cat history, to manage snapshots:</summary>
 
 ```makefile
 $ duplicacy list            # List all snapshots
@@ -62,10 +67,6 @@ $ duplicacy cat             # Print a file in a snapshot
 $ duplicacy history         # Show how a file changes over time
 ```
 
-The *restore* command rolls back the repository to a previous revision:
-```sh
-$ duplicacy restore -r 1
-```
 
 The *prune* command removes snapshots by revisions, or tags, or retention policies:
 
@@ -103,10 +104,11 @@ $ duplicacy copy -r 1 -to s3   # Copy snapshot at revision 1 to the s3 storage
 $ duplicacy copy -to s3        # Copy every snapshot to the s3 storage
 ```
 
+</details>
+
 The [User Guide](https://github.com/gilbertchen/duplicacy-cli/blob/master/GUIDE.md) contains a complete reference to
 all commands and other features of Duplicacy.
 
-</details>
 
 ## Storages
 
