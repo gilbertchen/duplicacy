@@ -45,8 +45,8 @@ type ChunkDownloader struct {
     completionChannel chan ChunkDownloadCompletion     // A downloading goroutine sends back the chunk via this channel after downloading
 
     startTime int64                                    // The time it starts downloading
-    totalFileSize int64                                // Total file size
-    downloadedFileSize int64                           // Downloaded file size
+    totalChunkSize int64                               // Total chunk size
+    downloadedChunkSize int64                          // Downloaded chunk size
     numberOfDownloadedChunks int                       // The number of chunks that have been downloaded 
     numberOfDownloadingChunks int                      // The number of chunks still being downloaded
     numberOfActiveChunks int                           // The number of chunks that is being downloaded or has been downloaded but not reclaimed
@@ -95,7 +95,7 @@ func (downloader *ChunkDownloader) AddFiles(snapshot *Snapshot, files [] *Entry)
     downloader.taskList = nil
     lastChunkIndex := -1
     maximumChunks := 0
-    downloader.totalFileSize = 0
+    downloader.totalChunkSize = 0
     for _, file := range files {
         if file.Size == 0 {
             continue
@@ -109,6 +109,7 @@ func (downloader *ChunkDownloader) AddFiles(snapshot *Snapshot, files [] *Entry)
                     needed: false,
                 }
                 downloader.taskList = append(downloader.taskList, task)
+                downloader.totalChunkSize += int64(snapshot.ChunkLengths[i])
             } else {
                 downloader.taskList[len(downloader.taskList) - 1].needed = true
             }
@@ -119,7 +120,6 @@ func (downloader *ChunkDownloader) AddFiles(snapshot *Snapshot, files [] *Entry)
         if file.EndChunk - file.StartChunk > maximumChunks {
             maximumChunks = file.EndChunk - file.StartChunk
         }
-        downloader.totalFileSize += file.Size
     }
 }
 
@@ -175,12 +175,6 @@ func (downloader *ChunkDownloader) Reclaim(chunkIndex int) {
 
     if downloader.lastChunkIndex == chunkIndex {
         return
-    }
-
-    for i := downloader.lastChunkIndex; i < chunkIndex; i++ {
-        if !downloader.taskList[i].isDownloading {
-            atomic.AddInt64(&downloader.downloadedFileSize, int64(downloader.taskList[i].chunkLength))
-        }
     }
 
     for i, _ := range downloader.completedTasks {
@@ -353,21 +347,20 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
         }
     }
 
-    if (downloader.showStatistics || IsTracing()) && downloader.totalFileSize > 0 {
+    downloadedChunkSize := atomic.AddInt64(&downloader.downloadedChunkSize, int64(chunk.GetLength()))
 
-        atomic.AddInt64(&downloader.downloadedFileSize, int64(chunk.GetLength()))
-        downloadFileSize := atomic.LoadInt64(&downloader.downloadedFileSize)
+    if (downloader.showStatistics || IsTracing()) && downloader.totalChunkSize > 0 {
 
         now := time.Now().Unix()
         if now <= downloader.startTime {
             now = downloader.startTime + 1
         }
-        speed := downloadFileSize / (now - downloader.startTime)
+        speed := downloadedChunkSize / (now - downloader.startTime)
         remainingTime := int64(0)
         if speed > 0 {
-            remainingTime = (downloader.totalFileSize - downloadFileSize) / speed + 1
+            remainingTime = (downloader.totalChunkSize - downloadedChunkSize) / speed + 1
         }
-        percentage := float32(downloadFileSize * 1000 / downloader.totalFileSize)
+        percentage := float32(downloadedChunkSize * 1000 / downloader.totalChunkSize)
         LOG_INFO("DOWNLOAD_PROGRESS", "Downloaded chunk %d size %d, %sB/s %s %.1f%%",
                     task.chunkIndex + 1, chunk.GetLength(),
                     PrettySize(speed), PrettyTime(remainingTime), percentage / 10)
