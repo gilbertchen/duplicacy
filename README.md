@@ -57,7 +57,10 @@ $ duplicacy restore -r 1
 ```
 
 
-<details> <summaryDuplicacy provides a set of commands, such as list, check, diff, cat history, to manage snapshots:</summary>
+<details>
+<summary>
+Duplicacy provides a set of commands, such as list, check, diff, cat history, to manage snapshots:
+</summary>
 
 ```makefile
 $ duplicacy list            # List all snapshots
