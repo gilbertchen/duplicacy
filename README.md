@@ -116,7 +116,7 @@ Storage URL:  /path/to/storage (on Linux or Mac OS X)
 ```
 </details>
 
-</details> <summary>SFTP</summary 
+<details> <summary>SFTP</summary 
 
 ```
 Storage URL:  sftp://username@server/path/to/storage
@@ -126,7 +126,7 @@ Login methods include password authentication and public key authentication.  Du
 
 </details>
 
-</details> <summary>Dropbox</summary>
+<details> <summary>Dropbox</summary>
 
 ```
 Storage URL:  dropbox://path/to/storage
@@ -142,7 +142,7 @@ Dropbox has two advantages over other cloud providers.  First, if you are alread
 
 </details>
 
-</details> <summary>Amazon S3</summary>
+<details> <summary>Amazon S3</summary>
 
 ```
 Storage URL:  s3://amazon.com/bucket/path/to/storage (default region is us-east-1)
@@ -154,7 +154,7 @@ You'll need to input an access key and a secret key to access your Amazon S3 sto
 
 </details>
 
-</details>  <summary>Google Cloud Storage</summary>
+<details>  <summary>Google Cloud Storage</summary>
 
 ```
 Storage URL:  gcs://bucket/path/to/storage
@@ -166,7 +166,7 @@ You can also use the s3 protocol to access Google Cloud Storage.  To do this, yo
 
 </details>
 
-</details> <summary>Microsoft Azure</summary>
+<details> <summary>Microsoft Azure</summary>
 
 ```
 Storage URL:  azure://account/container
@@ -176,7 +176,7 @@ You'll need to input the access key once prompted.
 
 </details>
 
-</details> <summary>Backblaze B2</summary>
+<details> <summary>Backblaze B2</summary>
 
 ```
 Storage URL: b2://bucket
@@ -188,7 +188,7 @@ Backblaze's B2 storage is not only the least expensive (at 0.5 cent per GB per m
 
 </details>
 
-</details> <summary>Google Drive</summary>
+<details> <summary>Google Drive</summary>
 
 ```
 Storage URL: gcd://path/to/storage
@@ -199,7 +199,7 @@ authorizing Duplicacy to access your Google Drive, and then enter the path to th
 
 </details>
 
-</details> <summary>Microsoft OneDrive</summary>
+<details> <summary>Microsoft OneDrive</summary>
 
 ```
 Storage URL: one://path/to/storage
@@ -210,7 +210,7 @@ authorizing Duplicacy to access your OneDrive, and then enter the path to this t
 
 </details>
 
-</details> <summary>Hubic</summary>
+<details> <summary>Hubic</summary>
 
 ```
 Storage URL: hubic://path/to/storage
