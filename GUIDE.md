@@ -500,6 +500,16 @@ Duplicacy will attempt to retrieve in three ways the storage password and the st
 
 Note that the passwords stored in the environment variable and the preference need to be in plaintext and thus are insecure and should be avoided whenever possible.
 
+## Cache
+
+Duplicacy maintains a local cache under the `.duplicacy/cache` folder in the repository.  Only snapshot chunks may be stored in this local cache, and file chunks are never cached.
+
+At the end of a backup operation, Duplicacy will clean up the local cache in such a way that only chunks composing the snapshot file from the last backup will stay in the cache.  All other chunks will be removed from the cache.  However, if the *prune* command has been run before (which will leave a the `.duplicacy/collection` folder in the repository, then the *backup* command won't perform any cache cleanup and instead defer that to the *prune* command.
+
+At the end of a prune operation, Duplicacy will remove all chunks from the local cache except those composing the snapshot file from the last backup (those that would be kept by the *backup* command), as well as chunks that contain information about chunks referenced by *all* backups from *all* repositories connected to the same storage url.  
+
+Other commands, such as *list*, *check*, does not clean up the local cache at all, so the local cache may keep growing if many of these commands run consectively.  However, once a *backup* or a *prune* command is invoked, the local cache should shrink to its normal size.
+
 ## Scripts
 
 You can instruct Duplicacy to run a script before or after executing a command.  For example, if you create a bash script with the name *pre-prune* under the *.duplicacy/scripts* directory, this bash script will be run before the *prune* command starts.  A script named *post-prune* will be run after the *prune* command finishes.  This rule applies to all commands except *init*.
