@@ -110,13 +110,14 @@ all commands and other features of Duplicacy.
 Duplicacy currently supports local file storage, SFTP, and 5 cloud storage providers.
 
 <details> <summary>Local disk</summary>
+
 ```
 Storage URL:  /path/to/storage (on Linux or Mac OS X)
               C:\path\to\storage (on Windows)
 ```
 </details>
 
-<details> <summary>SFTP</summary 
+<details> <summary>SFTP</summary> 
 
 ```
 Storage URL:  sftp://username@server/path/to/storage
@@ -221,6 +222,7 @@ authorizing Duplicacy to access your Hubic drive, and then enter the path to thi
 
 Hubic offers the most free space (25GB) of all major cloud providers and there is no bandwidth charge (same as Google Drive and OneDrive), so it may be worth a try.
 
+</details>
 
 ## Feature Comparison with Other Backup Tools
 
