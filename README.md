@@ -278,7 +278,7 @@ The following table compares the feature lists of all these backup tools:
 
 ## Performance Comparison with Other Backup Tools
 
-Duplicacy is not only more feature-rich but also faster than other backup tools.  The following table lists the running times in seconds of backing up the [Linux code base](https://github.com/torvalds/linux) using Duplicacy and 3 other tools.  Clearly Duplicacy is the faster by a comfortable margin.
+Duplicacy is not only more feature-rich but also faster than other backup tools.  The following table lists the running times in seconds of backing up the [Linux code base](https://github.com/torvalds/linux) using Duplicacy and 3 other tools.  Clearly Duplicacy is the fastest by a significant margin.
 
 
 |                    |   Duplicacy  |   restic   |   Attic    |  duplicity  | 
@@ -297,7 +297,7 @@ Duplicacy is not only more feature-rich but also faster than other backup tools.
 | 12th backup | 7.4 | 12.0 | 21.7 | 37.4 | 
 
 
-For more details and other speed comparison results, please visit https://github.com/gilbertchen/backup-tools-comparison.  There you can also find test scripts that allow you to run your own experiments.
+For more details and other speed comparison results, please visit https://github.com/gilbertchen/backup-tools-comparison.  There you can also find test scripts that you can use to run your own experiments.
 
 ## License
 
