@@ -713,6 +713,11 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
     LOG_DEBUG("RESTORE_PARAMETERS", "top: %s, revision: %d, in-place: %t, quick: %t, delete: %t",
               top, revision, inPlace, quickMode, deleteMode)
 
+    if !strings.HasPrefix(GetDuplicacyPreferencePath(), top) {
+        LOG_INFO("RESTORE_INPLACE", "Forcing in-place mode with a non-default preference path")
+        inPlace = true
+    }
+
     if len(patterns) > 0 {
         for _, pattern := range patterns {
             LOG_TRACE("RESTORE_PATTERN", "%s", pattern)
@@ -1177,12 +1182,6 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
         }
     }
 
-    if inPlace {
-        if existingFile == nil {
-            inPlace = false
-        }
-    }
-
     for i := entry.StartChunk; i <= entry.EndChunk; i++ {
         if _, found := offsetMap[chunkDownloader.taskList[i].chunkHash]; !found {
             chunkDownloader.taskList[i].needed = true
@@ -1195,11 +1194,20 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 
         LOG_TRACE("DOWNLOAD_INPLACE", "Updating %s in place", fullPath)
 
-        existingFile.Close()
-        existingFile, err = os.OpenFile(fullPath, os.O_RDWR, 0)
-        if err != nil {
-            LOG_ERROR("DOWNLOAD_OPEN", "Failed to open the file %s for in-place writing", fullPath)
-            return false
+        if existingFile == nil {
+            // Create an empty file
+            existingFile, err = os.OpenFile(fullPath, os.O_WRONLY | os.O_CREATE | os.O_TRUNC, 0600)
+            if err != nil {
+                LOG_ERROR("DOWNLOAD_CREATE", "Failed to create the file %s for in-place writing", fullPath)
+            }
+        } else {
+            // Close and reopen in a different mode
+            existingFile.Close()
+            existingFile, err = os.OpenFile(fullPath, os.O_RDWR, 0)
+            if err != nil {
+                LOG_ERROR("DOWNLOAD_OPEN", "Failed to open the file %s for in-place writing", fullPath)
+                return false
+            }
         }
 
         existingFile.Seek(0, 0)
