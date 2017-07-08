@@ -508,7 +508,7 @@ At the end of a backup operation, Duplicacy will clean up the local cache in suc
 
 At the end of a prune operation, Duplicacy will remove all chunks from the local cache except those composing the snapshot file from the last backup (those that would be kept by the *backup* command), as well as chunks that contain information about chunks referenced by *all* backups from *all* repositories connected to the same storage url.  
 
-Other commands, such as *list*, *check*, does not clean up the local cache at all, so the local cache may keep growing if many of these commands run consectively.  However, once a *backup* or a *prune* command is invoked, the local cache should shrink to its normal size.
+Other commands, such as *list*, *check*, does not clean up the local cache at all, so the local cache may keep growing if many of these commands run consecutively.  However, once a *backup* or a *prune* command is invoked, the local cache should shrink to its normal size.
 
 ## Scripts
 
