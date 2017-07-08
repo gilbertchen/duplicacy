@@ -6,6 +6,7 @@ package duplicacy
 
 import (
     "fmt"
+    "net"
     "time"
     "sync"
     "bytes"
@@ -64,7 +65,17 @@ func NewHubicClient(tokenFile string) (*HubicClient, error) {
     }
 
     client := &HubicClient{
-        HTTPClient: http.DefaultClient,
+        HTTPClient: &http.Client {
+            Transport: &http.Transport {
+                Dial: (&net.Dialer{
+                        Timeout:   30 * time.Second,
+                        KeepAlive: 30 * time.Second,
+                }).Dial,
+                TLSHandshakeTimeout:   60 * time.Second,
+                ResponseHeaderTimeout: 30 * time.Second,
+                ExpectContinueTimeout: 10 * time.Second,
+            },
+        },
         TokenFile: tokenFile,
         Token: token,
         TokenLock: &sync.Mutex{},
