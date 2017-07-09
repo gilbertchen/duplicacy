@@ -297,7 +297,7 @@ Duplicacy is not only more feature-rich but also faster than other backup tools.
 | 12th backup | 7.4 | 12.0 | 21.7 | 37.4 | 
 
 
-For more details and other speed comparison results, please visit https://github.com/gilbertchen/backup-tools-comparison.  There you can also find test scripts that you can use to run your own experiments.
+For more details and other speed comparison results, please visit https://github.com/gilbertchen/benchmarking.  There you can also find test scripts that you can use to run your own experiments.
 
 ## License
 
