@@ -293,7 +293,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
             SavePassword(preference, "ssh_password", password)
         }
         return sftpStorage
-    } else if matched[1] == "s3" {
+    } else if matched[1] == "s3" || matched[1] == "minio" {
 
         // urlRegex := regexp.MustCompile(`^(\w+)://([\w\-]+@)?([^/]+)(/(.+))?`)
 
@@ -319,7 +319,9 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
         accessKey := GetPassword(preference, "s3_id", "Enter S3 Access Key ID:", true, resetPassword)
         secretKey := GetPassword(preference, "s3_secret", "Enter S3 Secret Access Key:", true, resetPassword)
 
-        s3Storage, err := CreateS3Storage(region, endpoint, bucket, storageDir, accessKey, secretKey, threads)
+        isMinioCompatible := matched[1] == "minio"
+
+        s3Storage, err := CreateS3Storage(region, endpoint, bucket, storageDir, accessKey, secretKey, threads, isMinioCompatible)
         if err != nil {
             LOG_ERROR("STORAGE_CREATE", "Failed to load the S3 storage at %s: %v", storageURL, err)
             return nil
