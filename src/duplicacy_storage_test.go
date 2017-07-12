@@ -66,6 +66,8 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
         return CreateSFTPStorageWithPassword(storage["server"], port, storage["username"], storage["directory"], storage["password"], threads)
     } else if testStorageName == "s3" {
         return CreateS3Storage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads, false)
+    } else if testStorageName == "s3c" {
+        return CreateS3CStorage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads)
     } else if testStorageName == "minio" {
         return CreateS3Storage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads, true)
     } else if testStorageName == "dropbox" {

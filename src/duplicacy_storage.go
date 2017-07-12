@@ -293,7 +293,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
             SavePassword(preference, "ssh_password", password)
         }
         return sftpStorage
-    } else if matched[1] == "s3" || matched[1] == "minio" {
+    } else if matched[1] == "s3" || matched[1] == "s3c" || matched[1] == "minio"{
 
         // urlRegex := regexp.MustCompile(`^(\w+)://([\w\-]+@)?([^/]+)(/(.+))?`)
 
@@ -319,17 +319,26 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
         accessKey := GetPassword(preference, "s3_id", "Enter S3 Access Key ID:", true, resetPassword)
         secretKey := GetPassword(preference, "s3_secret", "Enter S3 Secret Access Key:", true, resetPassword)
 
-        isMinioCompatible := matched[1] == "minio"
+        var err error
 
-        s3Storage, err := CreateS3Storage(region, endpoint, bucket, storageDir, accessKey, secretKey, threads, isMinioCompatible)
-        if err != nil {
-            LOG_ERROR("STORAGE_CREATE", "Failed to load the S3 storage at %s: %v", storageURL, err)
-            return nil
+        if matched[1] == "s3c" {
+            storage, err = CreateS3CStorage(region, endpoint, bucket, storageDir, accessKey, secretKey, threads)
+            if err != nil {
+                LOG_ERROR("STORAGE_CREATE", "Failed to load the S3C storage at %s: %v", storageURL, err)
+                return nil
+            }
+        } else {
+            isMinioCompatible := matched[1] == "minio"
+            storage, err = CreateS3Storage(region, endpoint, bucket, storageDir, accessKey, secretKey, threads, isMinioCompatible)
+            if err != nil {
+                LOG_ERROR("STORAGE_CREATE", "Failed to load the S3 storage at %s: %v", storageURL, err)
+                return nil
+            }            
         }
         SavePassword(preference, "s3_id", accessKey)
         SavePassword(preference, "s3_secret", secretKey)
 
-        return s3Storage
+        return storage
     } else if matched[1] == "dropbox" {
         storageDir := matched[3] + matched[5]
         token := GetPassword(preference, "dropbox_token", "Enter Dropbox access token:", true, resetPassword)
