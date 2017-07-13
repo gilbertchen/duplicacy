@@ -361,13 +361,15 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
     var uploadedChunkLengths []int
     var uploadedChunkLock = &sync.Mutex{}
 
-    // the file reader implements the Reader interface. When an EOF is encounter, it opens the next file unless it
-    // is the last file.
-    fileReader := CreateFileReader(shadowTop, modifiedEntries)
-    // Set all file sizes to -1 to indicate they haven't been processed
+    // Set all file sizes to -1 to indicate they haven't been processed.   This must be done before creating the file 
+    // reader because the file reader may skip inaccessible files on construction.
     for _, entry := range modifiedEntries {
         entry.Size = -1
     }
+
+    // the file reader implements the Reader interface. When an EOF is encounter, it opens the next file unless it
+    // is the last file.
+    fileReader := CreateFileReader(shadowTop, modifiedEntries)
 
     startUploadingTime := time.Now().Unix()
 

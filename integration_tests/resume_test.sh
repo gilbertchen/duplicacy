@@ -11,8 +11,9 @@ ${DUPLICACY} init integration-tests $TEST_STORAGE -c  4
 # Create 10 small files
 add_file file1 20
 add_file file2 20
-add_file file3 20
+rm file3; touch file3
 add_file file4 20
+chmod u-r file4
 add_file file5 20
 add_file file6 20
 add_file file7 20
