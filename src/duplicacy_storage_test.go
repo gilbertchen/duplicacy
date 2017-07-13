@@ -70,6 +70,8 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
         return CreateS3CStorage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads)
     } else if testStorageName == "minio" {
         return CreateS3Storage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads, false, true)
+    } else if testStorageName == "minios" {
+        return CreateS3Storage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads, true, true)
     } else if testStorageName == "dropbox" {
         return CreateDropboxStorage(storage["token"], storage["directory"], threads)
     } else if testStorageName == "b2" {
