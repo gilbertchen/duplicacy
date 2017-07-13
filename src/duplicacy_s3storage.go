@@ -23,7 +23,8 @@ type S3Storage struct {
 
 // CreateS3Storage creates a amazon s3 storage object.
 func CreateS3Storage(regionName string, endpoint string, bucketName string, storageDir string,
-                     accessKey string, secretKey string, threads int, isMinioCompatible bool) (storage *S3Storage, err error) {
+                     accessKey string, secretKey string, threads int,
+                     isSSLSupported bool, isMinioCompatible bool) (storage *S3Storage, err error) {
 
     token := ""
     
@@ -54,7 +55,7 @@ func CreateS3Storage(regionName string, endpoint string, bucketName string, stor
         Credentials: auth,
         Endpoint: aws.String(endpoint),
         S3ForcePathStyle: aws.Bool(isMinioCompatible),
-        DisableSSL: aws.Bool(isMinioCompatible),
+        DisableSSL: aws.Bool(!isSSLSupported),
     }    
     
     if len(storageDir) > 0 && storageDir[len(storageDir) - 1] != '/' {

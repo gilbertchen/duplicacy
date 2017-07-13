@@ -65,17 +65,17 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
         port, _ := strconv.Atoi(storage["port"])
         return CreateSFTPStorageWithPassword(storage["server"], port, storage["username"], storage["directory"], storage["password"], threads)
     } else if testStorageName == "s3" {
-        return CreateS3Storage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads, false)
+        return CreateS3Storage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads, true, false)
     } else if testStorageName == "s3c" {
         return CreateS3CStorage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads)
     } else if testStorageName == "minio" {
-        return CreateS3Storage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads, true)
+        return CreateS3Storage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads, false, true)
     } else if testStorageName == "dropbox" {
         return CreateDropboxStorage(storage["token"], storage["directory"], threads)
     } else if testStorageName == "b2" {
         return CreateB2Storage(storage["account"], storage["key"], storage["bucket"], threads)
     } else if testStorageName == "gcs-s3" {
-        return CreateS3Storage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads, false)
+        return CreateS3Storage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads, true, false)
     } else if testStorageName == "gcs" {
         return CreateGCSStorage(storage["token_file"], storage["bucket"], storage["directory"], threads)
     } else if testStorageName == "gcs-sa" {
