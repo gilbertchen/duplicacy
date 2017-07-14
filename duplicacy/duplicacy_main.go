@@ -1,6 +1,6 @@
 // Copyright (c) Acrosync LLC. All rights reserved.
-// Licensed under the Fair Source License 0.9 (https://fair.io/)
-// User Limitation: 5 users
+// Free for personal use and commercial trial
+// Commercial use requires per-user licenses available from https://duplicacy.com
 
 package main
 

@@ -301,6 +301,6 @@ For more details and other speed comparison results, please visit https://github
 
 ## License
 
-Duplicacy CLI is released under the [Fair Source 5 License](https://fair.io), which means it is free for individual users or any company or organization with less than 5 users.  If your company or organization has 5 or more users, then a license for the actual number of users must be purchased from [duplicacy.com](https://duplicacy.com/customer).
-
-A user is defined as the owner of any files to be backed up by Duplicacy.  If you are an IT administrator who uses Duplicacy to back up files for your colleagues, then each colleague will be counted in the user limit permitted by the license.
+* Free for personal use or commerical trial
+* Non-trial commercial use equires per-user licenses available from [duplicacy.com](https://duplicacy.com/customer) at a cost of $20 per year
+* Modification and redistribution are permitted, but commerical use of derivative works is subject to the license terms
