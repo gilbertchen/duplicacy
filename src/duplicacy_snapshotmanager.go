@@ -1092,15 +1092,18 @@ func (manager *SnapshotManager) RetrieveFile(snapshot *Snapshot, file *Entry, ou
 }
 
 // FindFile returns the file entry that has the given file name.
-func (manager *SnapshotManager) FindFile(snapshot *Snapshot, filePath string) (*Entry) {
+func (manager *SnapshotManager) FindFile(snapshot *Snapshot, filePath string, suppressError bool) (*Entry) {
     for _, entry := range snapshot.Files {
         if entry.Path == filePath {
             return entry
         }
     }
 
-    LOG_ERROR("SNAPSHOT_FIND", "No file %s found in snapshot %s at revision %d",
-              filePath, snapshot.ID, snapshot.Revision)
+    if !suppressError {
+        LOG_ERROR("SNAPSHOT_FIND", "No file %s found in snapshot %s at revision %d",
+                filePath, snapshot.ID, snapshot.Revision)
+    }
+
     return nil
 }
 
@@ -1139,7 +1142,7 @@ func (manager *SnapshotManager) PrintFile(snapshotID string, revision int, path 
         return true
     }
 
-    file := manager.FindFile(snapshot, path)
+    file := manager.FindFile(snapshot, path, false)
     var content [] byte
     if !manager.RetrieveFile(snapshot, file, func(chunk []byte) { content = append(content, chunk...) }) {
         LOG_ERROR("SNAPSHOT_RETRIEVE", "File %s is corrupted in snapshot %s at revision %d",
@@ -1197,7 +1200,7 @@ func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []
         }
 
         var leftFile []byte
-        if !manager.RetrieveFile(leftSnapshot, manager.FindFile(leftSnapshot, filePath), func(content []byte) {
+        if !manager.RetrieveFile(leftSnapshot, manager.FindFile(leftSnapshot, filePath, false), func(content []byte) {
             leftFile = append(leftFile, content...)
         }) {
             LOG_ERROR("SNAPSHOT_DIFF", "File %s is corrupted in snapshot %s at revision %d",
@@ -1207,7 +1210,7 @@ func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []
 
         var rightFile []byte
         if rightSnapshot != nil {
-            if !manager.RetrieveFile(rightSnapshot, manager.FindFile(rightSnapshot, filePath), func(content []byte) {
+            if !manager.RetrieveFile(rightSnapshot, manager.FindFile(rightSnapshot, filePath, false), func(content []byte) {
                 rightFile = append(rightFile, content...)
             }) {
                 LOG_ERROR("SNAPSHOT_DIFF", "File %s is corrupted in snapshot %s at revision %d",
@@ -1376,7 +1379,7 @@ func (manager *SnapshotManager) ShowHistory(top string, snapshotID string, revis
     for _, revision := range revisions {
         snapshot := manager.DownloadSnapshot(snapshotID, revision)
         manager.DownloadSnapshotFileSequence(snapshot, nil)
-        file := manager.FindFile(snapshot, filePath)
+        file := manager.FindFile(snapshot, filePath, true)
 
         if file != nil {
 
