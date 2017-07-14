@@ -303,4 +303,4 @@ For more details and other speed comparison results, please visit https://github
 
 * Free for personal use or commerical trial
 * Non-trial commercial use equires per-user licenses available from [duplicacy.com](https://duplicacy.com/customer) at a cost of $20 per year
-* Modification and redistribution are permitted, but commerical use of derivative works is subject to the license terms
+* Modification and redistribution are permitted, but commerical use of derivative works is subject to the same requirements of this license
