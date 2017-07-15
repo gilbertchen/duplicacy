@@ -178,6 +178,9 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
                     fileHasher = maker.config.NewFileHasher()
                     isEOF = false
                 }
+            } else {
+                endOfChunk(chunk, false)
+                startNewChunk()
             }
         }
 
