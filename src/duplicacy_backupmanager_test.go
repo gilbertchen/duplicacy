@@ -219,8 +219,10 @@ func TestBackupManager(t *testing.T) {
     backupManager := CreateBackupManager("host1", storage, testDir, password)
     backupManager.SetupSnapshotCache("default")
 
+    SetDuplicacyPreferencePath(testDir + "/repository1")
     backupManager.Backup(testDir + "/repository1", /*quickMode=*/true, threads, "first", false, false)
     time.Sleep(time.Duration(delay) * time.Second)
+    SetDuplicacyPreferencePath(testDir + "/repository2")
     backupManager.Restore(testDir + "/repository2", threads, /*inPlace=*/false, /*quickMode=*/false, threads, /*overwrite=*/true,
                           /*deleteMode=*/false, /*showStatistics=*/false, /*patterns=*/nil)
 
@@ -241,8 +243,10 @@ func TestBackupManager(t *testing.T) {
     modifyFile(testDir + "/repository1/file2", 0.2)
     modifyFile(testDir + "/repository1/dir1/file3", 0.3)
 
+    SetDuplicacyPreferencePath(testDir + "/repository1")
     backupManager.Backup(testDir + "/repository1", /*quickMode=*/true, threads, "second", false, false)
     time.Sleep(time.Duration(delay) * time.Second)
+    SetDuplicacyPreferencePath(testDir + "/repository2")
     backupManager.Restore(testDir + "/repository2", 2, /*inPlace=*/true, /*quickMode=*/true, threads, /*overwrite=*/true,
                           /*deleteMode=*/false, /*showStatistics=*/false, /*patterns=*/nil)
 
@@ -255,8 +259,10 @@ func TestBackupManager(t *testing.T) {
     }
 
     truncateFile(testDir + "/repository1/file2")
+    SetDuplicacyPreferencePath(testDir + "/repository1")
     backupManager.Backup(testDir + "/repository1", /*quickMode=*/false, threads, "third", false, false)
     time.Sleep(time.Duration(delay) * time.Second)
+    SetDuplicacyPreferencePath(testDir + "/repository2")
     backupManager.Restore(testDir + "/repository2", 3, /*inPlace=*/true, /*quickMode=*/false, threads, /*overwrite=*/true,
                           /*deleteMode=*/false, /*showStatistics=*/false, /*patterns=*/nil)
 
