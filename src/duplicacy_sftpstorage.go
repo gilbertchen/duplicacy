@@ -285,7 +285,7 @@ func (storage *SFTPStorage) UploadFile(threadIndex int, filePath string, content
             storage.client.Remove(temporaryFile)
             return nil
         } else {
-            return fmt.Errorf("Uploaded file but failed to store it at %s", fullPath)
+            return fmt.Errorf("Uploaded file but failed to store it at %s: %v", fullPath, err)
         }
     }
 
