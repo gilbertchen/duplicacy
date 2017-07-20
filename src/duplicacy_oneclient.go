@@ -9,6 +9,7 @@ import (
     "time"
     "sync"
     "bytes"
+    "strings"
     "io/ioutil"
     "encoding/json"
     "io"
@@ -41,6 +42,7 @@ type OneDriveClient struct {
     Token               *oauth2.Token
     TokenLock           *sync.Mutex
 
+    IsConnected         bool
     TestMode            bool
 }
 
@@ -115,8 +117,26 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 
         response, err = client.HTTPClient.Do(request)
         if err != nil {
+            if client.IsConnected {
+                if strings.Contains(err.Error(), "TLS handshake timeout") {
+                    // Give a long timeout regardless of backoff when a TLS timeout happens, hoping that
+                    // idle connections are not to be reused on reconnect.
+                    retryAfter := time.Duration(rand.Float32() * 60000 + 180000)
+                    LOG_INFO("ONEDRIVE_RETRY", "TLS handshake timeout; retry after %d milliseconds", retryAfter)
+                    time.Sleep(retryAfter * time.Millisecond)
+                } else {
+                    // For all other errors just blindly retry until the maximum is reached
+                    retryAfter := time.Duration(rand.Float32() * 1000.0 * float32(backoff))
+                    LOG_INFO("ONEDRIVE_RETRY", "%v; retry after %d milliseconds", err, retryAfter)
+                    time.Sleep(retryAfter * time.Millisecond)
+                }
+                backoff *= 2
+                continue
+            }
             return nil, 0, err
         }
+
+        client.IsConnected = true
 
         if response.StatusCode < 400 {
             return response.Body, response.ContentLength, nil
@@ -139,9 +159,9 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
                 return nil, 0, err
             }
             continue
-        } else if response.StatusCode == 500 || response.StatusCode == 503 || response.StatusCode == 509 {
+        } else if response.StatusCode > 401 && response.StatusCode != 404 {
             retryAfter := time.Duration(rand.Float32() * 1000.0 * float32(backoff))
-            LOG_INFO("ONEDRIVE_RETRY", "Response status: %d; retry after %d milliseconds", response.StatusCode, retryAfter)
+            LOG_INFO("ONEDRIVE_RETRY", "Response code: %d; retry after %d milliseconds", response.StatusCode, retryAfter)
             time.Sleep(retryAfter * time.Millisecond)
             backoff *= 2
             continue
@@ -151,7 +171,6 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
             }
 
             errorResponse.Error.Status = response.StatusCode
-
             return nil, 0, errorResponse.Error
         }
     }
@@ -169,7 +188,7 @@ func (client *OneDriveClient) RefreshToken() (err error) {
 
     readCloser, _, err := client.call(OneDriveRefreshTokenURL, "POST", client.Token, "")
     if err != nil {
-        return err
+        return fmt.Errorf("failed to refresh the access token: %v", err) 
     }
 
     defer readCloser.Close()
