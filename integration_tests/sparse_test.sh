@@ -21,6 +21,7 @@ ${DUPLICACY} check --files -stats
 rm file1 file3
 
 ${DUPLICACY} restore -r 1
+${DUPLICACY} -v restore -r 1 -overwrite -stats -hash
 
 ls -lsh file3
 

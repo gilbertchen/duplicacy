@@ -1193,6 +1193,7 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
         if inPlace {
             // In inplace mode, we only consider chunks in the existing file with the same offsets, so we
             // break the original file at offsets retrieved from the backup
+            fileHasher := manager.config.NewFileHasher()
             buffer := make([]byte, 64 * 1024)
             err = nil
             for i := entry.StartChunk; i <= entry.EndChunk; i++ {
@@ -1212,6 +1213,7 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
                     n, err := existingFile.Read(buffer[:n])
                     if n > 0 {
                         hasher.Write(buffer[:n])
+                        fileHasher.Write(buffer[:n])
                         count += n
                     }
                     if err == io.EOF {
@@ -1235,6 +1237,7 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
                     break
                 }
             }
+            fileHash = hex.EncodeToString(fileHasher.Sum(nil))
         } else {
             // If it is not inplace, we want to reuse any chunks in the existing file regardless their offets, so
             // we run the chunk maker to split the original file.
@@ -1253,10 +1256,10 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
                     fileHash = hash
                     return nil, false
                 })
-            if fileHash == entry.Hash && fileHash != "" {
-                LOG_TRACE("DOWNLOAD_SKIP", "File %s unchanged (by hash)", entry.Path)
-                return false
-            }
+        }
+        if fileHash == entry.Hash && fileHash != "" {
+            LOG_TRACE("DOWNLOAD_SKIP", "File %s unchanged (by hash)", entry.Path)
+            return false
         }
     }
 
