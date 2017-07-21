@@ -1150,37 +1150,113 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
     var offset int64
 
     existingFile, err = os.Open(fullPath)
-    if err != nil && !os.IsNotExist(err) {
-        LOG_TRACE("DOWNLOAD_OPEN", "Can't open the existing file: %v", err)
-    }
-
-    fileHash := ""
-    if existingFile != nil {
-        // Break existing file into chunks.
-        chunkMaker.ForEachChunk(
-            existingFile,
-            func (chunk *Chunk, final bool) {
-                hash := chunk.GetHash()
-                chunkSize := chunk.GetLength()
-                existingChunks = append(existingChunks, hash)
-                existingLengths = append(existingLengths, chunkSize)
-                offsetMap[hash] = offset
-                lengthMap[hash] = chunkSize
-                offset += int64(chunkSize)
-            },
-            func (fileSize int64, hash string) (io.Reader, bool) {
-                fileHash = hash
-                return nil, false
-            })
-        if fileHash == entry.Hash && fileHash != "" {
-            LOG_TRACE("DOWNLOAD_SKIP", "File %s unchanged (by hash)", entry.Path)
-            return false
+    if err != nil {
+        if os.IsNotExist(err) {
+            if inPlace && entry.Size > 100 * 1024 * 1024 {
+                // Create an empty sparse file
+                existingFile, err = os.OpenFile(fullPath, os.O_WRONLY | os.O_CREATE | os.O_TRUNC, 0600)
+                if err != nil {
+                    LOG_ERROR("DOWNLOAD_CREATE", "Failed to create the file %s for in-place writing", fullPath)
+                    return false
+                }
+                _, err = existingFile.Seek(entry.Size - 1, 0)
+                if err != nil {
+                    LOG_ERROR("DOWNLOAD_CREATE", "Failed to resize the initial file %s for in-place writing", fullPath)
+                    return false
+                }
+                _, err = existingFile.Write([]byte("\x00"))
+                if err != nil {
+                    LOG_ERROR("DOWNLOAD_CREATE", "Failed to initialize the sparse file %s for in-place writing", fullPath)
+                    return false
+                }
+                existingFile.Close()
+                existingFile, err = os.Open(fullPath)
+                if err != nil {
+                    LOG_ERROR("DOWNLOAD_OPEN", "Can't reopen the initial file just created: %v", err)
+                    return false
+                }
+            }
+        } else {
+            LOG_TRACE("DOWNLOAD_OPEN", "Can't open the existing file: %v", err)
         }
-
+    } else {
         if !overwrite {
             LOG_ERROR("DOWNLOAD_OVERWRITE",
                       "File %s already exists.  Please specify the -overwrite option to continue", entry.Path)
             return false
+        }
+    }
+
+    fileHash := ""
+    if existingFile != nil {
+
+        if inPlace {
+            // In inplace mode, we only consider chunks in the existing file with the same offsets, so we
+            // break the original file at offsets retrieved from the backup
+            buffer := make([]byte, 64 * 1024)
+            err = nil
+            for i := entry.StartChunk; i <= entry.EndChunk; i++ {
+                hasher := manager.config.NewKeyedHasher(manager.config.HashKey)
+                chunkSize := chunkDownloader.taskList[i].chunkLength
+                if i == entry.StartChunk {
+                    chunkSize -= entry.StartOffset
+                } else if i == entry.EndChunk {
+                    chunkSize = entry.EndOffset
+                }
+                count := 0
+                for count < chunkSize {
+                    n := chunkSize - count
+                    if n > cap(buffer) {
+                        n = cap(buffer)
+                    }
+                    n, err := existingFile.Read(buffer[:n])
+                    if n > 0 {
+                        hasher.Write(buffer[:n])
+                        count += n
+                    }
+                    if err == io.EOF {
+                        break
+                    }
+                    if err != nil {
+                        LOG_ERROR("DOWNLOAD_SPLIT", "Failed to read existing file: %v", err)
+                        return false
+                    }
+                }
+                if count > 0 {
+                    hash := string(hasher.Sum(nil))
+                    existingChunks = append(existingChunks, hash)
+                    existingLengths = append(existingLengths, chunkSize)
+                    offsetMap[hash] = offset
+                    lengthMap[hash] = chunkSize
+                    offset += int64(chunkSize)
+                }
+
+                if err == io.EOF {
+                    break
+                }
+            }
+        } else {
+            // If it is not inplace, we want to reuse any chunks in the existing file regardless their offets, so
+            // we run the chunk maker to split the original file.
+            chunkMaker.ForEachChunk(
+                existingFile,
+                func (chunk *Chunk, final bool) {
+                    hash := chunk.GetHash()
+                    chunkSize := chunk.GetLength()
+                    existingChunks = append(existingChunks, hash)
+                    existingLengths = append(existingLengths, chunkSize)
+                    offsetMap[hash] = offset
+                    lengthMap[hash] = chunkSize
+                    offset += int64(chunkSize)
+                },
+                func (fileSize int64, hash string) (io.Reader, bool) {
+                    fileHash = hash
+                    return nil, false
+                })
+            if fileHash == entry.Hash && fileHash != "" {
+                LOG_TRACE("DOWNLOAD_SKIP", "File %s unchanged (by hash)", entry.Path)
+                return false
+            }
         }
     }
 
