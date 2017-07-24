@@ -168,6 +168,16 @@ Storage URL:  s3://amazon.com/bucket/path/to/storage (default region is us-east-
 
 You'll need to input an access key and a secret key to access your Amazon S3 storage.
 
+Minio-based S3 compatiable storages are also supported by using the `minio` or `minios` backends:
+```
+Storage URL:  minio://region@host/bucket/path/to/storage (without TLS)
+Storage URL:  minios://region@host/bucket/path/to/storage (with TLS)
+```
+
+There is another backend that works with S3 compatible storage providers that require V2 signing:
+```
+Storage URL:  s3c://region@host/bucket/path/to/storage
+```
 
 </details>
 
