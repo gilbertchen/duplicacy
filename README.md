@@ -181,7 +181,7 @@ Storage URL:  s3c://region@host/bucket/path/to/storage
 
 </details>
 
-<details>  <summary>Google Cloud Storage</summary>
+<details>  <summary>Wasabi</summary>
 ```
 Storage URL: s3://us-east-1@s3.wasabisys.com/bucket/path/to/storage
 ```
