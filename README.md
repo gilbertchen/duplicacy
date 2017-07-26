@@ -182,6 +182,16 @@ Storage URL:  s3c://region@host/bucket/path/to/storage
 </details>
 
 <details>  <summary>Google Cloud Storage</summary>
+```
+Storage URL: s3://us-east-1@s3.wasabisys.com/bucket/path/to/storage
+```
+
+[Wasabi](https://wasabi.com) is a relatively new cloud storage serivce providing a S3-compatible API.
+It is well suited for storing backups, because it is much cheaper than Amazon S3 with a storage cost of $.0039/GB/Month and a download fee of $0.04/GB, and no additional charges on API calls.
+
+</details>
+
+<details>  <summary>Google Cloud Storage</summary>
 
 ```
 Storage URL:  gcs://bucket/path/to/storage
