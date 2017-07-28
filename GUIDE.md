@@ -133,7 +133,7 @@ OPTIONS:
    -t <tag>                    list snapshots with the specified tag
    -files                      print the file list in each snapshot
    -chunks                     print chunks in each snapshot or all chunks if no snapshot specified
-   -reset-password             take passwords from input rather than keychain/keyring or env
+   -reset-passwords            take passwords from input rather than keychain/keyring or env
    -storage <storage name>     retrieve snapshots from the specified storage
 ```
 
