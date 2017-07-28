@@ -76,7 +76,7 @@ func (manager *BackupManager) SetupSnapshotCache(storageName string) bool {
     preferencePath := GetDuplicacyPreferencePath()
     cacheDir := path.Join(preferencePath, "cache", storageName)
 
-    storage, err := CreateFileStorage(cacheDir, 1)
+    storage, err := CreateFileStorage(cacheDir, 2, 1)
     if err != nil {
         LOG_ERROR("BACKUP_CACHE", "Failed to create the snapshot cache dir: %v", err)
         return false

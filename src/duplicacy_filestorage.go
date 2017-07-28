@@ -18,12 +18,13 @@ import (
 type FileStorage struct {
     RateLimitedStorage
 
+    minimumLevel int       // The minimum level of directories to dive into before searching for the chunk file.
     storageDir string
     numberOfThreads int
 }
 
 // CreateFileStorage creates a file storage.
-func CreateFileStorage(storageDir string, threads int) (storage *FileStorage, err error) {
+func CreateFileStorage(storageDir string, minimumLevel int, threads int) (storage *FileStorage, err error) {
 
     var stat os.FileInfo
 
@@ -45,6 +46,7 @@ func CreateFileStorage(storageDir string, threads int) (storage *FileStorage, er
 
     storage = &FileStorage {
         storageDir : storageDir,
+        minimumLevel: minimumLevel,
         numberOfThreads: threads,
     }
 
@@ -128,11 +130,8 @@ func (storage *FileStorage) FindChunk(threadIndex int, chunkID string, isFossil 
         suffix = ".fsl"
     }
 
-    // The minimum level of directories to dive into before searching for the chunk file.
-    minimumLevel := 2
-
     for level := 0; level * 2 < len(chunkID); level ++ {
-        if level >= minimumLevel {
+        if level >= storage.minimumLevel {
             filePath = path.Join(dir, chunkID[2 * level:]) + suffix
             if stat, err := os.Stat(filePath); err == nil && !stat.IsDir() {
                 return filePath[len(storage.storageDir) + 1:], true, stat.Size(), nil
@@ -149,7 +148,7 @@ func (storage *FileStorage) FindChunk(threadIndex int, chunkID string, isFossil 
             continue
         }
 
-        if level < minimumLevel {
+        if level < storage.minimumLevel {
             // Create the subdirectory if it doesn't exist.
 
             if err == nil && !stat.IsDir() {

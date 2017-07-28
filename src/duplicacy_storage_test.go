@@ -41,7 +41,7 @@ func init() {
 func loadStorage(localStoragePath string, threads int) (Storage, error) {
 
     if testStorageName == "" || testStorageName == "file" {
-        return CreateFileStorage(localStoragePath, threads)
+        return CreateFileStorage(localStoragePath, 2, threads)
     }
 
     config, err := ioutil.ReadFile("test_storage.conf")
@@ -61,7 +61,9 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
         return nil, fmt.Errorf("No storage named '%s' found", testStorageName)
     }
 
-    if testStorageName == "sftp" {
+    if testStorageName == "flat" {
+        return CreateFileStorage(localStoragePath, 0, threads)
+    } else if testStorageName == "sftp" {
         port, _ := strconv.Atoi(storage["port"])
         return CreateSFTPStorageWithPassword(storage["server"], port, storage["username"], storage["directory"], storage["password"], threads)
     } else if testStorageName == "s3" {

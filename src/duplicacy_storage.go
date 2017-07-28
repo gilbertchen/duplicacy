@@ -144,7 +144,16 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
     }
 
     if isFileStorage {
-        fileStorage, err := CreateFileStorage(storageURL, threads)
+        fileStorage, err := CreateFileStorage(storageURL, 2, threads)
+        if err != nil {
+            LOG_ERROR("STORAGE_CREATE", "Failed to load the file storage at %s: %v", storageURL, err)
+            return nil
+        }
+        return fileStorage
+    }
+
+    if strings.HasPrefix(storageURL, "flat://") {
+        fileStorage, err := CreateFileStorage(storageURL, 0, threads)
         if err != nil {
             LOG_ERROR("STORAGE_CREATE", "Failed to load the file storage at %s: %v", storageURL, err)
             return nil
