@@ -1196,13 +1196,17 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
             fileHasher := manager.config.NewFileHasher()
             buffer := make([]byte, 64 * 1024)
             err = nil
-            for i := entry.StartChunk; i <= entry.EndChunk; i++ {
+            // We set to read one more byte so the file hash will be different if the file to be restored is a
+            // truncated portion of the existing file
+            for i := entry.StartChunk; i <= entry.EndChunk + 1; i++ {
                 hasher := manager.config.NewKeyedHasher(manager.config.HashKey)
-                chunkSize := chunkDownloader.taskList[i].chunkLength
+                chunkSize := 1  // the size of extra chunk beyond EndChunk
                 if i == entry.StartChunk {
                     chunkSize -= entry.StartOffset
                 } else if i == entry.EndChunk {
                     chunkSize = entry.EndOffset
+                } else if i > entry.StartChunk && i < entry.EndChunk {
+                    chunkSize = chunkDownloader.taskList[i].chunkLength
                 }
                 count := 0
                 for count < chunkSize {
