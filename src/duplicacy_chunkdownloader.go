@@ -314,7 +314,11 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 
         if !exist {
             // A chunk is not found.  This is a serious error and hopefully it will never happen.
-            LOG_FATAL("DOWNLOAD_CHUNK", "Chunk %s can't be found", chunkID)
+            if err != nil {
+                LOG_FATAL("DOWNLOAD_CHUNK", "Chunk %s can't be found: %v", chunkID, err)
+            } else {
+                LOG_FATAL("DOWNLOAD_CHUNK", "Chunk %s can't be found", chunkID)
+            }
             return false
         }
         LOG_DEBUG("CHUNK_FOSSIL", "Chunk %s has been marked as a fossil", chunkID)
