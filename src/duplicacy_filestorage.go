@@ -133,10 +133,15 @@ func (storage *FileStorage) FindChunk(threadIndex int, chunkID string, isFossil 
     for level := 0; level * 2 < len(chunkID); level ++ {
         if level >= storage.minimumLevel {
             filePath = path.Join(dir, chunkID[2 * level:]) + suffix
-            if stat, err := os.Stat(filePath); err == nil && !stat.IsDir() {
+            // Use Lstat() instead of Stat() since 1) Stat() doesn't work for deduplicated disks on Windows and 2) there isn't
+            // really a need to follow the link if filePath is a link.
+            stat, err := os.Lstat(filePath)
+            if err != nil {
+                LOG_DEBUG("FS_FIND", "File %s can't be found: %v", filePath, err)
+            } else if stat.IsDir() {
+                return filePath[len(storage.storageDir) + 1:], false, 0, fmt.Errorf("The path %s is a directory", filePath)
+            } else {
                 return filePath[len(storage.storageDir) + 1:], true, stat.Size(), nil
-            } else if err == nil && stat.IsDir() {
-                return filePath[len(storage.storageDir) + 1:], true, 0, fmt.Errorf("The path %s is a directory", filePath)
             }
         }
 
@@ -163,7 +168,6 @@ func (storage *FileStorage) FindChunk(threadIndex int, chunkID string, isFossil 
                     return "", false, 0, err
                 }
             }
-
             dir = subDir
             continue
         }
@@ -173,9 +177,7 @@ func (storage *FileStorage) FindChunk(threadIndex int, chunkID string, isFossil 
 
     }
 
-    LOG_FATAL("CHUNK_FIND", "Chunk %s is still not found after having searched a maximum level of directories",
-              chunkID)
-    return "", false, 0, nil
+    return "", false, 0, fmt.Errorf("The maximum level of directories searched")
 
 }
 
