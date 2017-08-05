@@ -534,7 +534,9 @@ func changePassword(context *cli.Context) {
 
     password := ""
     if preference.Encrypted {
-        password = duplicacy.GetPassword(*preference, "password", "Enter old password for storage %s:", false, true)
+        password = duplicacy.GetPassword(*preference, "password",
+                                         fmt.Sprintf("Enter old password for storage %s:", preference.StorageURL),
+                                         false, true)
     }
 
     config, _, err := duplicacy.DownloadConfig(storage, password)
