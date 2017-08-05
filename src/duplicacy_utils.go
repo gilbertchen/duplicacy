@@ -9,7 +9,6 @@ import (
     "os"
     "bufio"
     "io"
-    "io/ioutil"
     "time"
     "path"
     "path/filepath"
@@ -189,54 +188,6 @@ func SavePassword(preference Preference, passwordType string, password string) {
     }
     keyringSet(passwordID, password)
 }
-
-// RemoveEmptyDirectories remove all empty subdirectoreies under top.
-func RemoveEmptyDirectories(top string) {
-
-    stack := make([]string, 0, 256)
-
-    stack = append(stack, top)
-
-    for len(stack) > 0 {
-
-        dir := stack[len(stack) - 1]
-        stack = stack[:len(stack) - 1]
-
-        files, err := ioutil.ReadDir(dir)
-
-        if err != nil {
-            continue
-        }
-
-        for _, file := range files {
-            if file.IsDir() && file.Name()[0] != '.' {
-                stack = append(stack, path.Join(dir, file.Name()))
-            }
-        }
-
-        if len(files) == 0 {
-            if os.Remove(dir) != nil {
-                continue
-            }
-
-            dir = path.Dir(dir)
-            for (len(dir) > len(top)) {
-                files, err := ioutil.ReadDir(dir)
-                if err != nil {
-                    break
-                }
-
-                if len(files) == 0 {
-                    if os.Remove(dir) != nil {
-                        break;
-                    }
-                }
-                dir = path.Dir(dir)
-            }
-        }
-    }
-}
-
 
 // The following code was modified from the online article  'Matching Wildcards: An Algorithm', by Kirk J. Krauss,
 // Dr. Dobb's, August 26, 2008. However, the version in the article doesn't handle cases like matching 'abcccd'

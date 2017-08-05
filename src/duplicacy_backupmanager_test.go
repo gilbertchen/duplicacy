@@ -104,6 +104,27 @@ func modifyFile(path string, portion float32) {
     }
 }
 
+func checkExistence(t *testing.T, path string, exists bool, isDir bool) {
+    stat, err := os.Stat(path)
+    if exists {
+        if err != nil {
+            t.Errorf("%s does not exist: %v", path, err)
+        } else if isDir {
+            if !stat.Mode().IsDir() {
+                t.Errorf("%s is not a directory", path)
+            }
+        } else {
+            if stat.Mode().IsDir() {
+                t.Errorf("%s is not a file", path)
+            }
+        }
+    } else {
+        if err == nil || !os.IsNotExist(err) {
+            t.Errorf("%s may exist: %v", path, err)
+        }
+    }
+}
+
 func truncateFile(path string) {
     file, err := os.OpenFile(path, os.O_WRONLY, 0644)
     if err != nil {
@@ -261,13 +282,25 @@ func TestBackupManager(t *testing.T) {
         }
     }
 
+    // Truncate file2 and add a few empty directories
     truncateFile(testDir + "/repository1/file2")
+    os.Mkdir(testDir + "/repository1/dir2", 0700)
+    os.Mkdir(testDir + "/repository1/dir2/dir3", 0700)
+    os.Mkdir(testDir + "/repository1/dir4", 0700)
     SetDuplicacyPreferencePath(testDir + "/repository1/.duplicacy")
     backupManager.Backup(testDir + "/repository1", /*quickMode=*/false, threads, "third", false, false)
     time.Sleep(time.Duration(delay) * time.Second)
+
+    // Create some directories and files under repository2 that will be deleted during restore
+    os.Mkdir(testDir + "/repository2/dir5", 0700)
+    os.Mkdir(testDir + "/repository2/dir5/dir6", 0700)
+    os.Mkdir(testDir + "/repository2/dir7", 0700)
+    createRandomFile(testDir + "/repository2/file4", 100)
+    createRandomFile(testDir + "/repository2/dir5/file5", 100)
+
     SetDuplicacyPreferencePath(testDir + "/repository2/.duplicacy")
     backupManager.Restore(testDir + "/repository2", 3, /*inPlace=*/true, /*quickMode=*/false, threads, /*overwrite=*/true,
-                          /*deleteMode=*/false, /*showStatistics=*/false, /*patterns=*/nil)
+                          /*deleteMode=*/true, /*showStatistics=*/false, /*patterns=*/nil)
 
     for _, f := range []string{ "file1", "file2", "dir1/file3" } {
         hash1 := getFileHash(testDir + "/repository1/" + f)
@@ -276,6 +309,18 @@ func TestBackupManager(t *testing.T) {
             t.Errorf("File %s has different hashes: %s vs %s", f, hash1, hash2)
         }
     }
+
+    // These files/dirs should not exist because deleteMode == true
+    checkExistence(t, testDir + "/repository2/dir5", false, false);
+    checkExistence(t, testDir + "/repository2/dir5/dir6", false, false);
+    checkExistence(t, testDir + "/repository2/dir7", false, false);
+    checkExistence(t, testDir + "/repository2/file4", false, false);
+    checkExistence(t, testDir + "/repository2/dir5/file5", false, false);
+
+    // These empty dirs should exist
+    checkExistence(t, testDir + "/repository2/dir2", true, true);
+    checkExistence(t, testDir + "/repository2/dir2/dir3", true, true);
+    checkExistence(t, testDir + "/repository2/dir4", true, true);
 
     // Remove file2 and dir1/file3 and restore them from revision 3
     os.Remove(testDir + "/repository1/file2")

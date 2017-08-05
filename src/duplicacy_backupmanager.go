@@ -918,7 +918,9 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 
 
     if deleteMode && len(patterns) == 0 {
-        for _, file := range extraFiles {
+        // Reverse the order to make sure directories are empty before being deleted
+        for i := range extraFiles {
+            file := extraFiles[len(extraFiles) - 1 - i]
             fullPath := joinPath(top, file)
             os.Remove(fullPath)
             LOG_INFO("RESTORE_DELETE", "Deleted %s", file)
@@ -931,8 +933,6 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
             entry.RestoreMetadata(dir, nil)
         }
     }
-
-    RemoveEmptyDirectories(top)
 
     if showStatistics {
         for _, file := range downloadedFiles {
