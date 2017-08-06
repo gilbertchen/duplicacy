@@ -324,4 +324,5 @@ For more details and other speed comparison results, please visit https://github
 
 * Free for personal use or commercial trial
 * Non-trial commercial use requires per-user licenses available from [duplicacy.com](https://duplicacy.com/customer) at a cost of $20 per year
+* Commercial licenses are not required to restore or manage backups; only the backup command requires a valid commercial license
 * Modification and redistribution are permitted, but commercial use of derivative works is subject to the same requirements of this license
