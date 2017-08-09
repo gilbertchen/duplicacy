@@ -14,14 +14,13 @@ import (
 type AzureStorage struct {
     RateLimitedStorage
 
-    clients []*storage.BlobStorageClient
-    container string
+    containers []*storage.Container
 }
 
 func CreateAzureStorage(accountName string, accountKey string,
-                        container string, threads int) (azureStorage *AzureStorage, err error) {
+                        containerName string, threads int) (azureStorage *AzureStorage, err error) {
 
-    var clients []*storage.BlobStorageClient
+    var containers []*storage.Container
     for i := 0; i < threads; i++ {
 
         client, err := storage.NewBasicClient(accountName, accountKey)
@@ -31,21 +30,21 @@ func CreateAzureStorage(accountName string, accountKey string,
         }
 
         blobService := client.GetBlobService()
-        clients = append(clients, &blobService)
+        container := blobService.GetContainerReference(containerName)
+        containers = append(containers, container)
     }
 
-    exist, err := clients[0].ContainerExists(container)
+    exist, err := containers[0].Exists()
     if err != nil {
         return nil, err
     }
 
     if !exist {
-        return nil, fmt.Errorf("container %s does not exist", container)
+        return nil, fmt.Errorf("container %s does not exist", containerName)
     }
 
     azureStorage = &AzureStorage {
-        clients: clients,
-        container: container,
+        containers: containers,
     }
 
     return
@@ -77,7 +76,7 @@ func (azureStorage *AzureStorage) ListFiles(threadIndex int, dir string) (files 
 
     for {
 
-        results, err := azureStorage.clients[threadIndex].ListBlobs(azureStorage.container, parameters)
+        results, err := azureStorage.containers[threadIndex].ListBlobs(parameters)
         if err != nil {
             return nil, nil, err
         }
@@ -115,14 +114,15 @@ func (azureStorage *AzureStorage) ListFiles(threadIndex int, dir string) (files 
 
 // DeleteFile deletes the file or directory at 'filePath'.
 func (storage *AzureStorage) DeleteFile(threadIndex int, filePath string) (err error) {
-    _, err = storage.clients[threadIndex].DeleteBlobIfExists(storage.container, filePath)
+    _, err = storage.containers[threadIndex].GetBlobReference(filePath).DeleteIfExists(nil)
     return err
 }
 
 // MoveFile renames the file.
 func (storage *AzureStorage) MoveFile(threadIndex int, from string, to string) (err error) {
-    source := storage.clients[threadIndex].GetBlobURL(storage.container, from)
-    err = storage.clients[threadIndex].CopyBlob(storage.container, to, source)
+    source := storage.containers[threadIndex].GetBlobReference(from)
+    destination := storage.containers[threadIndex].GetBlobReference(to)
+    err = destination.Copy(source.GetURL(), nil)
     if err != nil {
         return err
     }
@@ -136,7 +136,8 @@ func (storage *AzureStorage) CreateDirectory(threadIndex int, dir string) (err e
 
 // GetFileInfo returns the information about the file or directory at 'filePath'.
 func (storage *AzureStorage) GetFileInfo(threadIndex int, filePath string) (exist bool, isDir bool, size int64, err error) {
-    properties, err := storage.clients[threadIndex].GetBlobProperties(storage.container, filePath)
+    blob := storage.containers[threadIndex].GetBlobReference(filePath)
+    err = blob.GetProperties(nil)
     if err != nil {
         if strings.Contains(err.Error(), "404") {
             return false, false, 0, nil
@@ -145,7 +146,7 @@ func (storage *AzureStorage) GetFileInfo(threadIndex int, filePath string) (exis
         }
     }
 
-    return true, false, properties.ContentLength, nil
+    return true, false, blob.Properties.ContentLength, nil
 }
 
 // FindChunk finds the chunk with the specified id.  If 'isFossil' is true, it will search for chunk files with
@@ -167,21 +168,22 @@ func (storage *AzureStorage) FindChunk(threadIndex int, chunkID string, isFossil
 
 // DownloadFile reads the file at 'filePath' into the chunk.
 func (storage *AzureStorage) DownloadFile(threadIndex int, filePath string, chunk *Chunk) (err error) {
-    readCloser, err := storage.clients[threadIndex].GetBlob(storage.container, filePath)
+    readCloser, err := storage.containers[threadIndex].GetBlobReference(filePath).Get(nil)
     if err != nil {
         return err
     }
 
     defer readCloser.Close()
 
-    _, err = RateLimitedCopy(chunk, readCloser, storage.DownloadRateLimit / len(storage.clients))
+    _, err = RateLimitedCopy(chunk, readCloser, storage.DownloadRateLimit / len(storage.containers))
     return err
 }
 
 // UploadFile writes 'content' to the file at 'filePath'.
 func (storage *AzureStorage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
-   reader := CreateRateLimitedReader(content, storage.UploadRateLimit / len(storage.clients))
-   return storage.clients[threadIndex].CreateBlockBlobFromReader(storage.container, filePath, uint64(len(content)), reader, nil)
+   reader := CreateRateLimitedReader(content, storage.UploadRateLimit / len(storage.containers))
+   blob := storage.containers[threadIndex].GetBlobReference(filePath)
+   return blob.CreateBlockBlobFromReader(reader, nil)
 
 }
 
