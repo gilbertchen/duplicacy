@@ -127,6 +127,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
     storageURL := preference.StorageURL
 
     isFileStorage := false
+    isCacheNeeded := false
 
     if strings.HasPrefix(storageURL, "/") {
         isFileStorage = true
@@ -140,11 +141,12 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 
         if !isFileStorage && strings.HasPrefix(storageURL, `\\`) {
             isFileStorage = true
+            isCacheNeeded = true
         }
     }
 
     if isFileStorage {
-        fileStorage, err := CreateFileStorage(storageURL, 2, threads)
+        fileStorage, err := CreateFileStorage(storageURL, 2, isCacheNeeded, threads)
         if err != nil {
             LOG_ERROR("STORAGE_CREATE", "Failed to load the file storage at %s: %v", storageURL, err)
             return nil
@@ -153,7 +155,16 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
     }
 
     if strings.HasPrefix(storageURL, "flat://") {
-        fileStorage, err := CreateFileStorage(storageURL, 0, threads)
+        fileStorage, err := CreateFileStorage(storageURL[7:], 0, false, threads)
+        if err != nil {
+            LOG_ERROR("STORAGE_CREATE", "Failed to load the file storage at %s: %v", storageURL, err)
+            return nil
+        }
+        return fileStorage
+    }
+
+    if strings.HasPrefix(storageURL, "samba://") {
+        fileStorage, err := CreateFileStorage(storageURL[8:], 2, true, threads)
         if err != nil {
             LOG_ERROR("STORAGE_CREATE", "Failed to load the file storage at %s: %v", storageURL, err)
             return nil

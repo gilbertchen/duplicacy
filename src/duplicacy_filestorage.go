@@ -19,19 +19,24 @@ type FileStorage struct {
     RateLimitedStorage
 
     minimumLevel int       // The minimum level of directories to dive into before searching for the chunk file.
+    isCacheNeeded bool     // Network storages require caching
     storageDir string
     numberOfThreads int
 }
 
 // CreateFileStorage creates a file storage.
-func CreateFileStorage(storageDir string, minimumLevel int, threads int) (storage *FileStorage, err error) {
+func CreateFileStorage(storageDir string, minimumLevel int, isCacheNeeded bool, threads int) (storage *FileStorage, err error) {
 
     var stat os.FileInfo
 
     stat, err = os.Stat(storageDir)
-    if os.IsNotExist(err) {
-        err = os.MkdirAll(storageDir, 0744)
-        if err != nil {
+    if err != nil {
+        if os.IsNotExist(err) {
+            err = os.MkdirAll(storageDir, 0744)
+            if err != nil {
+                return nil, err
+            }
+        } else {
             return nil, err
         }
     } else {
@@ -47,6 +52,7 @@ func CreateFileStorage(storageDir string, minimumLevel int, threads int) (storag
     storage = &FileStorage {
         storageDir : storageDir,
         minimumLevel: minimumLevel,
+        isCacheNeeded: isCacheNeeded,
         numberOfThreads: threads,
     }
 
@@ -242,7 +248,7 @@ func (storage *FileStorage) UploadFile(threadIndex int, filePath string, content
 
 // If a local snapshot cache is needed for the storage to avoid downloading/uploading chunks too often when
 // managing snapshots.
-func (storage *FileStorage) IsCacheNeeded () (bool) { return false }
+func (storage *FileStorage) IsCacheNeeded () (bool) { return storage.isCacheNeeded }
 
 // If the 'MoveFile' method is implemented.
 func (storage *FileStorage) IsMoveFileImplemented() (bool) { return true }
