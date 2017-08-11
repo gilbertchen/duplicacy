@@ -458,3 +458,64 @@ func TestStorage(t *testing.T) {
     }
 
 }
+
+func TestCleanStorage(t *testing.T) {
+    setTestingT(t)
+    SetLoggingLevel(INFO)
+
+    defer func() {
+        if r := recover(); r != nil {
+            switch e := r.(type) {
+            case Exception:
+                t.Errorf("%s %s", e.LogID, e.Message)
+                debug.PrintStack()
+            default:
+                t.Errorf("%v", e)
+                debug.PrintStack()
+            }
+        }
+    } ()
+
+    testDir := path.Join(os.TempDir(), "duplicacy_test", "storage_test")
+    os.RemoveAll(testDir)
+    os.MkdirAll(testDir, 0700)
+
+    LOG_INFO("STORAGE_TEST", "storage: %s", testStorageName)
+
+    storage, err := loadStorage(testDir, 1)
+    if err != nil {
+        t.Errorf("Failed to create storage: %v", err)
+        return
+    }
+
+    directories := make([]string, 0, 1024)
+    directories = append(directories, "snapshots/")
+    directories = append(directories, "chunks/")
+
+    for len(directories) > 0 {
+
+        dir := directories[len(directories) - 1]
+        directories = directories[:len(directories) - 1]
+
+        LOG_INFO("LIST_FILES", "Listing %s", dir)
+
+        files, _, err := storage.ListFiles(0, dir)
+        if err != nil {
+            LOG_ERROR("LIST_FILES", "Failed to list the directory %s: %v", dir, err)
+            return
+        }
+
+        for _, file := range files {
+            if len(file) > 0 && file[len(file) - 1] == '/' {
+                directories = append(directories, dir + file)
+            } else {
+                storage.DeleteFile(0, dir + file)
+                LOG_INFO("DELETE_FILE", "Deleted file %s", file)
+            }
+        }
+    }
+
+    storage.DeleteFile(0, "config")
+    LOG_INFO("DELETE_FILE", "Deleted config")
+
+}
