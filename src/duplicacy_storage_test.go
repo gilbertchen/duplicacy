@@ -68,7 +68,7 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
     } else if testStorageName == "sftp" {
         port, _ := strconv.Atoi(storage["port"])
         return CreateSFTPStorageWithPassword(storage["server"], port, storage["username"], storage["directory"], storage["password"], threads)
-    } else if testStorageName == "s3" {
+    } else if testStorageName == "s3" || testStorageName == "wasabi" {
         return CreateS3Storage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads, true, false)
     } else if testStorageName == "s3c" {
         return CreateS3CStorage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads)
