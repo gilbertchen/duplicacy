@@ -187,7 +187,7 @@ Storage URL:  s3c://region@host/bucket/path/to/storage
 Storage URL: s3://us-east-1@s3.wasabisys.com/bucket/path/to/storage
 ```
 
-[Wasabi](https://wasabi.com) is a relatively new cloud storage serivce providing a S3-compatible API.
+[Wasabi](https://wasabi.com) is a relatively new cloud storage service providing a S3-compatible API.
 It is well suited for storing backups, because it is much cheaper than Amazon S3 with a storage cost of $.0039/GB/Month and a download fee of $0.04/GB, and no additional charges on API calls.
 
 </details>
@@ -222,7 +222,7 @@ Storage URL: b2://bucket
 
 You'll need to input the account id and application key.
 
-Backblaze's B2 storage is not only the least expensive (at 0.5 cent per GB per month), but also the fastest.  We have been working closely with their developers to leverage the full potentials provided by the B2 API in order to maximize the transfer speed.
+Backblaze's B2 storage is not only one of the least expensive (at 0.5 cent per GB per month), but also the fastest.  We have been working closely with their developers to leverage the full potentials provided by the B2 API in order to maximize the transfer speed.
 
 </details>
 
