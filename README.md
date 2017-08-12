@@ -222,7 +222,7 @@ Storage URL: b2://bucket
 
 You'll need to input the account id and application key.
 
-Backblaze's B2 storage is not only one of the least expensive (at 0.5 cent per GB per month), but also the fastest.  We have been working closely with their developers to leverage the full potentials provided by the B2 API in order to maximize the transfer speed.
+Backblaze's B2 storage is one of the least expensive (at 0.5 cent per GB per month, with a download fee of 2 cents per GB, plus additional charges for API calls).
 
 </details>
 
