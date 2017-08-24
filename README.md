@@ -136,7 +136,8 @@ Storage URL:  /path/to/storage (on Linux or Mac OS X)
 <details> <summary>SFTP</summary> 
 
 ```
-Storage URL:  sftp://username@server/path/to/storage
+Storage URL:  sftp://username@server/path/to/storage (path relative to the home directory)
+              sftp://username@server//path/to/storage (absolute path)
 ```
 
 Login methods include password authentication and public key authentication.  Due to a limitation of the underlying Go SSH library, the key pair for public key authentication must be generated without a passphrase.  To work with a key that has a passphrase, you can set up SSH agent forwarding which is also supported by Duplicacy.
