@@ -23,6 +23,7 @@ const (
     ASSERT = 4
 )
 
+var LogFunction func(level int, logID string, message string)
 
 var printLogHeader = false
 
@@ -116,6 +117,11 @@ var logMutex sync.Mutex
 func logf(level int, logID string, format string, v ...interface{}) {
 
     message := fmt.Sprintf(format, v...)
+
+    if LogFunction != nil {
+        LogFunction(level, logID, message)
+        return
+    }
 
     now := time.Now()
 
