@@ -108,9 +108,9 @@ func SavePreferences() (bool) {
 }
 
 func FindPreference(name string) (*Preference) {
-    for _, preference := range Preferences {
+    for i, preference := range Preferences {
         if preference.Name == name || preference.StorageURL == name {
-            return &preference
+            return &Preferences[i]
         }
     }
 
