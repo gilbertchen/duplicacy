@@ -98,7 +98,7 @@ func SavePreferences() (bool) {
     }
     preferenceFile := path.Join(GetDuplicacyPreferencePath(), "preferences")
     
-    err = ioutil.WriteFile(preferenceFile, description, 0644)
+    err = ioutil.WriteFile(preferenceFile, description, 0600)
     if err != nil {
         LOG_ERROR("PREFERENCE_WRITE", "Failed to save the preference file %s: %v", preferenceFile, err)
         return false
