@@ -664,7 +664,7 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
     if snapshotID == "" {
         snapshotIDs, err = manager.ListSnapshotIDs()
         if err != nil {
-            LOG_ERROR("SNAPSHOT_LIST", "Failed to list all snpashots: %v", err)
+            LOG_ERROR("SNAPSHOT_LIST", "Failed to list all snapshots: %v", err)
             return 0
         }
     } else {
@@ -787,7 +787,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
     if snapshotID == "" || showStatistics {
         snapshotIDs, err := manager.ListSnapshotIDs()
         if err != nil {
-            LOG_ERROR("SNAPSHOT_LIST", "Failed to list all snpashots: %v", err)
+            LOG_ERROR("SNAPSHOT_LIST", "Failed to list all snapshots: %v", err)
             return false
         }
 
@@ -1596,7 +1596,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
     // because we need to find out which chunks are not referenced.
     snapshotIDs, err := manager.ListSnapshotIDs()
     if err != nil {
-        LOG_ERROR("SNAPSHOT_LIST", "Failed to list all snpashots: %v", err)
+        LOG_ERROR("SNAPSHOT_LIST", "Failed to list all snapshots: %v", err)
         return false
     }
 

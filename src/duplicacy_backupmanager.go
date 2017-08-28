@@ -1026,7 +1026,7 @@ func (manager *BackupManager) UploadSnapshot(chunkMaker *ChunkMaker, uploader *C
                 totalUploadedSnapshotChunkSize += int64(chunkSize)
                 totalUploadedSnapshotChunkBytes += int64(uploadSize)
             } else {
-                LOG_DEBUG("CHUNK_EXIST", "Skipped snpashot chunk %s in the storage", chunk.GetID())
+                LOG_DEBUG("CHUNK_EXIST", "Skipped snapshot chunk %s in the storage", chunk.GetID())
             }
         }
 
