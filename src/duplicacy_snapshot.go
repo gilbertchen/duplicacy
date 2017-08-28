@@ -176,7 +176,7 @@ func LoadIncompleteSnapshot() (snapshot *Snapshot) {
         ChunkHashes: chunkHashes,
         ChunkLengths: incompleteSnapshot.ChunkLengths,
     }      
-    LOG_INFO("INCOMPLETE_LOAD", "Incomplete snpashot loaded from %s", snapshotFile)
+    LOG_INFO("INCOMPLETE_LOAD", "Incomplete snapshot loaded from %s", snapshotFile)
     return snapshot
 }
 
