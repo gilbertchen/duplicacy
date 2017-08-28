@@ -621,7 +621,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
     }
 
     for _, dir := range skippedDirectories {
-        LOG_WARN("SKIP_DIRECTORY", "Subdirecotry %s cannot be listed", dir)
+        LOG_WARN("SKIP_DIRECTORY", "Subdirectory %s cannot be listed", dir)
     }
 
     for _, file := range fileReader.SkippedFiles {
