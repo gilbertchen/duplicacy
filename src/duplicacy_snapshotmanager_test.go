@@ -181,7 +181,7 @@ func checkTestSnapshots(manager *SnapshotManager, expectedSnapshots int, expecte
 
     snapshotIDs, err = manager.ListSnapshotIDs()
     if err != nil {
-        LOG_ERROR("SNAPSHOT_LIST", "Failed to list all snpashots: %v", err)
+        LOG_ERROR("SNAPSHOT_LIST", "Failed to list all snapshots: %v", err)
         return
     }
 
