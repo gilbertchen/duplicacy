@@ -282,6 +282,10 @@ func joinPath(components ...string) string {
     combinedPath := path.Join(components...)
     if len(combinedPath) > 257 && runtime.GOOS == "windows" {
         combinedPath = `\\?\` + filepath.Join(components...)
+        // If the path is on a samba drive we must use the UNC format
+        if strings.HasPrefix(combinedPath, `\\?\\\`) {
+            combinedPath = `\\?\UNC\` + combinedPath[6:]
+        }
     }
     return combinedPath
 }
