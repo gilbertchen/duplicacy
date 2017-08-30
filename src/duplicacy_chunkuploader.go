@@ -122,7 +122,7 @@ func (uploader *ChunkUploader) Upload(threadIndex int, task ChunkUploadTask) boo
         // Chunk deduplication by name in effect here.
         LOG_DEBUG("CHUNK_DUPLICATE", "Chunk %s already exists", chunkID)
 
-        uploader.completionFunc(chunk, task.chunkIndex, false, chunkSize, 0)
+        uploader.completionFunc(chunk, task.chunkIndex, true, chunkSize, 0)
         atomic.AddInt32(&uploader.numberOfUploadingTasks, -1)
         return false
     }
