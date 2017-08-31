@@ -303,12 +303,8 @@ func (manager *SnapshotManager) DownloadSnapshotFileSequence(snapshot *Snapshot,
             return false
         }
 
-        if patterns == nil {
+        if len(patterns) != 0 && !MatchPath(entry.Path, patterns) {
             entry.Attributes = nil
-        } else if len(patterns) != 0 {
-            if !MatchPath(entry.Path, patterns) {
-                entry.Attributes = nil
-            }
         }
 
         files = append(files, &entry)
