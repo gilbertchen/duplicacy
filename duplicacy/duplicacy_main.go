@@ -12,6 +12,7 @@ import (
     "regexp"
     "strings"
     "strconv"
+    "runtime"
     "os/exec"
     "os/signal"
     "encoding/json"
@@ -147,18 +148,27 @@ func runScript(context *cli.Context, storageName string, phase string) bool {
     
     preferencePath := duplicacy.GetDuplicacyPreferencePath()
     scriptDir, _ := filepath.Abs(path.Join(preferencePath, "scripts"))
-    scriptName := phase + "-" + context.Command.Name
+    scriptNames := []string { phase + "-" + context.Command.Name,
+                              storageName + "-" + phase + "-" + context.Command.Name }
 
-    script := path.Join(scriptDir, scriptName)
-    if _, err := os.Stat(script); err != nil {
-        scriptName = storageName + "-" + scriptName
+    script := ""
+    for _, scriptName := range scriptNames {                                      
         script = path.Join(scriptDir, scriptName)
-        if _, err = os.Stat(script); err != nil {
-            return false
+        if runtime.GOOS == "windows" {
+            script += ".bat"
+        }
+        if _, err := os.Stat(script); err == nil {
+            break
+        } else {
+            script = ""
         }
     }
 
-    duplicacy.LOG_INFO("SCRIPT_RUN", "Running %s script", scriptName)
+    if script == "" {
+        return false
+    }
+
+    duplicacy.LOG_INFO("SCRIPT_RUN", "Running script %s", script)
 
     output, err  := exec.Command(script, os.Args...).CombinedOutput()
     for _, line := range strings.Split(string(output), "\n") {
