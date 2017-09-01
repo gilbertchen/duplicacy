@@ -27,7 +27,7 @@ If exclusive access to a file storage by a single client can be guaranteed, the 
 chunks not referenced by any backup and delete them. However, if concurrent access is required, an unreferenced chunk
 can't be trivially removed, because of the possibility that a backup procedure in progress may reference the same chunk.
 The ongoing backup procedure, still unknown to the deletion procedure, may have already encountered that chunk during its
-file scanning phase, but decided not to upload the chunk again since it already exists in the file storage. 
+file scanning phase, but decided not to upload the chunk again since it already exists in the file storage.
 
 Fortunately, there is a solution to address the deletion problem and make lock-free deduplication practical.  The solution is a *two-step fossil collection* algorithm that deletes unreferenced chunks in two steps: identify and collect them in the first step, and then permanently remove them once certain conditions are met.
 
@@ -47,7 +47,7 @@ In the first step of the deletion procedure, called the *fossil collection* step
 be saved in a fossil collection file. The deletion procedure then exits without performing further actions. This step has not effectively changed any chunk references due to the first fossil access rule.  If a backup procedure references a chunk after it is marked as a fossil, a new chunk will be uploaded because of the second fossil access rule, as shown in Figure 1.
 
 <p align="center">
-  <img src="https://github.com/gilbertchen/duplicacy-beta/blob/master/images/fossil_collection_1.png?raw=true" 
+  <img src="https://github.com/gilbertchen/duplicacy-beta/blob/master/images/fossil_collection_1.png?raw=true"
        alt="Reference after Rename"/>
 </p>
 
@@ -64,7 +64,7 @@ Therefore, if a backup procedure references a chunk before the chunk is marked a
 delete the chunk until it sees that backup procedure finishes (as indicated by the appearance of a new snapshot file uploaded to the storage).  This ensures that scenarios depicted in Figure 2 will never happen.
 
 <p align="center">
-  <img src="https://github.com/gilbertchen/duplicacy-beta/blob/master/images/fossil_collection_2.png?raw=true" 
+  <img src="https://github.com/gilbertchen/duplicacy-beta/blob/master/images/fossil_collection_2.png?raw=true"
        alt="Reference before Rename"/>
 </p>
 
@@ -128,25 +128,25 @@ and dir1/file3):
     170593,
     124309,
     1734
-  ] 
+  ]
 }
 ```
 
 When Duplicacy splits a file in chunks using the variable-size chunking algorithm, if the end of a file is reached and yet the boundary marker for terminating a chunk
-hasn't been found, the next file, if there is one, will be read in and the chunking algorithm continues. It is as if all 
+hasn't been found, the next file, if there is one, will be read in and the chunking algorithm continues. It is as if all
 files were packed into a big tar file which is then split into chunks.
 
 The *content* field of a file indicates the indexes of starting and ending chunks and the corresponding offsets. For
 instance, *file1* starts at chunk 0 offset 0 while ends at chunk 2 offset 6108, immediately followed by *file2*.
 
 The backup procedure can run in one of two modes. In the default quick mode, only modified or new files are scanned. Chunks only
-referenced by old files that have been modified are removed from the chunk sequence, and then chunks referenced by new 
+referenced by old files that have been modified are removed from the chunk sequence, and then chunks referenced by new
 files are appended. Indices for unchanged files need to be updated too.
 
 In the safe mode (enabled by the -hash option), all files are scanned and the chunk sequence is regenerated.
 
 The length sequence stores the lengths for all chunks, which are needed when calculating some statistics such as the total
-length of chunks. For a repository containing a large number of files, the size of the snapshot file can be tremendous. 
+length of chunks. For a repository containing a large number of files, the size of the snapshot file can be tremendous.
 To make the situation worse, every time a big snapshot file would have been uploaded even if only a few files have been changed since
 last backup. To save space, the variable-size chunking algorithm is also applied to the three dynamic fields of a snapshot
 file, *files*, *chunks*, and *lengths*.
@@ -200,7 +200,7 @@ When encryption is enabled (by the -e option with the *init* or *add* command), 
 Here is a diagram showing how these keys are used:
 
 <p align="center">
-  <img src="https://github.com/gilbertchen/duplicacy-beta/blob/master/images/duplicacy_encryption.png?raw=true" 
+  <img src="https://github.com/gilbertchen/duplicacy-beta/blob/master/images/duplicacy_encryption.png?raw=true"
        alt="encryption"/>
 </p>
 
@@ -210,6 +210,4 @@ Chunk content is encrypted by AES-GCM, with an encryption key that is the HMAC-S
 
 The snapshot is encrypted by AES-GCM too, using an encrypt key that is the HMAC-SHA256 of the file path with the *File Key* as the secret key.
 
-These four random keys are saved in a file named 'config' in the storage, encrypted with a master key derived from the PBKDF2 function on
-the storage password chosen by the user.
-
+These four random keys are saved in a file named 'config' in the storage, encrypted with a master key derived from the PBKDF2 function on the storage password chosen by the user.
