@@ -17,6 +17,7 @@ import (
     "sync/atomic"
     "strings"
     "strconv"
+    "runtime"
     "encoding/hex"
     "path/filepath"
 )
@@ -1152,21 +1153,29 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
     existingFile, err = os.Open(fullPath)
     if err != nil {
         if os.IsNotExist(err) {
-            if inPlace && entry.Size > 100 * 1024 * 1024 {
+            // macOS has no sparse file support
+            if inPlace && entry.Size > 100 * 1024 * 1024 && runtime.GOOS != "darwin" {
                 // Create an empty sparse file
                 existingFile, err = os.OpenFile(fullPath, os.O_WRONLY | os.O_CREATE | os.O_TRUNC, 0600)
                 if err != nil {
-                    LOG_ERROR("DOWNLOAD_CREATE", "Failed to create the file %s for in-place writing", fullPath)
+                    LOG_ERROR("DOWNLOAD_CREATE", "Failed to create the file %s for in-place writing: %v", fullPath, err)
                     return false
                 }
-                _, err = existingFile.Seek(entry.Size - 1, 0)
+
+                n := int64(1)
+                // There is a go bug on Windows (https://github.com/golang/go/issues/21681) that causes Seek to fail
+                // if the lower 32 bit of the offset argument is 0xffffffff.  Therefore we need to avoid that value by increasing n.
+                if uint32(entry.Size) == 0 && (entry.Size >> 32) > 0 {
+                    n = int64(2)
+                }
+                _, err = existingFile.Seek(entry.Size - n, 0)
                 if err != nil {
-                    LOG_ERROR("DOWNLOAD_CREATE", "Failed to resize the initial file %s for in-place writing", fullPath)
+                    LOG_ERROR("DOWNLOAD_CREATE", "Failed to resize the initial file %s for in-place writing: %v", fullPath, err)
                     return false
                 }
-                _, err = existingFile.Write([]byte("\x00"))
+                _, err = existingFile.Write([]byte("\x00\x00")[:n])
                 if err != nil {
-                    LOG_ERROR("DOWNLOAD_CREATE", "Failed to initialize the sparse file %s for in-place writing", fullPath)
+                    LOG_ERROR("DOWNLOAD_CREATE", "Failed to initialize the sparse file %s for in-place writing: %v", fullPath, err)
                     return false
                 }
                 existingFile.Close()
