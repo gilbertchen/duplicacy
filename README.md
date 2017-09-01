@@ -8,10 +8,10 @@ There is a special edition of Duplicacy developed for VMware vSphere (ESXi) name
 
 ## Features
 
-Duplicacy currently supports major cloud storage providers (Amazon S3, Google Cloud Storage, Microsoft Azure, Dropbox, Backblaze, Google Drive, Microsoft OneDrive, and Hubic) and offers all essential features of a modern backup tool:
+Duplicacy currently supports major cloud storage providers (Amazon S3, Google Cloud Storage, Microsoft Azure, Dropbox, Backblaze B2, Google Drive, Microsoft OneDrive, and Hubic) and offers all essential features of a modern backup tool:
 
 * Incremental backup: only back up what has been changed
-* Full snapshot : although each backup is incremental, it must behave like a full snapshot for easy restore and deletion
+* Full snapshot: although each backup is incremental, it must behave like a full snapshot for easy restore and deletion
 * Deduplication: identical files must be stored as one copy (file-level deduplication), and identical parts from different files must be stored as one copy (block-level deduplication)
 * Encryption: encrypt not only file contents but also file paths, sizes, times, etc.
 * Deletion: every backup can be deleted independently without affecting others
@@ -133,7 +133,7 @@ Storage URL:  /path/to/storage (on Linux or Mac OS X)
 ```
 </details>
 
-<details> <summary>SFTP</summary> 
+<details> <summary>SFTP</summary>
 
 ```
 Storage URL:  sftp://username@server/path/to/storage (path relative to the home directory)
@@ -200,7 +200,7 @@ Storage URL:  gcs://bucket/path/to/storage
 ```
 
 Starting from version 2.0.0, a new Google Cloud Storage backend is added which is implemented using the [official Google client library](https://godoc.org/cloud.google.com/go/storage).  You must first obtain a credential file by [authorizing](https://duplicacy.com/gcp_start) Duplicacy to access your Google Cloud Storage account or by [downloading](https://console.cloud.google.com/projectselector/iam-admin/serviceaccounts) a service account credential file.
- 
+
 You can also use the s3 protocol to access Google Cloud Storage.  To do this, you must enable the [s3 interoperability](https://cloud.google.com/storage/docs/migrating#migration-simple) in your Google Cloud Storage settings and set the storage url as `s3://storage.googleapis.com/bucket/path/to/storage`.
 
 </details>
@@ -233,8 +233,7 @@ Backblaze's B2 storage is one of the least expensive (at 0.5 cent per GB per mon
 Storage URL: gcd://path/to/storage
 ```
 
-To use Google Drive as the storage,  you first need to download a token file from https://duplicacy.com/gcd_start by
-authorizing Duplicacy to access your Google Drive, and then enter the path to this token file to Duplicacy when prompted.
+To use Google Drive as the storage, you first need to download a token file from https://duplicacy.com/gcd_start by authorizing Duplicacy to access your Google Drive, and then enter the path to this token file to Duplicacy when prompted.
 
 </details>
 
@@ -244,8 +243,7 @@ authorizing Duplicacy to access your Google Drive, and then enter the path to th
 Storage URL: one://path/to/storage
 ```
 
-To use Microsoft OneDrive as the storage,  you first need to download a token file from https://duplicacy.com/one_start by
-authorizing Duplicacy to access your OneDrive, and then enter the path to this token file to Duplicacy when prompted.
+To use Microsoft OneDrive as the storage, you first need to download a token file from https://duplicacy.com/one_start by authorizing Duplicacy to access your OneDrive, and then enter the path to this token file to Duplicacy when prompted.
 
 </details>
 
@@ -255,8 +253,7 @@ authorizing Duplicacy to access your OneDrive, and then enter the path to this t
 Storage URL: hubic://path/to/storage
 ```
 
-To use Hubic as the storage,  you first need to download a token file from https://duplicacy.com/hubic_start by
-authorizing Duplicacy to access your Hubic drive, and then enter the path to this token file to Duplicacy when prompted.
+To use Hubic as the storage, you first need to download a token file from https://duplicacy.com/hubic_start by authorizing Duplicacy to access your Hubic drive, and then enter the path to this token file to Duplicacy when prompted.
 
 Hubic offers the most free space (25GB) of all major cloud providers and there is no bandwidth charge (same as Google Drive and OneDrive), so it may be worth a try.
 
@@ -275,18 +272,18 @@ Deletion of old backups is possible, but no cloud storages are supported.
 Multiple clients can back up to the same storage, but only sequential access is granted by the [locking on-disk data structures](http://obnam.org/locking/).
 It is unclear if the lack of cloud backends is due to difficulties in porting the locking data structures to cloud storage APIs.
 
-[Attic](https://attic-backup.org) has been acclaimed by some as the [Holy Grail of backups](https://www.stavros.io/posts/holy-grail-backups).  It follows the same incremental backup model as Obnam, but embraces the variable-size chunk algorithm for better performance and better deduplication.  Deletions of old backup is also supported.  However, no cloud backends are implemented, as in Obnam.  Although concurrent backups from multiple clients to the same storage is in theory possible by the use of locking, it is 
-[not recommended](http://librelist.com/browser//attic/2014/11/11/backing-up-multiple-servers-into-a-single-repository/#e96345aa5a3469a87786675d65da492b) by the developer due to chunk indices being kept in a local cache. 
+[Attic](https://attic-backup.org) has been acclaimed by some as the [Holy Grail of backups](https://www.stavros.io/posts/holy-grail-backups).  It follows the same incremental backup model as Obnam, but embraces the variable-size chunk algorithm for better performance and better deduplication.  Deletions of old backup is also supported.  However, no cloud backends are implemented, as in Obnam.  Although concurrent backups from multiple clients to the same storage is in theory possible by the use of locking, it is
+[not recommended](http://librelist.com/browser//attic/2014/11/11/backing-up-multiple-servers-into-a-single-repository/#e96345aa5a3469a87786675d65da492b) by the developer due to chunk indices being kept in a local cache.
 Concurrent access is not only a convenience; it is a necessity for better deduplication.  For instance, if multiple machines with the same OS installed can back up their entire drives to the same storage, only one copy of the system files needs to be stored, greatly reducing the storage space regardless of the number of machines.  Attic still adopts the traditional approach of using a centralized indexing database to manage chunks, and relies heavily on caching to improve performance.  The presence of exclusive locking makes it hard to be adapted for cloud storage APIs and reduces the level of deduplication.
 
-[restic](https://restic.github.io) is a more recent addition.  It is worth mentioning here because, like Duplicacy, it is written in Go.  It uses a format similar to the git packfile format.  Multiple clients backing up to the same storage are still guarded by 
+[restic](https://restic.github.io) is a more recent addition.  It is worth mentioning here because, like Duplicacy, it is written in Go.  It uses a format similar to the git packfile format.  Multiple clients backing up to the same storage are still guarded by
 [locks](https://github.com/restic/restic/blob/master/doc/Design.md#locks).  A prune operation will therefore completely block all other clients connected to the storage from doing their regular backups.  Moreover, since most cloud storage services do not provide a locking service, the best effort is to use some basic file operations to simulate a lock, but distributed locking is known to be a hard problem and it is unclear how reliable restic's lock implementation is.  A faulty implementation may cause a prune operation to accidentally delete data still in use, resulting in unrecoverable data loss.  This is the exact problem that we avoided by taking the lock-free approach.
 
 
 The following table compares the feature lists of all these backup tools:
 
 
-| Feature/Tool       | duplicity | bup | Obnam             | Attic           | restic            | **Duplicacy** | 
+| Feature/Tool       | duplicity | bup | Obnam             | Attic           | restic            | **Duplicacy** |
 |:------------------:|:---------:|:---:|:-----------------:|:---------------:|:-----------------:|:-------------:|
 | Incremental Backup | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
 | Full Snapshot      | No        | Yes | Yes               | Yes             | Yes               | **Yes**       |
@@ -303,20 +300,20 @@ The following table compares the feature lists of all these backup tools:
 Duplicacy is not only more feature-rich but also faster than other backup tools.  The following table lists the running times in seconds of backing up the [Linux code base](https://github.com/torvalds/linux) using Duplicacy and 3 other tools.  Clearly Duplicacy is the fastest by a significant margin.
 
 
-|                    |   Duplicacy  |   restic   |   Attic    |  duplicity  | 
+|                    |   Duplicacy  |   restic   |   Attic    |  duplicity  |
 |:------------------:|:----------------:|:----------:|:----------:|:-----------:|
-| Initial backup | 13.7 | 20.7 | 26.9 | 44.2 | 
-| 2nd backup | 4.8  |  8.0 | 15.4 | 19.5 | 
-| 3rd backup | 6.9  | 11.9 | 19.6 | 29.8 | 
-| 4th backup | 3.3  | 7.0  | 13.7 | 18.6 | 
-| 5th backup | 9.9  | 11.4 | 19.9 | 28.0 | 
-| 6th backup | 3.8  | 8.0  | 16.8 | 22.0 | 
-| 7th backup | 5.1  | 7.8  | 14.3 | 21.6 | 
-| 8th backup | 9.5  | 13.5 | 18.3 | 35.0 | 
-| 9th backup | 4.3  | 9.0  | 15.7 | 24.9 | 
-| 10th backup | 7.9 | 20.2 | 32.2 | 35.0 | 
-| 11th backup | 4.6 | 9.1  | 16.8 | 28.1 | 
-| 12th backup | 7.4 | 12.0 | 21.7 | 37.4 | 
+| Initial backup | 13.7 | 20.7 | 26.9 | 44.2 |
+| 2nd backup | 4.8  |  8.0 | 15.4 | 19.5 |
+| 3rd backup | 6.9  | 11.9 | 19.6 | 29.8 |
+| 4th backup | 3.3  | 7.0  | 13.7 | 18.6 |
+| 5th backup | 9.9  | 11.4 | 19.9 | 28.0 |
+| 6th backup | 3.8  | 8.0  | 16.8 | 22.0 |
+| 7th backup | 5.1  | 7.8  | 14.3 | 21.6 |
+| 8th backup | 9.5  | 13.5 | 18.3 | 35.0 |
+| 9th backup | 4.3  | 9.0  | 15.7 | 24.9 |
+| 10th backup | 7.9 | 20.2 | 32.2 | 35.0 |
+| 11th backup | 4.6 | 9.1  | 16.8 | 28.1 |
+| 12th backup | 7.4 | 12.0 | 21.7 | 37.4 |
 
 
 For more details and other speed comparison results, please visit https://github.com/gilbertchen/benchmarking.  There you can also find test scripts that you can use to run your own experiments.
