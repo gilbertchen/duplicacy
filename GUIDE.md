@@ -440,10 +440,10 @@ For the *restore* command, the include/exclude patterns are specified as the com
 Duplicacy will attempt to retrieve in three ways the storage password and the storage-specific access tokens/keys.
 
 * If a secret vault service is available, Duplicacy will store passwords/keys entered by the user in such a secret vault and later retrieve them when needed.  On Mac OS X it is Keychain, and on Linux it is gnome-keyring.  On Windows the passwords/keys are encrypted and decrypted by the Data Protection API, and encrypted passwords/keys are stored in the file *.duplicacy/keyring*.  However, if the -no-save-password option is specified for the storage, then Duplicacy will not save passwords this way.
-* If an environment variable for a password is provided, Duplicacy will always take it.  The table below shows the name of the environment variable for each kind of password.  Note that if the storage is not the default one, the storage name will be included in the name of the environment variable.
+* If an environment variable for a password is provided, Duplicacy will always take it.  The table below shows the name of the environment variable for each kind of password.  Note that if the storage is not the default one, the storage name will be included in the name of the environment variable (in uppercase). For example, if your storage name is b2, then the environment variable should be named DUPLICACY_B2_PASSWORD.
 * If a matching key and its value are saved to the preference file (.duplicacy/preferences) by the *set* command, the value will be used as the password.  The last column in the table below lists the name of the preference key for each type of password.
 
-| password type | environment variable (default storage) | environment variable (non-default storage) | key in preferences  |
+| password type | environment variable (default storage) | environment variable (non-default storage in uppercase) | key in preferences  |
 |:----------------:|:----------------:|:----------------:|:----------------:|
 | storage password | DUPLICACY_PASSWORD | DUPLICACY_&lt;STORAGENAME&gt;_PASSWORD | password |
 | sftp password | DUPLICACY_SSH_PASSWORD | DUPLICACY_&lt;STORAGENAME&gt;_SSH_PASSWORD | ssh_password |
