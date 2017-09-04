@@ -199,6 +199,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
         if username != "" {
             username = username[:len(username) - 1]
         }
+	keyFile := GetPasswordFromPreference(preference, "ssh_key_file")
 
         password := ""
         passwordCallback := func() (string, error) {
@@ -219,7 +220,6 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
             }
         }
 
-        keyFile := ""
         publicKeysCallback := func() ([]ssh.Signer, error) {
             LOG_DEBUG("SSH_PUBLICKEY", "Attempting public key authentication")
 
@@ -273,9 +273,18 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
         }
 
         authMethods := [] ssh.AuthMethod {
+        }
+        passwordAuthMethods := [] ssh.AuthMethod {
             ssh.PasswordCallback(passwordCallback),
             ssh.KeyboardInteractive(keyboardInteractive),
+        }
+        keyFileAuthMethods := [] ssh.AuthMethod {
             ssh.PublicKeysCallback(publicKeysCallback),
+        }
+	if keyFile!="" {
+	    authMethods = append(keyFileAuthMethods,passwordAuthMethods...)
+        } else {
+	    authMethods = append(passwordAuthMethods,keyFileAuthMethods...)
         }
 
         if RunInBackground {

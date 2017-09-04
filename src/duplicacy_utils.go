@@ -118,10 +118,8 @@ func GenerateKeyFromPassword(password string) []byte {
     return pbkdf2.Key([]byte(password), DEFAULT_KEY, 16384, 32, sha256.New)
 }
 
-// GetPassword attempts to get the password from KeyChain/KeyRing, environment variables, or keyboard input.
-func GetPassword(preference Preference, passwordType string, prompt string,
-                 showPassword bool, resetPassword bool) (string) {
-
+// Get password from preference, env, but don't start any keyring request
+func GetPasswordFromPreference(preference Preference, passwordType string) (string) {
     passwordID := passwordType
     if preference.Name != "default" {
         passwordID = preference.Name + "_" + passwordID
@@ -139,6 +137,17 @@ func GetPassword(preference Preference, passwordType string, prompt string,
         LOG_DEBUG("PASSWORD_KEYCHAIN", "Reading %s from preferences", passwordID)
         return preference.Keys[passwordID]
     }
+    return ""
+}
+
+// GetPassword attempts to get the password from KeyChain/KeyRing, environment variables, or keyboard input.
+func GetPassword(preference Preference, passwordType string, prompt string,
+                 showPassword bool, resetPassword bool) (string) {
+    passwordID := passwordType
+    password := GetPasswordFromPreference(preference,passwordType)
+    if password != "" {
+        return password
+    }
 
     if resetPassword && !RunInBackground {
         keyringSet(passwordID, "")
@@ -155,7 +164,7 @@ func GetPassword(preference Preference, passwordType string, prompt string,
 
     }
 
-    password := ""
+    password = ""
     fmt.Printf("%s", prompt)
     if showPassword {
         scanner := bufio.NewScanner(os.Stdin)
