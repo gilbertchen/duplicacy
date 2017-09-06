@@ -2215,9 +2215,11 @@ func (manager *SnapshotManager) DownloadFile(path string, derivationKey string) 
         return nil
     }
 
-    err = manager.snapshotCache.UploadFile(0, path, manager.fileChunk.GetBytes())
-    if err != nil {
-        LOG_WARN("DOWNLOAD_FILE_CACHE", "Failed to add the file %s to the snapshot cache: %v", path, err)
+    if !manager.config.dryRun {
+        err = manager.snapshotCache.UploadFile(0, path, manager.fileChunk.GetBytes())
+        if err != nil {
+            LOG_WARN("DOWNLOAD_FILE_CACHE", "Failed to add the file %s to the snapshot cache: %v", path, err)
+        }
     }
 
     LOG_DEBUG("DOWNLOAD_FILE", "Downloaded file %s", path)
@@ -2227,6 +2229,9 @@ func (manager *SnapshotManager) DownloadFile(path string, derivationKey string) 
 
 // UploadFile uploads a non-chunk file from the storage.
 func (manager *SnapshotManager) UploadFile(path string, derivationKey string, content []byte) bool {
+    if manager.config.dryRun {
+        return true
+    }
     manager.fileChunk.Reset(false)
     manager.fileChunk.Write(content)
 

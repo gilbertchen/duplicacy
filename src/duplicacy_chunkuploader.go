@@ -134,10 +134,12 @@ func (uploader *ChunkUploader) Upload(threadIndex int, task ChunkUploadTask) boo
         return false
     }
 
-    err = uploader.storage.UploadFile(threadIndex, chunkPath, chunk.GetBytes())
-    if err != nil {
-        LOG_ERROR("UPLOAD_CHUNK", "Failed to upload the chunk %s: %v", chunkID, err)
-        return false
+    if !uploader.config.dryRun {
+        err = uploader.storage.UploadFile(threadIndex, chunkPath, chunk.GetBytes())
+        if err != nil {
+            LOG_ERROR("UPLOAD_CHUNK", "Failed to upload the chunk %s: %v", chunkID, err)
+            return false
+        }
     }
 
     LOG_DEBUG("CHUNK_UPLOAD", "Chunk %s has been uploaded", chunkID)

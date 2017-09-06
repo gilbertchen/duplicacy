@@ -623,12 +623,14 @@ func backupRepository(context *cli.Context) {
 
     enableVSS := context.Bool("vss")
 
+    dryRun := context.Bool("dry-run")
     uploadRateLimit := context.Int("limit-rate")
     storage.SetRateLimits(0, uploadRateLimit)
     backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password)
     duplicacy.SavePassword(*preference, "password", password)
 
     backupManager.SetupSnapshotCache(preference.Name)
+    backupManager.SetDryRun(dryRun)
     backupManager.Backup(repository, quickMode, threads, context.String("t"), showStatistics, enableVSS)
 
     runScript(context, preference.Name, "post")
@@ -1201,6 +1203,10 @@ func main() {
                     Value: 0,
                     Usage: "the maximum upload rate (in kilobytes/sec)",
                     Argument: "<kB/s>",
+                },
+                cli.BoolFlag {
+                    Name:  "dry-run",
+                    Usage: "Dry run for testing, don't backup anything. Use with -stats and -d",
                 },
                 cli.BoolFlag {
                     Name:  "vss",

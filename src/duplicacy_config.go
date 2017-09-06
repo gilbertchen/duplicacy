@@ -55,6 +55,7 @@ type Config struct {
 
     chunkPool chan *Chunk                  `json:"-"`
     numberOfChunks int32
+    dryRun bool
 }
 
     // Create an alias to avoid recursive calls on Config.MarshalJSON
