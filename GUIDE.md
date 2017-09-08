@@ -290,7 +290,7 @@ chunks referenced by deleted snapshots but not any other snapshots.
 
 The `-exclusive` option will assume that no other clients are accessing the storage, effectively disabling the *two-step fossil collection* algorithm.  With this option, the *prune* command will immediately remove unreferenced chunks.
 
-The `-dryrun` option is used to test what changes the *prune* command would have done.  It is guaranteed not to make any changes on the storage, not even creating the local fossil collection file.  The following command checks if the chunk directory is clean (i.e., if there are any unreferenced chunks, temporary files, or anything else):
+The `-dry-run` option is used to test what changes the *prune* command would have done.  It is guaranteed not to make any changes on the storage, not even creating the local fossil collection file.  The following command checks if the chunk directory is clean (i.e., if there are any unreferenced chunks, temporary files, or anything else):
 
 ```
 $ duplicacy prune -d -exclusive -exhaustive    #  Prints out nothing if the chunk directory is clean
