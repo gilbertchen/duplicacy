@@ -5,6 +5,9 @@
 package duplicacy
 
 import (
+    "strings"
+    "reflect"
+
     "github.com/aws/aws-sdk-go/aws"
     "github.com/aws/aws-sdk-go/aws/awserr"
     "github.com/aws/aws-sdk-go/aws/credentials"
@@ -227,15 +230,26 @@ func (storage *S3Storage) DownloadFile(threadIndex int, filePath string, chunk *
 // UploadFile writes 'content' to the file at 'filePath'.
 func (storage *S3Storage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
 
-    input := &s3.PutObjectInput {
-        Bucket: aws.String(storage.bucket),
-        Key: aws.String(storage.storageDir + filePath),
-        ACL: aws.String(s3.ObjectCannedACLPrivate),
-        Body: CreateRateLimitedReader(content, storage.UploadRateLimit / len(storage.bucket)),
-        ContentType: aws.String("application/duplicacy"),
+    attempts := 0
+
+    for {
+        input := &s3.PutObjectInput {
+            Bucket: aws.String(storage.bucket),
+            Key: aws.String(storage.storageDir + filePath),
+            ACL: aws.String(s3.ObjectCannedACLPrivate),
+            Body: CreateRateLimitedReader(content, storage.UploadRateLimit / len(storage.bucket)),
+            ContentType: aws.String("application/duplicacy"),
+        }
+
+        _, err = storage.client.PutObject(input)
+        if err == nil || attempts >= 3 || !strings.Contains(err.Error(), "XAmzContentSHA256Mismatch")  {
+            return err
+        }
+
+        LOG_INFO("S3_RETRY", "Retrying on %s: %v", reflect.TypeOf(err), err)
+        attempts += 1
     }
     
-    _, err = storage.client.PutObject(input)
     return err
 }
 
