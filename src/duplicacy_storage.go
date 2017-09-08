@@ -199,7 +199,9 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
         if username != "" {
             username = username[:len(username) - 1]
         }
-	keyFile := GetPasswordFromPreference(preference, "ssh_key_file")
+
+        // If ssh_key_file is set, skip password-based login
+        keyFile := GetPasswordFromPreference(preference, "ssh_key_file")
 
         password := ""
         passwordCallback := func() (string, error) {
@@ -281,10 +283,10 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
         keyFileAuthMethods := [] ssh.AuthMethod {
             ssh.PublicKeysCallback(publicKeysCallback),
         }
-	if keyFile!="" {
-	    authMethods = append(keyFileAuthMethods,passwordAuthMethods...)
+        if keyFile != "" {
+            authMethods = append(keyFileAuthMethods, passwordAuthMethods...)
         } else {
-	    authMethods = append(passwordAuthMethods,keyFileAuthMethods...)
+            authMethods = append(passwordAuthMethods, keyFileAuthMethods...)
         }
 
         if RunInBackground {

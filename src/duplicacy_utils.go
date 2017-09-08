@@ -133,10 +133,19 @@ func GetPasswordFromPreference(preference Preference, passwordType string) (stri
         }
     }
 
+    // If the password is stored in the preference, there is no need to include the storage name
+    // (i.e., preference.Name) in the key, so the key name should really be passwordType rather
+    // than passwordID; we're using passwordID here only for backward compatibility
     if len(preference.Keys) > 0 && len(preference.Keys[passwordID]) > 0 {
         LOG_DEBUG("PASSWORD_KEYCHAIN", "Reading %s from preferences", passwordID)
         return preference.Keys[passwordID]
     }
+
+    if len(preference.Keys) > 0 && len(preference.Keys[passwordType]) > 0 {
+        LOG_DEBUG("PASSWORD_KEYCHAIN", "Reading %s from preferences", passwordType)
+        return preference.Keys[passwordType]
+    }
+
     return ""
 }
 
@@ -184,6 +193,7 @@ func GetPassword(preference Preference, passwordType string, prompt string,
 
 // SavePassword saves the specified password in the keyring/keychain.
 func SavePassword(preference Preference, passwordType string, password string) {
+
     if password == "" || RunInBackground {
         return
     }
@@ -191,6 +201,12 @@ func SavePassword(preference Preference, passwordType string, password string) {
     if preference.DoNotSavePassword {
         return
     }
+
+    // If the password is retrieved from env or preference, don't save it to keyring
+    if GetPasswordFromPreference(preference, passwordType) == password {
+        return
+    }
+
     passwordID := passwordType
     if preference.Name != "default" {
         passwordID = preference.Name + "_" + passwordID
