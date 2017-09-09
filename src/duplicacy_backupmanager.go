@@ -1677,7 +1677,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
             chunkUploader.StartChunk(newChunk, chunkIndex)
             totalCopied++
         } else {
-            LOG_INFO("SNAPSHOT_COPY", "Chunk %s (%d/%d) exists at the destination.", chunkID, chunkIndex, len(chunks))
+            LOG_INFO("SNAPSHOT_COPY", "Chunk %s (%d/%d) skipped at the destination", chunkID, chunkIndex, len(chunks))
             totalSkipped++
         }
     }
