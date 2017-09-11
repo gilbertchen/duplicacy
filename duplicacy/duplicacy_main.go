@@ -1071,8 +1071,8 @@ func copySnapshots(context *cli.Context) {
                                                     "Enter destination storage password:",false, false)
     }
 
-    sourceStorage.SetRateLimits(context.Int("download-rate-limit"), 0)
-    destinationStorage.SetRateLimits(0, context.Int("upload-rate-limit"))
+    sourceStorage.SetRateLimits(context.Int("download-limit-rate"), 0)
+    destinationStorage.SetRateLimits(0, context.Int("upload-limit-rate"))
 
     destinationManager := duplicacy.CreateBackupManager(destination.SnapshotID, destinationStorage, repository,
                                                         destinationPassword)
