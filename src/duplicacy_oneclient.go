@@ -89,7 +89,7 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
         case []byte:
             inputReader = bytes.NewReader(input.([]byte))
         case int:
-            inputReader = bytes.NewReader([]byte(""))
+            inputReader = nil
         case *bytes.Buffer:
             inputReader = bytes.NewReader(input.(*bytes.Buffer).Bytes())
         case *RateLimitedReader:
