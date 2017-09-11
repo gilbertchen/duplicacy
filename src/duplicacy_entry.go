@@ -15,6 +15,7 @@ import (
     "encoding/json"
     "encoding/base64"
     "strings"
+    "runtime"
 
 )
 
@@ -488,7 +489,14 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns [] string
                     skippedFiles = append(skippedFiles, entry.Path)
                     continue
                 }
-                entry = CreateEntryFromFileInfo(stat, "")
+
+                newEntry := CreateEntryFromFileInfo(stat, "")
+                if runtime.GOOS == "windows" {
+                    // On Windows, stat.Name() is the last component of the target, so we need to construct the correct
+                    // path from f.Name(); note that a "/" is append assuming a symbolic link is always a directory
+                    newEntry.Path = filepath.Join(normalizedPath, f.Name()) + "/"
+                }
+                entry = newEntry
             }
         }
 

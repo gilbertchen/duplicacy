@@ -118,10 +118,8 @@ func GenerateKeyFromPassword(password string) []byte {
     return pbkdf2.Key([]byte(password), DEFAULT_KEY, 16384, 32, sha256.New)
 }
 
-// GetPassword attempts to get the password from KeyChain/KeyRing, environment variables, or keyboard input.
-func GetPassword(preference Preference, passwordType string, prompt string,
-                 showPassword bool, resetPassword bool) (string) {
-
+// Get password from preference, env, but don't start any keyring request
+func GetPasswordFromPreference(preference Preference, passwordType string) (string) {
     passwordID := passwordType
     if preference.Name != "default" {
         passwordID = preference.Name + "_" + passwordID
@@ -135,9 +133,29 @@ func GetPassword(preference Preference, passwordType string, prompt string,
         }
     }
 
+    // If the password is stored in the preference, there is no need to include the storage name
+    // (i.e., preference.Name) in the key, so the key name should really be passwordType rather
+    // than passwordID; we're using passwordID here only for backward compatibility
     if len(preference.Keys) > 0 && len(preference.Keys[passwordID]) > 0 {
         LOG_DEBUG("PASSWORD_KEYCHAIN", "Reading %s from preferences", passwordID)
         return preference.Keys[passwordID]
+    }
+
+    if len(preference.Keys) > 0 && len(preference.Keys[passwordType]) > 0 {
+        LOG_DEBUG("PASSWORD_KEYCHAIN", "Reading %s from preferences", passwordType)
+        return preference.Keys[passwordType]
+    }
+
+    return ""
+}
+
+// GetPassword attempts to get the password from KeyChain/KeyRing, environment variables, or keyboard input.
+func GetPassword(preference Preference, passwordType string, prompt string,
+                 showPassword bool, resetPassword bool) (string) {
+    passwordID := passwordType
+    password := GetPasswordFromPreference(preference,passwordType)
+    if password != "" {
+        return password
     }
 
     if resetPassword && !RunInBackground {
@@ -155,7 +173,7 @@ func GetPassword(preference Preference, passwordType string, prompt string,
 
     }
 
-    password := ""
+    password = ""
     fmt.Printf("%s", prompt)
     if showPassword {
         scanner := bufio.NewScanner(os.Stdin)
@@ -175,6 +193,7 @@ func GetPassword(preference Preference, passwordType string, prompt string,
 
 // SavePassword saves the specified password in the keyring/keychain.
 func SavePassword(preference Preference, passwordType string, password string) {
+
     if password == "" || RunInBackground {
         return
     }
@@ -182,6 +201,12 @@ func SavePassword(preference Preference, passwordType string, password string) {
     if preference.DoNotSavePassword {
         return
     }
+
+    // If the password is retrieved from env or preference, don't save it to keyring
+    if GetPasswordFromPreference(preference, passwordType) == password {
+        return
+    }
+
     passwordID := passwordType
     if preference.Name != "default" {
         passwordID = preference.Name + "_" + passwordID
