@@ -1501,7 +1501,6 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
     }
 
     var snapshots [] *Snapshot
-    var otherSnapshots [] *Snapshot
     var snapshotIDs [] string
     var err error
 
@@ -1557,17 +1556,6 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
             snapshots = append(snapshots, snapshot)
         }
 
-        otherRevisions, err := otherManager.SnapshotManager.ListSnapshotRevisions(id)
-        if err != nil {
-            LOG_ERROR("SNAPSHOT_LIST", "Failed to list all revisions at the destination for snapshot %s: %v", id, err)
-            return false
-        }
-
-        for _, otherRevision := range otherRevisions {
-            otherSnapshot := otherManager.SnapshotManager.DownloadSnapshot(id, otherRevision)
-            otherSnapshots = append(otherSnapshots, otherSnapshot)
-        }
-
     }
 
     if len(snapshots) == 0 {
@@ -1576,6 +1564,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
     }
 
     chunks := make(map[string]bool)
+    otherChunks := make(map[string]bool)
 
     for _, snapshot := range snapshots {
 
@@ -1586,15 +1575,21 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
         LOG_TRACE("SNAPSHOT_COPY", "Copying snapshot %s at revision %d", snapshot.ID, snapshot.Revision)
 
         for _, chunkHash := range snapshot.FileSequence {
-            chunks[chunkHash] = true
+            if _, found := chunks[chunkHash]; !found {
+                chunks[chunkHash] = true
+            }
         }
 
         for _, chunkHash := range snapshot.ChunkSequence {
-            chunks[chunkHash] = true
+            if _, found := chunks[chunkHash]; !found {
+                chunks[chunkHash] = true
+            }
         }
 
         for _, chunkHash := range snapshot.LengthSequence {
-            chunks[chunkHash] = true
+            if _, found := chunks[chunkHash]; !found {
+                chunks[chunkHash] = true
+            }
         }
 
         description := manager.SnapshotManager.DownloadSequence(snapshot.ChunkSequence)
@@ -1606,44 +1601,42 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
         }
 
         for _, chunkHash := range snapshot.ChunkHashes {
-            chunks[chunkHash] = true
-        }
-    }
-
-    for _, otherSnapshot := range otherSnapshots {
-
-        for _, chunkHash := range otherSnapshot.FileSequence {
-            if  _, found := chunks[chunkHash]; found {
-                chunks[chunkHash] = false
-            }
-        }
-
-        for _, chunkHash := range otherSnapshot.ChunkSequence {
-            if _, found := chunks[chunkHash]; found {
-                chunks[chunkHash] = false
-            }
-        }
-
-        for _, chunkHash := range otherSnapshot.LengthSequence {
-            if _, found := chunks[chunkHash]; found {
-                chunks[chunkHash] = false
-            }
-        }
-
-        description := otherManager.SnapshotManager.DownloadSequence(otherSnapshot.ChunkSequence)
-        err := otherSnapshot.LoadChunks(description)
-        if err != nil {
-            LOG_ERROR("SNAPSHOT_CHUNK", "Failed to load chunks for destination snapshot %s at revision %d: %v",
-                      otherSnapshot.ID, otherSnapshot.Revision, err)
-            return false
-        }
-
-        for _, chunkHash := range otherSnapshot.ChunkHashes {
-            if _, found := chunks[chunkHash]; found {
-                chunks[chunkHash] = false
+            if _, found := chunks[chunkHash]; !found {
+                chunks[chunkHash] = true
             }
         }
     }
+
+    otherChunkFiles, otherChunkSizes := otherManager.SnapshotManager.ListAllFiles(otherManager.storage, "chunks/")
+
+    for i, otherChunkID := range otherChunkFiles {
+        otherChunkID = strings.Replace(otherChunkID, "/", "", -1)
+        if len(otherChunkID) != 64 {
+            continue
+        }
+        if otherChunkSizes[i] == 0 {
+            LOG_DEBUG("SNAPSHOT_COPY", "Chunk %s has length = 0", otherChunkID)
+            continue
+        }
+        otherChunks[otherChunkID] = false
+    }
+
+    LOG_DEBUG("SNAPSHOT_COPY", "Found %d chunks on destination storage", len(otherChunks))
+
+    chunksToCopy := 0
+    chunksToSkip := 0
+
+    for chunkHash, _ := range chunks {
+        otherChunkID := otherManager.config.GetChunkIDFromHash(chunkHash)
+        if _, found := otherChunks[otherChunkID]; found {
+            chunksToSkip++
+        } else {
+            chunksToCopy++
+        }
+    }
+
+    LOG_DEBUG("SNAPSHOT_COPY", "Chunks to copy = %d, to skip = %d, total = %d", chunksToCopy, chunksToSkip, chunksToCopy + chunksToSkip)
+    LOG_DEBUG("SNAPSHOT_COPY", "Total chunks in source snapshot revisions = %d\n", len(chunks))
 
     chunkDownloader := CreateChunkDownloader(manager.config, manager.storage, nil, false, threads)
 
@@ -1663,11 +1656,11 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
     totalSkipped := 0
     chunkIndex := 0
 
-    for chunkHash, needsCopy := range chunks {
+    for chunkHash, _ := range chunks {
         chunkIndex++
         chunkID := manager.config.GetChunkIDFromHash(chunkHash)
-        if needsCopy {
-            newChunkID := otherManager.config.GetChunkIDFromHash(chunkHash)
+        newChunkID := otherManager.config.GetChunkIDFromHash(chunkHash)
+        if _, found := otherChunks[newChunkID]; !found {
             LOG_DEBUG("SNAPSHOT_COPY", "Copying chunk %s to %s", chunkID, newChunkID)
             i := chunkDownloader.AddChunk(chunkHash)
             chunk := chunkDownloader.WaitForChunk(i)
@@ -1685,7 +1678,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
     chunkDownloader.Stop()
     chunkUploader.Stop()
 
-    LOG_INFO("SNAPSHOT_COPY", "Total chunks copied = %d, skipped = %d.", totalCopied, totalSkipped)
+    LOG_INFO("SNAPSHOT_COPY", "Copy complete, %d total chunks, %d chunks copied, %d skipped", totalCopied + totalSkipped, totalCopied, totalSkipped)
 
     for _, snapshot := range snapshots {
         if revisionMap[snapshot.ID][snapshot.Revision] == false {
