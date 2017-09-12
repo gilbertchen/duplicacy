@@ -761,6 +761,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
         for _, file := range remoteSnapshot.Files {
 
             if MatchPath(file.Path, patterns) {
+                LOG_TRACE("RESTORE_INCLUDE", "Include %s", file.Path)
                 includedFiles = append(includedFiles, file)
             } else {
                 LOG_TRACE("RESTORE_EXCLUDE", "Exclude %s", file.Path)
