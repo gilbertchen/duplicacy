@@ -1477,7 +1477,7 @@ func main() {
                 },
                 cli.BoolFlag {
                     Name: "delete-only",
-                    Usage: "delete fossils previsouly collected (if deletable) and don't collect fossils",
+                    Usage: "delete fossils previously collected (if deletable) and don't collect fossils",
                 },
                 cli.BoolFlag {
                     Name: "collect-only",

@@ -1629,7 +1629,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 
     referencedFossils := make(map[string]bool)
 
-    // Find fossil collections previsouly created, and delete fossils and temporary files in them if they are
+    // Find fossil collections previously created, and delete fossils and temporary files in them if they are
     // deletable.
     for _, collectionName := range collections {
 
