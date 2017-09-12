@@ -158,6 +158,10 @@ func GetPassword(preference Preference, passwordType string, prompt string,
         return password
     }
 
+    if preference.Name != "default" {
+        passwordID = preference.Name + "_" + passwordID
+    }
+
     if resetPassword && !RunInBackground {
         keyringSet(passwordID, "")
     } else {
