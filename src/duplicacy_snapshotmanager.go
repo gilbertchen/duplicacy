@@ -600,7 +600,9 @@ func (manager *SnapshotManager) ListAllFiles(storage Storage, top string) (allFi
             if len(files) > 1024 && !storage.IsFastListing() {
                 for i := 0; i < 256; i++ {
                     subdir := dir + fmt.Sprintf("%02x\n", i)
-                    manager.storage.CreateDirectory(0, subdir)
+                    if !manager.config.dryRun {
+                        manager.storage.CreateDirectory(0, subdir)
+                    }
                 }
             }
         } else {
