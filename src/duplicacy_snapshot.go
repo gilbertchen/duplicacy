@@ -67,7 +67,7 @@ func CreateSnapshotFromDirectory(id string, top string) (snapshot *Snapshot, ski
     }
 
     var patterns []string
-    
+
     patternFile, err := ioutil.ReadFile(path.Join(GetDuplicacyPreferencePath(), "filters"))
     if err == nil {
         for _, pattern := range strings.Split(string(patternFile), "\n") {
@@ -76,12 +76,23 @@ func CreateSnapshotFromDirectory(id string, top string) (snapshot *Snapshot, ski
                 continue
             }
 
-            if pattern[0] != '+' && pattern[0] != '-' {
+            if pattern[0] == '#' {
+                continue
+            }
+
+            if IsUnspecifiedFilter(pattern) {
                 pattern = "+" + pattern
             }
 
-            if pattern == "+" || pattern == "-" {
+            if IsEmptyFilter(pattern) {
                 continue
+            }
+
+            if strings.HasPrefix(pattern, "i:") || strings.HasPrefix(pattern, "e:") {
+                valid, err := IsValidRegex(pattern[2:])
+                if  !valid || err != nil {
+                    LOG_ERROR("SNAPSHOT_FILTER", "Invalid regular expression encountered for filter: \"%s\", error: %v", pattern, err)
+                }
             }
 
             patterns = append(patterns, pattern)

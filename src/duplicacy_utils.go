@@ -39,6 +39,31 @@ func CreateRateLimitedReader(content []byte, rate int) (*RateLimitedReader) {
     }
 }
 
+func IsEmptyFilter(pattern string) bool {
+    if pattern == "+" || pattern == "-" || pattern == "i:" || pattern == "e:" {
+        return true
+    } else {
+        return false
+    }
+}
+
+func IsUnspecifiedFilter(pattern string) bool {
+    if pattern[0] != '+' && pattern[0] != '-' && pattern[0] != 'i' && pattern[0] != 'e' {
+        return true
+    } else {
+        return false
+    }
+}
+
+func IsValidRegex(pattern string) (valid bool, err error) {
+    _, err = regexp.Compile(pattern)
+    if err != nil {
+        return false, err
+    } else {
+        return true, err
+    }
+}
+
 func (reader *RateLimitedReader) Length() (int64) {
     return int64(len(reader.Content))
 }
@@ -298,6 +323,25 @@ func MatchPath(filePath string, patterns [] string) (included bool) {
         } else if pattern[0] == '-' {
             allIncludes = false
              if matchPattern(filePath, pattern[1:]) {
+                return false
+            }
+        } else if strings.HasPrefix(pattern, "i:") {
+            matched, err := regexp.MatchString(pattern[2:], filePath)
+            if err != nil {
+                LOG_ERROR("SNAPSHOT_MATCH", "Error during regexp match: %s - %v", pattern, err)
+            }
+            if matched {
+                LOG_TRACE("SNAPSHOT_MATCH", "Regex include comparison for filePath=\"%s\", pattern=\"%s\", matched=%t", filePath, pattern[2:], matched)
+                return true
+            }
+        } else if strings.HasPrefix(pattern, "e:") {
+            allIncludes = false
+            matched, err := regexp.MatchString(pattern[2:], filePath)
+            if err != nil {
+                LOG_ERROR("SNAPSHOT_MATCH", "Error during regexp match: %s - %v", pattern, err)
+            }
+            if matched {
+                LOG_TRACE("SNAPSHOT_MATCH", "Regex exclude comparison for filePath=\"%s\", pattern=\"%s\", matched=%t", filePath, pattern[2:], matched)
                 return false
             }
         }

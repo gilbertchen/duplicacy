@@ -68,7 +68,7 @@ The `-vss` option works on Windows only to turn on the Volume Shadow Copy servic
 
 When the repository can have multiple storages (added by the *add* command), you can select the storage to back up to by giving a storage name.
 
-You can specify patterns to include/exclude files by putting them in a file named *.duplicacy/filters*.  Please refer to the [Include/Exclude Patterns](https://github.com/gilbertchen/duplicacy-beta/blob/master/GUIDE.md#includeexclude-patterns) section for how to specify the patterns.
+You can specify patterns to include/exclude files by putting them in a file named *.duplicacy/filters*.  Please refer to the [Include/Exclude Patterns](#includeexclude-patterns) section for how to specify the patterns.
 
 #### Restore
 ```
@@ -103,7 +103,7 @@ The `-limit-rate` option sets a cap on the maximum upload rate.
 
 When the repository can have multiple storages (added by the *add* command), you can select the storage to restore from by specifying the storage name.
 
-Unlike the *backup* procedure that reading the include/exclude patterns from a file, the *restore* procedure reads them from the command line.  If the patterns can cause confusion to the command line argument parser, -- should be prepended to the patterns.  Please refer to the [Include/Exclude Patterns](https://github.com/gilbertchen/duplicacy-beta/blob/master/GUIDE.md#includeexclude-patterns) section for how to specify patterns.
+Unlike the *backup* procedure that reading the include/exclude patterns from a file, the *restore* procedure reads them from the command line.  If the patterns can cause confusion to the command line argument parser, -- should be prepended to the patterns.  Please refer to the [Include/Exclude Patterns](#includeexclude-patterns) section for how to specify patterns.
 
 
 #### List
@@ -401,13 +401,25 @@ If no `-from` option is given, the snapshots from the default storage will be co
 
 ## Include/Exclude Patterns
 
-An include pattern starts with +, and an exclude pattern starts with -.  Patterns may contain wildcard characters * which matches a path string of any length, and ? matches a single character.  Note that both * and ? will match any character including the path separator /.
+Duplicacy offers two different methods for providing include/exclude filters, wildcard matching and regular expression matching. You may use one method exclusively
+or you may combine them as you deem necessary. Regular Expressions can be extremely powerful, but they can also be very complex. If you are new to Regular Expressions, you may wish
+to start using duplicacy with the less complicated (and less powerful) wildcard filters initially.
 
-The path separator is always /, even on Windows.
+The two methods are described below:
 
-When matching a path against a list of patterns, the path is compared with the part after + or -, one pattern at a time.  Therefore, the order of the patterns is significant.  If a match with an include pattern is found, the path is said to be included without further comparisons.  If a match with an exclude pattern is found, the path is said to be excluded without further comparison.  If a match is not found, the path will be excluded if all patterns are include patterns, but included otherwise.
+1. Wildcard Matching
 
-Patterns ending with a / apply to directories only, and patterns not ending with a / apply to files only.  Patterns ending with * and ?, however, apply to both directories and files.  When a directory is excluded, all files and subdirectories under it will also be excluded.  Therefore, to include a subdirectory, all parent directories must be explicitly included.  For instance, the following pattern list doesn't do what is intended, since the `foo` directory will be excluded so the `foo/bar` will never be visited:
+An include pattern starts with "+", and an exclude pattern starts with "-".  Patterns may contain wildcard characters "*" which matches a path string of any length, and "?" matches
+a single character.  Note that both "*" and "?" will match any character including the path separator "/".
+
+The path separator is always a "/", even on Windows.
+
+When matching a path against a list of patterns, the path is compared with the part after "+" or "-", one pattern at a time.  Therefore, the order of the patterns is significant.  If a match with an include pattern is found, the path is said to be included without further comparisons.  If a match with an exclude pattern is found, the path is said to be excluded without further comparison.  If a match is not found, the path will be excluded if all patterns are include patterns, but included otherwise.
+
+Patterns ending with a "/" apply to directories only, and patterns not ending with a "/" apply to files only.
+Patterns ending with "*" and "?", however, apply to both directories and files.  When a directory is excluded, all files and subdirectories
+under it will also be excluded.  Therefore, to include a subdirectory, all parent directories must be explicitly included.
+For instance, the following pattern list doesn't do what is intended, since the `foo` directory will be excluded so the `foo/bar` will never be visited:
 
 ```
 +foo/bar/*
@@ -429,6 +441,82 @@ The following pattern list includes only files under the directory foo/ but not 
 +foo/*
 -*
 ```
+
+2. Regular Expression Matching
+
+An include pattern starts with "i:", and exclude pattern starts with "e:". The part of the filter after the include/exclude prefix must be a valid regular expression. The
+regular expression syntax is the same general syntax used by Perl, Python, and other languages.
+Full details for the supported regular expression syntax and features are available [here](https://github.com/google/re2/wiki/Syntax "Go Lang Regular Exprssion Syntax").
+
+The path separator is always a "/", even on Windows.
+
+When matching a path against a list of patterns, the path is compared with the part after "i: or "e: one pattern at a time.  Therefore, the order of the patterns is significant.  If a match with an include pattern is found, the path is said to be included without further comparisons.  If a match with an exclude pattern is found, the path is said to be excluded without further comparison.  If a match is not found, the path will be excluded if all patterns are include patterns, but included otherwise.
+
+Some examples of regular expression filters are shown below:
+```
+# always include sqlite databases
+i:\.sqlite$
+
+# exclude sqlite temp files
+e:.sqlite-.*$
+
+# exclude temporary file names
+e:.*/?~.*$
+
+# exclude common file types (case insensitive)
+e:(?i)\.(bak|mp4|mkv|o|obj|old|tmp)$
+
+# exclude lotus notes full text directories
+e:\.ft/.*$
+
+# exclude any cache files/directories with cache in the name (case insensitive)
+e:(?i).*cache.*
+
+# exclude lightroom previews
+e:(?i).* Previews\.lrdata/.*$
+
+# exclude Qt source
+e:(?i)develop/qt[0-9]/.*$
+
+# exclude any git stuff
+e:.git/.*$
+
+# exclude cisco anyconnect log files: matches .cisco/log/* or .cisco/vpn/log/*, etc
+e:.cisco/.*/?log/.*$
+
+# exclude trash bin stuff
+e:.Trash/.*$
+
+# exclude old firefox stuff
+e:Old Firefox Data/.*$
+
+# exclude dirx stuff: excludes Documents/dir0/*, Documents/dir1/*, ...
+e:Documents/dir[0-9]*/.*$
+
+# exclude downloads
+e:Downloads/.*$
+
+# exclude duplicacy test stuff
+e:DUPLICACY_TEST_ZONE/.*$
+
+# exclude lotus notes stuff
+e:Library/Application Support/IBM Notes Data/.*$
+
+# exclude mobile backup stuff
+e:Library/Application Support/MobileSync/Backup/.*$
+
+# exclude movies
+e:Movies/.*$
+
+# exclude itunes stuff
+e:Music/iTunes/iTunes Media/.*$
+
+# include everything else
+i:.*
+```
+As seen in the examples above, you may add comments to your filters file by starting the line with a "#" as the first character of the line.
+The entire comment line will be ignored and can be used to document the meaning of your include/exclude wildcard and regular expression filters. Completely blank lines are
+also ignored and may be used to make your filters list more readable.
 
 For the *backup* command, the include/exclude patterns are read from a file named *filters* under the *.duplicacy* directory.
 

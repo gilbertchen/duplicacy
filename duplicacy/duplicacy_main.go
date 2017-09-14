@@ -679,6 +679,8 @@ func restoreRepository(context *cli.Context) {
     var patterns [] string
     for _, pattern := range context.Args() {
 
+        pattern = strings.TrimSpace(pattern)
+
         for strings.HasPrefix(pattern, "--") {
             pattern = pattern[1:]
         }
@@ -687,12 +689,19 @@ func restoreRepository(context *cli.Context) {
             pattern = pattern[1:]
         }
 
-        if pattern[0] != '+' && pattern[0] != '-' {
+        if duplicacy.IsUnspecifiedFilter(pattern) {
             pattern = "+" + pattern
         }
 
-        if pattern == "+" || pattern == "-" {
+        if duplicacy.IsEmptyFilter(pattern) {
             continue
+        }
+
+        if strings.HasPrefix(pattern, "i:") || strings.HasPrefix(pattern, "e:") {
+            valid, err := duplicacy.IsValidRegex(pattern[2:])
+            if  !valid || err != nil {
+                duplicacy.LOG_ERROR("SNAPSHOT_FILTER", "Invalid regular expression encountered for filter: \"%s\", error: %v", pattern, err)
+            }
         }
 
         patterns = append(patterns, pattern)
