@@ -1695,15 +1695,15 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
     LOG_INFO("SNAPSHOT_COPY", "Total chunks copied = %d, skipped = %d.", totalCopied, totalSkipped)
 
     for _, snapshot := range snapshots {
-        if !manager.config.dryRun {
-            if revisionMap[snapshot.ID][snapshot.Revision] == false {
-              continue
-          }
+        if revisionMap[snapshot.ID][snapshot.Revision] == false {
+          continue
         }
-        otherManager.storage.CreateDirectory(0, fmt.Sprintf("snapshots/%s", snapshot.ID))
-        description, _ := snapshot.MarshalJSON()
-        path := fmt.Sprintf("snapshots/%s/%d", snapshot.ID, snapshot.Revision)
-        otherManager.SnapshotManager.UploadFile(path, path, description)
+        if !manager.config.dryRun {
+          otherManager.storage.CreateDirectory(0, fmt.Sprintf("snapshots/%s", snapshot.ID))
+          description, _ := snapshot.MarshalJSON()
+          path := fmt.Sprintf("snapshots/%s/%d", snapshot.ID, snapshot.Revision)
+          otherManager.SnapshotManager.UploadFile(path, path, description)
+        }
         LOG_INFO("SNAPSHOT_COPY", "Copied snapshot %s at revision %d", snapshot.ID, snapshot.Revision)
     }
 
