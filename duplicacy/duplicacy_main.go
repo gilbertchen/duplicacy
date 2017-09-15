@@ -708,6 +708,8 @@ func restoreRepository(context *cli.Context) {
 
     }
 
+    duplicacy.LOG_DEBUG("REGEX_DEBUG", "There are %d compiled regular expressions stored", len(duplicacy.RegexMap))
+
     storage.SetRateLimits(context.Int("limit-rate"), 0)
     backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password)
     duplicacy.SavePassword(*preference, "password", password)

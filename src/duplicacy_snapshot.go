@@ -98,6 +98,8 @@ func CreateSnapshotFromDirectory(id string, top string) (snapshot *Snapshot, ski
             patterns = append(patterns, pattern)
         }
 
+        LOG_DEBUG("REGEX_DEBUG", "There are %d compiled regular expressions stored", len(RegexMap))
+
         LOG_INFO("SNAPSHOT_FILTER", "Loaded %d include/exclude pattern(s)", len(patterns))
 
         if IsTracing() {
