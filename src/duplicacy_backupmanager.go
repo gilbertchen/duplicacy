@@ -1698,12 +1698,10 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
         if revisionMap[snapshot.ID][snapshot.Revision] == false {
           continue
         }
-        if !manager.config.dryRun {
-          otherManager.storage.CreateDirectory(0, fmt.Sprintf("snapshots/%s", snapshot.ID))
-          description, _ := snapshot.MarshalJSON()
-          path := fmt.Sprintf("snapshots/%s/%d", snapshot.ID, snapshot.Revision)
-          otherManager.SnapshotManager.UploadFile(path, path, description)
-        }
+        otherManager.storage.CreateDirectory(0, fmt.Sprintf("snapshots/%s", snapshot.ID))
+        description, _ := snapshot.MarshalJSON()
+        path := fmt.Sprintf("snapshots/%s/%d", snapshot.ID, snapshot.Revision)
+        otherManager.SnapshotManager.UploadFile(path, path, description)
         LOG_INFO("SNAPSHOT_COPY", "Copied snapshot %s at revision %d", snapshot.ID, snapshot.Revision)
     }
 
