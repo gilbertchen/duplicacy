@@ -5,6 +5,7 @@
 package duplicacy
 
 import (
+    "strings"
     "encoding/json"
     "path"
     "io/ioutil"
@@ -43,7 +44,7 @@ func LoadPreferences(repository string) bool {
             LOG_ERROR("DOT_DUPLICACY_PATH", "Failed to locate the preference path: %v", err)
             return false
         }
-        realPreferencePath := string(content)
+        realPreferencePath := strings.TrimSpace(string(content))
         stat, err := os.Stat(realPreferencePath)
         if err != nil {
             LOG_ERROR("PREFERENCE_PATH", "Failed to retrieve the information about the directory %s: %v", content, err)
