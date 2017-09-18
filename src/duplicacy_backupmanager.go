@@ -1054,7 +1054,7 @@ func (manager *BackupManager) UploadSnapshot(chunkMaker *ChunkMaker, uploader *C
                 if _, found := chunkCache[chunkID]; found {
                     completionFunc(chunk, 0, true, chunk.GetLength(), 0)
                 } else {
-                     uploader.StartChunk(chunk, len(sequence))
+                    uploader.StartChunk(chunk, len(sequence))
                 }
                 sequence = append(sequence, chunk.GetHash())
             },
@@ -1696,7 +1696,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 
     for _, snapshot := range snapshots {
         if revisionMap[snapshot.ID][snapshot.Revision] == false {
-          continue
+            continue
         }
         otherManager.storage.CreateDirectory(0, fmt.Sprintf("snapshots/%s", snapshot.ID))
         description, _ := snapshot.MarshalJSON()
