@@ -140,9 +140,11 @@ func (uploader *ChunkUploader) Upload(threadIndex int, task ChunkUploadTask) boo
             LOG_ERROR("UPLOAD_CHUNK", "Failed to upload the chunk %s: %v", chunkID, err)
             return false
         }
+        LOG_DEBUG("CHUNK_UPLOAD", "Chunk %s has been uploaded", chunkID)
+    } else {
+        LOG_DEBUG("CHUNK_UPLOAD", "Uploading was skipped for chunk %s", chunkID)
     }
 
-    LOG_DEBUG("CHUNK_UPLOAD", "Chunk %s has been uploaded", chunkID)
     uploader.completionFunc(chunk, task.chunkIndex, false, chunkSize, chunk.GetLength())
     atomic.AddInt32(&uploader.numberOfUploadingTasks, -1)
     return true
