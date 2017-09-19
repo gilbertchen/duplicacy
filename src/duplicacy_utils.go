@@ -31,6 +31,16 @@ type RateLimitedReader struct {
     StartTime time.Time
 }
 
+var RegexMap map[string]*regexp.Regexp
+
+func init() {
+
+    if RegexMap == nil {
+        RegexMap = make(map[string]*regexp.Regexp)
+    }
+
+}
+
 func CreateRateLimitedReader(content []byte, rate int) (*RateLimitedReader) {
     return &RateLimitedReader {
         Content: content,
@@ -56,10 +66,20 @@ func IsUnspecifiedFilter(pattern string) bool {
 }
 
 func IsValidRegex(pattern string) (valid bool, err error) {
-    _, err = regexp.Compile(pattern)
+
+    var re *regexp.Regexp = nil
+
+    if re, valid = RegexMap[pattern]; valid && re != nil {
+        return true, nil
+    }
+
+    re, err = regexp.Compile(pattern)
+
     if err != nil {
         return false, err
     } else {
+        RegexMap[pattern] = re
+        LOG_DEBUG("REGEX_STORED", "Saved compiled regex for pattern \"%s\", regex=%#v", pattern, re)
         return true, err
     }
 }
@@ -313,9 +333,13 @@ func matchPattern(text string, pattern string) bool {
 // include patterns, and included otherwise.
 func MatchPath(filePath string, patterns [] string) (included bool) {
 
-    allIncludes := true
-    for _, pattern := range patterns {
+    var re *regexp.Regexp = nil
+    var found bool
+    var matched bool
 
+    allIncludes := true
+
+    for _, pattern := range patterns {
         if pattern[0] == '+' {
             if matchPattern(filePath, pattern[1:]) {
                 return true
@@ -325,24 +349,23 @@ func MatchPath(filePath string, patterns [] string) (included bool) {
              if matchPattern(filePath, pattern[1:]) {
                 return false
             }
-        } else if strings.HasPrefix(pattern, "i:") {
-            matched, err := regexp.MatchString(pattern[2:], filePath)
-            if err != nil {
-                LOG_ERROR("SNAPSHOT_MATCH", "Error during regexp match: %s - %v", pattern, err)
+        } else if strings.HasPrefix(pattern, "i:") || strings.HasPrefix(pattern, "e:") {
+            if re, found = RegexMap[pattern[2:]]; found {
+                matched = re.MatchString(filePath)
+            } else {
+                re, err := regexp.Compile(pattern)
+                if err != nil {
+                    LOG_ERROR("REGEX_ERROR", "Invalid regex encountered for pattern \"%s\" - %v", pattern[2:], err)
+                }
+                RegexMap[pattern] = re
+                matched = re.MatchString(filePath)
             }
             if matched {
-                LOG_TRACE("SNAPSHOT_MATCH", "Regex include comparison for filePath=\"%s\", pattern=\"%s\", matched=%t", filePath, pattern[2:], matched)
-                return true
-            }
-        } else if strings.HasPrefix(pattern, "e:") {
-            allIncludes = false
-            matched, err := regexp.MatchString(pattern[2:], filePath)
-            if err != nil {
-                LOG_ERROR("SNAPSHOT_MATCH", "Error during regexp match: %s - %v", pattern, err)
-            }
-            if matched {
-                LOG_TRACE("SNAPSHOT_MATCH", "Regex exclude comparison for filePath=\"%s\", pattern=\"%s\", matched=%t", filePath, pattern[2:], matched)
-                return false
+                return strings.HasPrefix(pattern, "i:")
+            } else {
+                if strings.HasPrefix(pattern, "e:") {
+                    allIncludes = false
+                }
             }
         }
     }
