@@ -50,6 +50,7 @@ OPTIONS:
    -stats                     show statistics during and after backup
    -threads <n>               number of uploading threads
    -limit-rate <kB/s>         the maximum upload rate (in kilobytes/sec)
+   -dry-run                   dry run for testing, don't backup anything. Use with -stats and -d
    -vss                       enable the Volume Shadow Copy service (Windows only)
    -storage <storage name>    backup to the specified storage instead of the default one
 ```

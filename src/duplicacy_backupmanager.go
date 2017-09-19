@@ -36,6 +36,10 @@ type BackupManager struct {
 }
 
 
+func (manager *BackupManager) SetDryRun(dryRun bool) {
+    manager.config.dryRun = dryRun
+}
+
 
 // CreateBackupManager creates a backup manager using the specified 'storage'.  'snapshotID' is a unique id to
 // identify snapshots created for this repository.  'top' is the top directory of the repository.  'password' is the
@@ -630,7 +634,9 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
     }
     skippedFiles = append(skippedFiles, fileReader.SkippedFiles...)
 
-    manager.SnapshotManager.CleanSnapshotCache(localSnapshot, nil)
+    if !manager.config.dryRun {
+        manager.SnapshotManager.CleanSnapshotCache(localSnapshot, nil)
+    }
     LOG_INFO("BACKUP_END", "Backup for %s at revision %d completed", top, localSnapshot.Revision)
 
     RunAtError = func() {}
@@ -1109,8 +1115,9 @@ func (manager *BackupManager) UploadSnapshot(chunkMaker *ChunkMaker, uploader *C
     }
 
     path := fmt.Sprintf("snapshots/%s/%d", manager.snapshotID, snapshot.Revision)
-    manager.SnapshotManager.UploadFile(path, path, description)
-
+    if !manager.config.dryRun {
+        manager.SnapshotManager.UploadFile(path, path, description)
+    }
     return totalSnapshotChunkSize, numberOfNewSnapshotChunks, totalUploadedSnapshotChunkSize, totalUploadedSnapshotChunkBytes
 }
 

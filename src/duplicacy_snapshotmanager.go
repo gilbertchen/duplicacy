@@ -594,19 +594,21 @@ func (manager *SnapshotManager) ListAllFiles(storage Storage, top string) (allFi
             }
         }
 
-        if top == "chunks/" {
-            // We're listing all chunks so this is the perfect place to detect if a directory contains too many
-            // chunks. Create sub-directories if necessary
-            if len(files) > 1024 && !storage.IsFastListing() {
-                for i := 0; i < 256; i++ {
-                    subdir := dir + fmt.Sprintf("%02x\n", i)
-                    manager.storage.CreateDirectory(0, subdir)
+        if !manager.config.dryRun {
+            if top == "chunks/" {
+                // We're listing all chunks so this is the perfect place to detect if a directory contains too many
+                // chunks. Create sub-directories if necessary
+                if len(files) > 1024 && !storage.IsFastListing() {
+                    for i := 0; i < 256; i++ {
+                        subdir := dir + fmt.Sprintf("%02x\n", i)
+                        manager.storage.CreateDirectory(0, subdir)
+                    }
                 }
-            }
-        } else {
-            // Remove chunk sub-directories that are empty
-            if len(files) == 0 && strings.HasPrefix(dir, "chunks/") && dir != "chunks/" {
-                storage.DeleteFile(0, dir)
+            } else {
+                // Remove chunk sub-directories that are empty
+                if len(files) == 0 && strings.HasPrefix(dir, "chunks/") && dir != "chunks/" {
+                    storage.DeleteFile(0, dir)
+                }
             }
         }
     }
