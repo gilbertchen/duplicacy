@@ -903,7 +903,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 
         for snapshotID, snapshotList := range snapshotMap {
             fmt.Fprintln(tableWriter, "")
-            fmt.Fprintln(tableWriter, " files \tbytes \tchunks \tbytes \tuniq \tbytes \tnew \tbytes \tsnap \trev \t \t")
+            fmt.Fprintln(tableWriter, " snap \trev \t \tfiles \tbytes \tchunks \tbytes \tuniq \tbytes \tnew \tbytes \t")
             snapshotChunks := make(map[string]bool)
 
             earliestSeenChunks := make(map[string]int)
@@ -951,13 +951,9 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
                     files = fmt.Sprintf("%d \t%s", snapshot.NumberOfFiles, PrettyNumber(snapshot.FileSize))
                 }
                 creationTime := time.Unix(snapshot.StartTime, 0).Format("2006-01-02 15:04")
-                tagWithSpace := ""
-                if len(snapshot.Tag) > 0 {
-                    tagWithSpace = snapshot.Tag + " "
-                }
                 fmt.Fprintln(tableWriter, fmt.Sprintf(
-                        "%s \t%d \t%s \t%d \t%s \t%d \t%s \t%s \t%d \t@ %s %s%s \t", 
-                        files, totalChunkCount, PrettyNumber(totalChunkSize), uniqueChunkCount, PrettyNumber(uniqueChunkSize), newChunkCount, PrettyNumber(newChunkSize), snapshotID, snapshot.Revision, creationTime, tagWithSpace, snapshot.Options))
+                        "%s \t%d \t@ %s %5s \t%s \t%d \t%s \t%d \t%s \t%d \t%s \t", 
+                        snapshotID, snapshot.Revision, creationTime, snapshot.Options, files, totalChunkCount, PrettyNumber(totalChunkSize), uniqueChunkCount, PrettyNumber(uniqueChunkSize), newChunkCount, PrettyNumber(newChunkSize)))
             }
 
             var totalChunkSize int64
@@ -975,8 +971,8 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
                 }
             }
             fmt.Fprintln(tableWriter, fmt.Sprintf(
-                    " \t \t%d \t%s \t%d \t%s \t \t \t%s \tall \t \t", 
-                    totalChunkCount, PrettyNumber(totalChunkSize), uniqueChunkCount, PrettyNumber(uniqueChunkSize), snapshotID))
+                    "%s \tall \t \t \t \t%d \t%s \t%d \t%s \t \t \t", 
+                    snapshotID, totalChunkCount, PrettyNumber(totalChunkSize), uniqueChunkCount, PrettyNumber(uniqueChunkSize)))
         }
         tableWriter.Flush()
         LOG_INFO("SNAPSHOT_CHECK", tableBuffer.String())
