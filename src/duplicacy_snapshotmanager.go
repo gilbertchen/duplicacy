@@ -913,7 +913,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
                     if earliestSeenChunks[chunkID] == 0 {
                         earliestSeenChunks[chunkID] = math.MaxInt64
                     }
-                    earliestSeenChunks[chunkID] = min(earliestSeenChunks[chunkID], snapshot.Revision)
+                    earliestSeenChunks[chunkID] = MinInt(earliestSeenChunks[chunkID], snapshot.Revision)
                 }
             }
 
@@ -981,14 +981,6 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
     return true
 
 }
-
-func min(x, y int) int {
-    if x < y {
-        return x
-    }
-    return y
-}
-
 
 // ConvertSequence converts a sequence of chunk hashes into a sequence of chunk ids.
 func (manager *SnapshotManager) ConvertSequence(sequence []string) (result []string) {
