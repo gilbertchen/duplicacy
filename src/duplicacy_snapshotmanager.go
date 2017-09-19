@@ -748,7 +748,7 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 }
 
 // ListSnapshots shows the information about a snapshot.
-func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToCheck []int, tag string, showStatistics bool,
+func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToCheck []int, tag string, showStatistics bool, showTabular bool,
                                               checkFiles bool, searchFossils bool, resurrect bool) bool {
 
     LOG_DEBUG("LIST_PARAMETERS", "id: %s, revisions: %v, tag: %s, showStatistics: %t, checkFiles: %t, searchFossils: %t, resurrect: %t",
