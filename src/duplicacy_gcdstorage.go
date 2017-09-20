@@ -108,16 +108,17 @@ func (storage *GCDStorage) shouldRetry(threadIndex int, err error) (bool, error)
 		return false, err
 	}
 
-	delay := storage.backoffs[threadIndex]*rand.Float64() + storage.backoffs[threadIndex]*rand.Float64()
-	LOG_INFO("GCD_RETRY", "Thread: %03d. Message: %s. Retrying after %.2f seconds. current backoff: %.2f.  Number of retries: %d", threadIndex, message, delay, storage.backoffs[threadIndex], storage.backoffsRetries[threadIndex])
-	time.Sleep(time.Duration(delay * float64(time.Second)))
-
 	if storage.backoffs[threadIndex] < LIMIT_BACKOFF_TIME {
 			storage.backoffs[threadIndex] *= 2.0
 	} else {
 		storage.backoffs[threadIndex] = LIMIT_BACKOFF_TIME
 		storage.backoffsRetries[threadIndex] += 1
 	}
+
+	delay := storage.backoffs[threadIndex]*rand.Float64() + storage.backoffs[threadIndex]*rand.Float64()
+	LOG_INFO("GCD_RETRY", "Thread: %03d. Message: %s. Retrying after %.2f seconds. Current backoff: %.2f. Number of retries: %d", threadIndex, message, delay, storage.backoffs[threadIndex], storage.backoffsRetries[threadIndex])
+	time.Sleep(time.Duration(delay * float64(time.Second)))
+
 	return true, nil
 }
 
