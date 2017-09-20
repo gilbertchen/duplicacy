@@ -8,12 +8,14 @@ import (
     "io"
     "os"
     "fmt"
+    "text/tabwriter"
     "sort"
     "bytes"
     "regexp"
     "strconv"
     "strings"
     "time"
+    "math"
     "path"
     "io/ioutil"
     "encoding/json"
@@ -748,7 +750,7 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 }
 
 // ListSnapshots shows the information about a snapshot.
-func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToCheck []int, tag string, showStatistics bool,
+func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToCheck []int, tag string, showStatistics bool, showTabular bool,
                                               checkFiles bool, searchFossils bool, resurrect bool) bool {
 
     LOG_DEBUG("LIST_PARAMETERS", "id: %s, revisions: %v, tag: %s, showStatistics: %t, checkFiles: %t, searchFossils: %t, resurrect: %t",
@@ -896,56 +898,145 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
         snapshotIDIndex += 1
     }
 
+    if showTabular {
+        manager.ShowStatisticsTabular(snapshotMap, chunkSizeMap, chunkUniqueMap, chunkSnapshotMap)
+    } else if showStatistics {
+        manager.ShowStatistics(snapshotMap, chunkSizeMap, chunkUniqueMap, chunkSnapshotMap)
+    }
 
-    if showStatistics {
-        for snapshotID, snapshotList := range snapshotMap {
+    return true
+}
 
-            snapshotChunks := make(map[string]bool)
+// Print snapshot and revision statistics
+func (manager *SnapshotManager) ShowStatistics(snapshotMap map[string] [] *Snapshot, chunkSizeMap map[string]int64, chunkUniqueMap map[string]bool, 
+                                               chunkSnapshotMap map[string]int) {
+    for snapshotID, snapshotList := range snapshotMap {
 
-            for _, snapshot := range snapshotList {
+        snapshotChunks := make(map[string]bool)
 
-                chunks := make(map[string]bool)
-                for _, chunkID := range manager.GetSnapshotChunks(snapshot) {
-                    chunks[chunkID] = true
-                    snapshotChunks[chunkID] = true
-                }
+        for _, snapshot := range snapshotList {
 
-                var totalChunkSize int64
-                var uniqueChunkSize int64
-
-                for chunkID, _ := range chunks {
-                    chunkSize := chunkSizeMap[chunkID]
-                    totalChunkSize += chunkSize
-                    if chunkUniqueMap[chunkID] {
-                        uniqueChunkSize += chunkSize
-                    }
-                }
-
-                files := ""
-                if snapshot.FileSize != 0 && snapshot.NumberOfFiles != 0 {
-                    files = fmt.Sprintf("%d files (%s bytes), ", snapshot.NumberOfFiles, PrettyNumber(snapshot.FileSize))
-                }
-                LOG_INFO("SNAPSHOT_CHECK", "Snapshot %s at revision %d: %s%s total chunk bytes, %s unique chunk bytes",
-                         snapshot.ID, snapshot.Revision, files, PrettyNumber(totalChunkSize), PrettyNumber(uniqueChunkSize))
+            chunks := make(map[string]bool)
+            for _, chunkID := range manager.GetSnapshotChunks(snapshot) {
+                chunks[chunkID] = true
+                snapshotChunks[chunkID] = true
             }
 
             var totalChunkSize int64
             var uniqueChunkSize int64
-            for chunkID, _ := range snapshotChunks {
+
+            for chunkID, _ := range chunks {
                 chunkSize := chunkSizeMap[chunkID]
                 totalChunkSize += chunkSize
-
-                if chunkSnapshotMap[chunkID] != -1 {
+                if chunkUniqueMap[chunkID] {
                     uniqueChunkSize += chunkSize
                 }
             }
-            LOG_INFO("SNAPSHOT_CHECK", "Snapshot %s all revisions: %s total chunk bytes, %s unique chunk bytes",
-                    snapshotID, PrettyNumber(totalChunkSize), PrettyNumber(uniqueChunkSize))
+
+            files := ""
+            if snapshot.FileSize != 0 && snapshot.NumberOfFiles != 0 {
+                files = fmt.Sprintf("%d files (%s bytes), ", snapshot.NumberOfFiles, PrettyNumber(snapshot.FileSize))
+            }
+            LOG_INFO("SNAPSHOT_CHECK", "Snapshot %s at revision %d: %s%s total chunk bytes, %s unique chunk bytes",
+                     snapshot.ID, snapshot.Revision, files, PrettyNumber(totalChunkSize), PrettyNumber(uniqueChunkSize))
         }
+
+        var totalChunkSize int64
+        var uniqueChunkSize int64
+        for chunkID, _ := range snapshotChunks {
+            chunkSize := chunkSizeMap[chunkID]
+            totalChunkSize += chunkSize
+
+            if chunkSnapshotMap[chunkID] != -1 {
+                uniqueChunkSize += chunkSize
+            }
+        }
+        LOG_INFO("SNAPSHOT_CHECK", "Snapshot %s all revisions: %s total chunk bytes, %s unique chunk bytes",
+                snapshotID, PrettyNumber(totalChunkSize), PrettyNumber(uniqueChunkSize))
     }
+}
 
-    return true
+// Print snapshot and revision statistics in tabular format
+func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string] [] *Snapshot, chunkSizeMap map[string]int64, chunkUniqueMap map[string]bool, 
+                                               chunkSnapshotMap map[string]int) {
+    tableBuffer := new(bytes.Buffer)
+    tableWriter := tabwriter.NewWriter(tableBuffer, 0, 0, 1, ' ', tabwriter.AlignRight|tabwriter.Debug)
 
+    for snapshotID, snapshotList := range snapshotMap {
+        fmt.Fprintln(tableWriter, "")
+        fmt.Fprintln(tableWriter, " snap \trev \t \tfiles \tbytes \tchunks \tbytes \tuniq \tbytes \tnew \tbytes \t")
+        snapshotChunks := make(map[string]bool)
+
+        earliestSeenChunks := make(map[string]int)
+
+        for _, snapshot := range snapshotList {
+            for _, chunkID := range manager.GetSnapshotChunks(snapshot) {
+                if earliestSeenChunks[chunkID] == 0 {
+                    earliestSeenChunks[chunkID] = math.MaxInt64
+                }
+                earliestSeenChunks[chunkID] = MinInt(earliestSeenChunks[chunkID], snapshot.Revision)
+            }
+        }
+
+        for _, snapshot := range snapshotList {
+
+            chunks := make(map[string]bool)
+            for _, chunkID := range manager.GetSnapshotChunks(snapshot) {
+                chunks[chunkID] = true
+                snapshotChunks[chunkID] = true
+            }
+
+            var totalChunkSize int64
+            var uniqueChunkSize int64
+            var totalChunkCount int64
+            var uniqueChunkCount int64
+            var newChunkCount int64
+            var newChunkSize int64
+
+            for chunkID, _ := range chunks {
+                chunkSize := chunkSizeMap[chunkID]
+                totalChunkSize += chunkSize
+                totalChunkCount += 1
+                if earliestSeenChunks[chunkID] == snapshot.Revision {
+                    newChunkCount += 1
+                    newChunkSize += chunkSize
+                }
+                if chunkUniqueMap[chunkID] {
+                    uniqueChunkSize += chunkSize
+                    uniqueChunkCount += 1
+                }
+            }
+
+            files := " \t "
+            if snapshot.FileSize != 0 && snapshot.NumberOfFiles != 0 {
+                files = fmt.Sprintf("%d \t%s", snapshot.NumberOfFiles, PrettyNumber(snapshot.FileSize))
+            }
+            creationTime := time.Unix(snapshot.StartTime, 0).Format("2006-01-02 15:04")
+            fmt.Fprintln(tableWriter, fmt.Sprintf(
+                    "%s \t%d \t@ %s %5s \t%s \t%d \t%s \t%d \t%s \t%d \t%s \t", 
+                    snapshotID, snapshot.Revision, creationTime, snapshot.Options, files, totalChunkCount, PrettyNumber(totalChunkSize), uniqueChunkCount, PrettyNumber(uniqueChunkSize), newChunkCount, PrettyNumber(newChunkSize)))
+        }
+
+        var totalChunkSize int64
+        var uniqueChunkSize int64
+        var totalChunkCount int64
+        var uniqueChunkCount int64
+        for chunkID, _ := range snapshotChunks {
+            chunkSize := chunkSizeMap[chunkID]
+            totalChunkSize += chunkSize
+            totalChunkCount += 1
+
+            if chunkSnapshotMap[chunkID] != -1 {
+                uniqueChunkSize += chunkSize
+                uniqueChunkCount += 1
+            }
+        }
+        fmt.Fprintln(tableWriter, fmt.Sprintf(
+                "%s \tall \t \t \t \t%d \t%s \t%d \t%s \t \t \t", 
+                snapshotID, totalChunkCount, PrettyNumber(totalChunkSize), uniqueChunkCount, PrettyNumber(uniqueChunkSize)))
+    }
+    tableWriter.Flush()
+    LOG_INFO("SNAPSHOT_CHECK", tableBuffer.String())
 }
 
 // ConvertSequence converts a sequence of chunk hashes into a sequence of chunk ids.

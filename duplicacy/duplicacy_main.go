@@ -812,12 +812,13 @@ func checkSnapshots(context *cli.Context) {
     }
 
     showStatistics := context.Bool("stats")
+    showTabular := context.Bool("tabular")
     checkFiles := context.Bool("files")
     searchFossils := context.Bool("fossils")
     resurrect := context.Bool("resurrect")
 
     backupManager.SetupSnapshotCache(preference.Name)
-    backupManager.SnapshotManager.CheckSnapshots(id, revisions, tag, showStatistics, checkFiles, searchFossils, resurrect)
+    backupManager.SnapshotManager.CheckSnapshots(id, revisions, tag, showStatistics, showTabular, checkFiles, searchFossils, resurrect)
 
     runScript(context, preference.Name, "post")
 }
@@ -1362,6 +1363,10 @@ func main() {
                 cli.BoolFlag {
                     Name:  "stats",
                     Usage: "show deduplication statistics (imply -all and all revisions)",
+                },
+                cli.BoolFlag {
+                    Name:  "tabular",
+                    Usage: "show tabular usage and deduplication statistics (imply -stats, -all, and all revisions)",
                 },
                 cli.StringFlag {
                     Name: "storage",

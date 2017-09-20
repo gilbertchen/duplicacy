@@ -450,3 +450,10 @@ func AtoSize(sizeString string) (int) {
 
     return size
 }
+
+func MinInt(x, y int) (int) {
+    if x < y {
+        return x
+    }
+    return y
+}
