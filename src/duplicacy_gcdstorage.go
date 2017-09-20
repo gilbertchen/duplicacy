@@ -305,6 +305,10 @@ func CreateGCDStorage(tokenFile string, storagePath string, threads int) (storag
 		backoffsRetries: make([]int, threads),
 	}
 
+	for b := range storage.backoffs {
+		storage.backoffs[b] = 0.1 * float64(storage.numberOfThreads) 			// at the first error, we should still sleep some amount
+	}
+
 	storagePathID, err := storage.getIDFromPath(0, storagePath)
 	if err != nil {
 		return nil, err
