@@ -5,23 +5,24 @@
 package duplicacy
 
 import (
-    "io"
+	"io"
 	"fmt"
 	"net"
-    "path"
-    "time"
-    "sync"
-    "strings"
+	"path"
+	"time"
+	"sync"
+	"strings"
 	"net/http"
 	"net/url"
-    "io/ioutil"
-    "math/rand"
-    "encoding/json"
+	"io/ioutil"
+	"math/rand"
+	"encoding/json"
 
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
+	"runtime"
 )
 
 type GCDStorage struct {
@@ -46,26 +47,18 @@ type GCDConfig struct {
 }
 
 func (storage *GCDStorage) shouldRetry(threadIndex int, err error) (bool, error) {
-	const LIMIT_BACKOFF_TIME = 32
+	const LIMIT_BACKOFF_TIME = 64
 	const MAX_NUMBER_OF_RETRIES = 15
 	minimumSleepRatio := 0.1
 	maximumSleepRatio := 0.2
 	minimumSleep := float64(storage.numberOfThreads) * minimumSleepRatio
 	maximumSleep := float64(storage.numberOfThreads) * maximumSleepRatio
-	rand.Seed(time.Now().UnixNano()) 			// unsure if this is needed
+	rand.Seed(time.Now().UnixNano()) // unsure if this is needed
 
 	retry := false
 	message := ""
 	if err == nil {
-		/**
-		  logic for said calculus is here: https://stackoverflow.com/questions/1527803/generating-random-whole-numbers-in-javascript-in-a-specific-range
-		  i chose 0.1*thread number as a minimum sleep time
-		      and 0.2*thread number as a maximum sleep time
-		  for the first sleep of the first backoff of the threads.
-		  This would mean that both when the program is started, and when multiple threads retry, google won't be ddosed :^)
-		*/
-
-		storage.backoffs[threadIndex] = rand.Float64()*(maximumSleep-minimumSleep+1) + minimumSleep
+		storage.backoffs[threadIndex] = computeInitialBackoff(minimumSleep, maximumSleep)
 		storage.backoffsRetries[threadIndex] = 0
 		return false, nil
 	} else if e, ok := err.(*googleapi.Error); ok {
@@ -79,7 +72,7 @@ func (storage *GCDStorage) shouldRetry(threadIndex int, err error) (bool, error)
 			retry = true
 		} else if e.Code == 403 {
 			// User Rate Limit Exceeded
-			message = e.Message 	// "User Rate Limit Exceeded"
+			message = e.Message // "User Rate Limit Exceeded"
 			retry = true
 
 		} else if e.Code == 401 {
@@ -103,23 +96,57 @@ func (storage *GCDStorage) shouldRetry(threadIndex int, err error) (bool, error)
 
 	if !retry || storage.backoffsRetries[threadIndex] >= MAX_NUMBER_OF_RETRIES {
 		LOG_INFO("GCD_RETRY", "Thread: %03d. Maximum number of retries reached. Backoff time: %.2f. Number of retries: %d", threadIndex, storage.backoffs[threadIndex], storage.backoffsRetries[threadIndex])
-		storage.backoffs[threadIndex] = rand.Float64()*(maximumSleep-minimumSleep+1) + minimumSleep
+		storage.backoffs[threadIndex] = computeInitialBackoff(minimumSleep, maximumSleep)
 		storage.backoffsRetries[threadIndex] = 0
 		return false, err
 	}
 
 	if storage.backoffs[threadIndex] < LIMIT_BACKOFF_TIME {
-			storage.backoffs[threadIndex] *= 2.0
+		storage.backoffs[threadIndex] *= 2.0
 	} else {
 		storage.backoffs[threadIndex] = LIMIT_BACKOFF_TIME
 		storage.backoffsRetries[threadIndex] += 1
 	}
 
 	delay := storage.backoffs[threadIndex]*rand.Float64() + storage.backoffs[threadIndex]*rand.Float64()
-	LOG_INFO("GCD_RETRY", "Thread: %03d. Message: %s. Retrying after %.2f seconds. Current backoff: %.2f. Number of retries: %d", threadIndex, message, delay, storage.backoffs[threadIndex], storage.backoffsRetries[threadIndex])
+	if storage.backoffs[threadIndex] >= LIMIT_BACKOFF_TIME {
+		callerChain:=findCallerChain()
+		LOG_INFO("GCD_RETRY", "Thread: %3d. Message: %s. Retrying after %6.2f seconds. Current backoff: %6.2f. Number of retries: %2d. caller chain: %s", threadIndex, message, delay, storage.backoffs[threadIndex], storage.backoffsRetries[threadIndex], callerChain)
+	}
+
 	time.Sleep(time.Duration(delay * float64(time.Second)))
 
 	return true, nil
+}
+
+func findCallerChain() string {
+	callerStack := ""
+	pc := make([]uintptr, 15)
+	n := runtime.Callers(1, pc)
+	frames := runtime.CallersFrames(pc[:n])
+
+	for {
+		frame, more := frames.Next()
+		if strings.Contains(frame.File, "runtime/") {
+			break
+		}
+		callerStack += "->" + frame.Function
+		if !more {
+			break
+		}
+	}
+	return callerStack
+}
+
+/*
+  logic for said calculus is here: https://stackoverflow.com/questions/1527803/generating-random-whole-numbers-in-javascript-in-a-specific-range
+  	chose 0.1*thread number as a minimum sleep time
+	  and 0.2*thread number as a maximum sleep time
+  for the first sleep of the first backoff of the threads.
+  This would mean that both when the program is started, and when multiple threads retry, google won't be ddosed :^)
+*/
+func computeInitialBackoff(minimumSleep float64, maximumSleep float64) float64 {
+	return rand.Float64()*(maximumSleep-minimumSleep+1) + minimumSleep
 }
 
 func (storage *GCDStorage) convertFilePath(filePath string) string {
@@ -296,23 +323,23 @@ func CreateGCDStorage(tokenFile string, storagePath string, threads int) (storag
 		return nil, err
 	}
 
-	storage = &GCDStorage{
-		service:         service,
-		numberOfThreads: threads,
-		idCache:         make(map[string]string),
-		idCacheLock:     &sync.Mutex{},
-		backoffs:        make([]float64, threads),
-		backoffsRetries: make([]int, threads),
-	}
+    storage = &GCDStorage {
+        service: service,
+        numberOfThreads: threads,
+        idCache: make(map[string]string),
+        idCacheLock: &sync.Mutex{},
+        backoffs: make([]float64, threads),
+		backoffsRetries:make([]int, threads),
+    }
 
-	for b := range storage.backoffs {
+    for b := range storage.backoffs {
 		storage.backoffs[b] = 0.1 * float64(storage.numberOfThreads) 			// at the first error, we should still sleep some amount
 	}
 
-	storagePathID, err := storage.getIDFromPath(0, storagePath)
-	if err != nil {
-		return nil, err
-	}
+    storagePathID, err := storage.getIDFromPath(0, storagePath)
+    if err != nil {
+        return nil, err
+    }
 
 	storage.idCache[""] = storagePathID
 
