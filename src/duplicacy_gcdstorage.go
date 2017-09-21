@@ -5,33 +5,34 @@
 package duplicacy
 
 import (
-    "encoding/json"
-    "fmt"
-    "io"
-    "io/ioutil"
-    "math/rand"
-    "net"
-    "net/http"
-    "net/url"
-    "path"
-    "strings"
-    "sync"
+	"encoding/json"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"math/rand"
+	"net"
+	"net/http"
+	"net/url"
+	"path"
+	"strings"
+	"sync"
 	"time"
+
+	"runtime"
 
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
-	"runtime"
 )
 
 type GCDStorage struct {
 	RateLimitedStorage
 
-    service *drive.Service
-    idCache map[string]string
-    idCacheLock *sync.Mutex
-    backoffs []float64
+	service         *drive.Service
+	idCache         map[string]string
+	idCacheLock     *sync.Mutex
+	backoffs        []float64
 	backoffsRetries []int
 
 	isConnected     bool
@@ -101,20 +102,20 @@ func (storage *GCDStorage) shouldRetry(threadIndex int, err error) (bool, error)
 		return false, err
 	}
 
-    if storage.backoffs[threadIndex] < LIMIT_BACKOFF_TIME {
+	if storage.backoffs[threadIndex] < LIMIT_BACKOFF_TIME {
 		storage.backoffs[threadIndex] *= 2.0
 	} else {
 		storage.backoffs[threadIndex] = LIMIT_BACKOFF_TIME
 		storage.backoffsRetries[threadIndex] += 1
 	}
-	delay := storage.backoffs[threadIndex] * rand.Float64() + storage.backoffs[threadIndex]*rand.Float64()
-    if storage.backoffs[threadIndex] >= LIMIT_BACKOFF_TIME {
-		callerChain:=findCallerChain()
+	delay := storage.backoffs[threadIndex]*rand.Float64() + storage.backoffs[threadIndex]*rand.Float64()
+	if storage.backoffs[threadIndex] >= LIMIT_BACKOFF_TIME {
+		callerChain := findCallerChain()
 		LOG_INFO("GCD_RETRY", "Thread: %3d. Message:%s. Retrying after %6.2f seconds. Current backoff: %6.2f. Number of retries: %2d. caller chain: %s", threadIndex, message, delay, storage.backoffs[threadIndex], storage.backoffsRetries[threadIndex], callerChain)
 	}
-    time.Sleep(time.Duration(delay * float64(time.Second)))
+	time.Sleep(time.Duration(delay * float64(time.Second)))
 
-    return true, nil
+	return true, nil
 }
 
 func findCallerChain() string {
@@ -321,17 +322,17 @@ func CreateGCDStorage(tokenFile string, storagePath string, threads int) (storag
 		return nil, err
 	}
 
-    storage = &GCDStorage {
-        service: service,
-        numberOfThreads: threads,
-        idCache: make(map[string]string),
-        idCacheLock: &sync.Mutex{},
-        backoffs: make([]float64, threads),
-		backoffsRetries:make([]int, threads),
-    }
+	storage = &GCDStorage{
+		service:         service,
+		numberOfThreads: threads,
+		idCache:         make(map[string]string),
+		idCacheLock:     &sync.Mutex{},
+		backoffs:        make([]float64, threads),
+		backoffsRetries: make([]int, threads),
+	}
 
-    for b := range storage.backoffs {
-		storage.backoffs[b] = 0.1 * float64(storage.numberOfThreads) 			// at the first error, we should still sleep some amount
+	for b := range storage.backoffs {
+		storage.backoffs[b] = 0.1 * float64(storage.numberOfThreads) // at the first error, we should still sleep some amount
 	}
 
 	storagePathID, err := storage.getIDFromPath(0, storagePath)
