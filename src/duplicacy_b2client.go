@@ -103,7 +103,7 @@ func (client *B2Client) call(url string, requestHeaders map[string]string, input
         case int:
             method = "GET"
             inputReader = bytes.NewReader([]byte(""))
-        case nil:
+        case bool:
             method = "HEAD"
             inputReader = bytes.NewReader([]byte(""))
         }
@@ -295,20 +295,28 @@ func (client *B2Client) ListFileNames(startFileName string, singleFile bool, inc
     input["bucketId"] = client.BucketID
     input["startFileName"] = startFileName
     input["maxFileCount"] = maxFileCount
+    inputMapBool := true
 
-    url := client.APIURL + "/b2api/v1/b2_list_file_names"
-    requestHeaders := map[string]string{}
-    if includeVersions {
-        url = client.APIURL + "/b2api/v1/b2_list_file_versions"
-    } else if singleFile {
-        // handle a single file with no versions as a special case to download the first byte of the file
-        url = client.APIURL + "/b2api/v1/b2_download_file_by_name"
-        requestHeaders["Range"] = "bytes=0-0"
-        // HEAD request
-        input = nil
-    }
     for {
-        readCloser, responseHeader, _, err := client.call(url, requestHeaders, input)
+        url := client.APIURL + "/b2api/v1/b2_list_file_names"
+        requestHeaders := map[string]string{}
+        if includeVersions {
+            url = client.APIURL + "/b2api/v1/b2_list_file_versions"
+        } else if singleFile {
+            // handle a single file with no versions as a special case to download the first byte of the file
+            url = client.DownloadURL + "/file/" + client.BucketName + "/" + startFileName
+            requestHeaders["Range"] = "bytes=0-0"
+            // HEAD request
+            inputMapBool = false
+        }
+        var readCloser io.ReadCloser
+        var responseHeader http.Header
+        var err error
+        if inputMapBool {
+            readCloser, responseHeader, _, err = client.call(url, requestHeaders, input)
+        } else {
+            readCloser, responseHeader, _, err = client.call(url, requestHeaders, false)
+        }
         if err != nil {
             return nil, err
         }
@@ -318,12 +326,13 @@ func (client *B2Client) ListFileNames(startFileName string, singleFile bool, inc
         output := B2ListFileNamesOutput {
         }
 
-        if singleFile && !includeVersions {
+        if !inputMapBool && singleFile && !includeVersions {
             // construct the B2Entry from the response headers of the download request
-            fileID := responseHeader.Get("X-Bz-File-Id")
-            fileName := responseHeader.Get("X-Bz-File-Name")
-            fileAction := responseHeader.Get("X-Bz-Action")
-            fileSize, _ := strconv.ParseInt(responseHeader.Get("Content-Length"), 0, 64)
+            fileID := responseHeader.Get("x-bz-file-id")
+            fileName := responseHeader.Get("x-bz-file-name")
+            fileAction := "upload"
+            rangeString := responseHeader.Get("Content-Range")
+            fileSize, _ := strconv.ParseInt(rangeString[strings.Index(rangeString, "/")+1:], 0, 64)
             fileUploadTimestamp, _ := strconv.ParseInt(responseHeader.Get("X-Bz-Upload-Timestamp"), 0, 64)
 
             return []*B2Entry {&B2Entry { fileID, fileName, fileAction, fileSize, fileUploadTimestamp }}, nil
