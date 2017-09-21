@@ -7,7 +7,7 @@
 package duplicacy
 
 func CreateShadowCopy(top string, shadowCopy bool) (shadowTop string) {
-    return top
+	return top
 }
 
 func DeleteShadowCopy() {}
