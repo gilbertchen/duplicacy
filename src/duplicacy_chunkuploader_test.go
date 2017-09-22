@@ -5,126 +5,124 @@
 package duplicacy
 
 import (
-    "os"
-    "time"
-    "path"
-    "testing"
-    "runtime/debug"
+	"os"
+	"path"
+	"runtime/debug"
+	"testing"
+	"time"
 
-    crypto_rand "crypto/rand"
-    "math/rand"
+	crypto_rand "crypto/rand"
+	"math/rand"
 )
 
 func TestUploaderAndDownloader(t *testing.T) {
 
-    rand.Seed(time.Now().UnixNano())
-    setTestingT(t)
-    SetLoggingLevel(INFO)
+	rand.Seed(time.Now().UnixNano())
+	setTestingT(t)
+	SetLoggingLevel(INFO)
 
-    defer func() {
-        if r := recover(); r != nil {
-            switch e := r.(type) {
-            case Exception:
-                t.Errorf("%s %s", e.LogID, e.Message)
-                debug.PrintStack()
-            default:
-                t.Errorf("%v", e)
-                debug.PrintStack()
-            }
-        }
-    } ()
+	defer func() {
+		if r := recover(); r != nil {
+			switch e := r.(type) {
+			case Exception:
+				t.Errorf("%s %s", e.LogID, e.Message)
+				debug.PrintStack()
+			default:
+				t.Errorf("%v", e)
+				debug.PrintStack()
+			}
+		}
+	}()
 
-    testDir := path.Join(os.TempDir(), "duplicacy_test", "storage_test")
-    os.RemoveAll(testDir)
-    os.MkdirAll(testDir, 0700)
+	testDir := path.Join(os.TempDir(), "duplicacy_test", "storage_test")
+	os.RemoveAll(testDir)
+	os.MkdirAll(testDir, 0700)
 
-    t.Logf("storage: %s", testStorageName)
+	t.Logf("storage: %s", testStorageName)
 
-    storage, err := loadStorage(testDir, 1)
-    if err != nil {
-        t.Errorf("Failed to create storage: %v", err)
-        return
-    }
-    storage.EnableTestMode()
-    storage.SetRateLimits(testRateLimit, testRateLimit)
+	storage, err := loadStorage(testDir, 1)
+	if err != nil {
+		t.Errorf("Failed to create storage: %v", err)
+		return
+	}
+	storage.EnableTestMode()
+	storage.SetRateLimits(testRateLimit, testRateLimit)
 
-    for _, dir := range []string { "chunks", "snapshots" }  {
-        err = storage.CreateDirectory(0, dir)
-        if err != nil {
-            t.Errorf("Failed to create directory %s: %v", dir, err)
-            return
-        }
-    }
+	for _, dir := range []string{"chunks", "snapshots"} {
+		err = storage.CreateDirectory(0, dir)
+		if err != nil {
+			t.Errorf("Failed to create directory %s: %v", dir, err)
+			return
+		}
+	}
 
+	numberOfChunks := 100
+	maxChunkSize := 64 * 1024
 
-    numberOfChunks := 100
-    maxChunkSize := 64 * 1024
+	if testQuickMode {
+		numberOfChunks = 10
+	}
 
-    if testQuickMode {
-        numberOfChunks = 10
-    }
+	var chunks []*Chunk
 
-    var chunks []*Chunk
+	config := CreateConfig()
+	config.MinimumChunkSize = 100
+	config.chunkPool = make(chan *Chunk, numberOfChunks*2)
+	totalFileSize := 0
 
-    config := CreateConfig()
-    config.MinimumChunkSize = 100
-    config.chunkPool = make(chan *Chunk, numberOfChunks * 2)
-    totalFileSize := 0
+	for i := 0; i < numberOfChunks; i++ {
+		content := make([]byte, rand.Int()%maxChunkSize+1)
+		_, err = crypto_rand.Read(content)
+		if err != nil {
+			t.Errorf("Error generating random content: %v", err)
+			return
+		}
 
-    for i := 0; i < numberOfChunks; i++ {
-        content := make([]byte, rand.Int() % maxChunkSize + 1)
-        _, err = crypto_rand.Read(content)
-        if err != nil {
-            t.Errorf("Error generating random content: %v", err)
-            return
-        }
+		chunk := CreateChunk(config, true)
+		chunk.Reset(true)
+		chunk.Write(content)
+		chunks = append(chunks, chunk)
 
-        chunk := CreateChunk(config, true)
-        chunk.Reset(true)
-        chunk.Write(content)
-        chunks = append(chunks, chunk)
+		t.Logf("Chunk: %s, size: %d", chunk.GetID(), chunk.GetLength())
+		totalFileSize += chunk.GetLength()
+	}
 
-        t.Logf("Chunk: %s, size: %d", chunk.GetID(), chunk.GetLength())
-        totalFileSize += chunk.GetLength()
-    }
+	completionFunc := func(chunk *Chunk, chunkIndex int, skipped bool, chunkSize int, uploadSize int) {
+		t.Logf("Chunk %s size %d (%d/%d) uploaded", chunk.GetID(), chunkSize, chunkIndex, len(chunks))
+	}
 
-    completionFunc := func(chunk *Chunk, chunkIndex int, skipped bool, chunkSize int, uploadSize int) {
-        t.Logf("Chunk %s size %d (%d/%d) uploaded", chunk.GetID(), chunkSize, chunkIndex, len(chunks))
-    }
+	chunkUploader := CreateChunkUploader(config, storage, nil, testThreads, nil)
+	chunkUploader.completionFunc = completionFunc
+	chunkUploader.Start()
 
-    chunkUploader := CreateChunkUploader(config, storage, nil, testThreads, nil)
-    chunkUploader.completionFunc = completionFunc
-    chunkUploader.Start()
+	for i, chunk := range chunks {
+		chunkUploader.StartChunk(chunk, i)
+	}
 
-    for i, chunk := range chunks {
-        chunkUploader.StartChunk(chunk, i)
-    }
+	chunkUploader.Stop()
 
-    chunkUploader.Stop()
+	chunkDownloader := CreateChunkDownloader(config, storage, nil, true, testThreads)
+	chunkDownloader.totalChunkSize = int64(totalFileSize)
 
+	for _, chunk := range chunks {
+		chunkDownloader.AddChunk(chunk.GetHash())
+	}
 
-    chunkDownloader := CreateChunkDownloader(config, storage, nil, true, testThreads)
-    chunkDownloader.totalChunkSize = int64(totalFileSize)
+	for i, chunk := range chunks {
+		downloaded := chunkDownloader.WaitForChunk(i)
+		if downloaded.GetID() != chunk.GetID() {
+			t.Error("Uploaded: %s, downloaded: %s", chunk.GetID(), downloaded.GetID())
+		}
+	}
 
-    for _, chunk := range chunks {
-        chunkDownloader.AddChunk(chunk.GetHash())
-    }
+	chunkDownloader.Stop()
 
-    for i, chunk := range chunks {
-        downloaded := chunkDownloader.WaitForChunk(i)
-        if downloaded.GetID() != chunk.GetID() {
-            t.Error("Uploaded: %s, downloaded: %s", chunk.GetID(), downloaded.GetID())
-        }
-    }
-
-    chunkDownloader.Stop()
-
-    for _, file := range listChunks(storage) {
-        err = storage.DeleteFile(0, "chunks/" + file)
-        if err != nil {
-            t.Errorf("Failed to delete the file %s: %v", file, err)
-            return
-        }
-    }
+	for _, file := range listChunks(storage) {
+		err = storage.DeleteFile(0, "chunks/"+file)
+		if err != nil {
+			t.Errorf("Failed to delete the file %s: %v", file, err)
+			return
+		}
+	}
 
 }

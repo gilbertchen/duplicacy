@@ -5,70 +5,66 @@
 package duplicacy
 
 import (
-    "os"
+	"os"
 )
 
 // FileReader wraps a number of files and turns them into a series of readers.
 type FileReader struct {
-    top string
-    files [] *Entry
+	top   string
+	files []*Entry
 
-    CurrentFile *os.File
-    CurrentIndex int
-    CurrentEntry *Entry
+	CurrentFile  *os.File
+	CurrentIndex int
+	CurrentEntry *Entry
 
-    SkippedFiles [] string
+	SkippedFiles []string
 }
 
 // CreateFileReader creates a file reader.
-func CreateFileReader(top string, files[] *Entry) (*FileReader) {
+func CreateFileReader(top string, files []*Entry) *FileReader {
 
-    reader := &FileReader {
-        top: top,
-        files: files,
-        CurrentIndex: -1,
-    }
+	reader := &FileReader{
+		top:          top,
+		files:        files,
+		CurrentIndex: -1,
+	}
 
-    reader.NextFile()
+	reader.NextFile()
 
-    return reader
+	return reader
 }
 
 // NextFile switchs to the next file in the file reader.
-func (reader *FileReader) NextFile() bool{
+func (reader *FileReader) NextFile() bool {
 
-    if reader.CurrentFile != nil {
-        reader.CurrentFile.Close()
-    }
+	if reader.CurrentFile != nil {
+		reader.CurrentFile.Close()
+	}
 
-    reader.CurrentIndex++
-    for reader.CurrentIndex < len(reader.files) {
+	reader.CurrentIndex++
+	for reader.CurrentIndex < len(reader.files) {
 
-        reader.CurrentEntry = reader.files[reader.CurrentIndex]
-        if !reader.CurrentEntry.IsFile() || reader.CurrentEntry.Size == 0 {
-            reader.CurrentIndex++
-            continue
-        }
+		reader.CurrentEntry = reader.files[reader.CurrentIndex]
+		if !reader.CurrentEntry.IsFile() || reader.CurrentEntry.Size == 0 {
+			reader.CurrentIndex++
+			continue
+		}
 
-        var err error
+		var err error
 
-        fullPath := joinPath(reader.top, reader.CurrentEntry.Path)
-        reader.CurrentFile, err = os.OpenFile(fullPath, os.O_RDONLY, 0)
-        if err != nil {
-            LOG_WARN("OPEN_FAILURE", "Failed to open file for reading: %v", err)
-            reader.CurrentEntry.Size = 0
-            reader.SkippedFiles = append(reader.SkippedFiles, reader.CurrentEntry.Path)
-            reader.CurrentIndex++
-            continue
-        }
+		fullPath := joinPath(reader.top, reader.CurrentEntry.Path)
+		reader.CurrentFile, err = os.OpenFile(fullPath, os.O_RDONLY, 0)
+		if err != nil {
+			LOG_WARN("OPEN_FAILURE", "Failed to open file for reading: %v", err)
+			reader.CurrentEntry.Size = 0
+			reader.SkippedFiles = append(reader.SkippedFiles, reader.CurrentEntry.Path)
+			reader.CurrentIndex++
+			continue
+		}
 
-        return true
-    }
+		return true
+	}
 
-    reader.CurrentFile = nil
-    return false
+	reader.CurrentFile = nil
+	return false
 }
-
-
-
-
