@@ -15,12 +15,13 @@ import (
 type DropboxStorage struct {
 	RateLimitedStorage
 
-	clients    []*dropbox.Files
-	storageDir string
+	clients         []*dropbox.Files
+	minimumNesting  int  // The minimum level of directories to dive into before searching for the chunk file.
+	storageDir      string
 }
 
 // CreateDropboxStorage creates a dropbox storage object.
-func CreateDropboxStorage(accessToken string, storageDir string, threads int) (storage *DropboxStorage, err error) {
+func CreateDropboxStorage(accessToken string, storageDir string, minimumNesting int, threads int) (storage *DropboxStorage, err error) {
 
 	var clients []*dropbox.Files
 	for i := 0; i < threads; i++ {
@@ -37,8 +38,9 @@ func CreateDropboxStorage(accessToken string, storageDir string, threads int) (s
 	}
 
 	storage = &DropboxStorage{
-		clients:    clients,
-		storageDir: storageDir,
+		clients:         clients,
+		storageDir:      storageDir,
+		minimumNesting:  minimumNesting,
 	}
 
 	err = storage.CreateDirectory(0, "")
@@ -189,11 +191,8 @@ func (storage *DropboxStorage) FindChunk(threadIndex int, chunkID string, isFoss
 		suffix = ".fsl"
 	}
 
-	// The minimum level of directories to dive into before searching for the chunk file.
-	minimumLevel := 1
-
 	for level := 0; level*2 < len(chunkID); level++ {
-		if level >= minimumLevel {
+		if level >= storage.minimumNesting {
 			filePath = path.Join(dir, chunkID[2*level:]) + suffix
 			var size int64
 			exist, _, size, err = storage.GetFileInfo(threadIndex, filePath)
@@ -217,7 +216,7 @@ func (storage *DropboxStorage) FindChunk(threadIndex int, chunkID string, isFoss
 			continue
 		}
 
-		if level < minimumLevel {
+		if level < storage.minimumNesting {
 			// Create the subdirectory if it doesn't exist.
 			err = storage.CreateDirectory(threadIndex, subDir)
 			if err != nil {

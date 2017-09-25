@@ -22,12 +22,13 @@ type SFTPStorage struct {
 	RateLimitedStorage
 
 	client          *sftp.Client
+	minimumNesting  int  // The minimum level of directories to dive into before searching for the chunk file.
 	storageDir      string
 	numberOfThreads int
 }
 
 func CreateSFTPStorageWithPassword(server string, port int, username string, storageDir string,
-	password string, threads int) (storage *SFTPStorage, err error) {
+	minimumNesting int, password string, threads int) (storage *SFTPStorage, err error) {
 
 	authMethods := []ssh.AuthMethod{ssh.Password(password)}
 
@@ -36,10 +37,10 @@ func CreateSFTPStorageWithPassword(server string, port int, username string, sto
 		return nil
 	}
 
-	return CreateSFTPStorage(server, port, username, storageDir, authMethods, hostKeyCallback, threads)
+	return CreateSFTPStorage(server, port, username, storageDir, minimumNesting, authMethods, hostKeyCallback, threads)
 }
 
-func CreateSFTPStorage(server string, port int, username string, storageDir string,
+func CreateSFTPStorage(server string, port int, username string, storageDir string, minimumNesting int,
 	authMethods []ssh.AuthMethod,
 	hostKeyCallback func(hostname string, remote net.Addr,
 		key ssh.PublicKey) error, threads int) (storage *SFTPStorage, err error) {
@@ -82,6 +83,7 @@ func CreateSFTPStorage(server string, port int, username string, storageDir stri
 	storage = &SFTPStorage{
 		client:          client,
 		storageDir:      storageDir,
+		minimumNesting:  minimumNesting,
 		numberOfThreads: threads,
 	}
 
@@ -184,11 +186,8 @@ func (storage *SFTPStorage) FindChunk(threadIndex int, chunkID string, isFossil 
 		suffix = ".fsl"
 	}
 
-	// The minimum level of directories to dive into before searching for the chunk file.
-	minimumLevel := 2
-
 	for level := 0; level*2 < len(chunkID); level++ {
-		if level >= minimumLevel {
+		if level >= storage.minimumNesting {
 			filePath = path.Join(dir, chunkID[2*level:]) + suffix
 			if stat, err := storage.client.Stat(filePath); err == nil && !stat.IsDir() {
 				return filePath[len(storage.storageDir)+1:], true, stat.Size(), nil
@@ -205,7 +204,7 @@ func (storage *SFTPStorage) FindChunk(threadIndex int, chunkID string, isFossil 
 			continue
 		}
 
-		if level < minimumLevel {
+		if level < storage.minimumNesting {
 			// Create the subdirectory if is doesn't exist.
 
 			if err == nil && !stat.IsDir() {
@@ -225,7 +224,7 @@ func (storage *SFTPStorage) FindChunk(threadIndex int, chunkID string, isFossil 
 			continue
 		}
 
-		// Teh chunk must be under this subdirectory but it doesn't exist.
+		// The chunk must be under this subdirectory but it doesn't exist.
 		return path.Join(dir, chunkID[2*level:])[len(storage.storageDir)+1:] + suffix, false, 0, nil
 
 	}

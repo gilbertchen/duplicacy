@@ -95,14 +95,14 @@ func createTestSnapshotManager(testDir string) *SnapshotManager {
 	os.RemoveAll(testDir)
 	os.MkdirAll(testDir, 0700)
 
-	storage, _ := CreateFileStorage(testDir, 2, false, 1)
+	storage, _ := CreateFileStorage(testDir, 1, false, 1)
 	storage.CreateDirectory(0, "chunks")
 	storage.CreateDirectory(0, "snapshots")
 	config := CreateConfig()
 	snapshotManager := CreateSnapshotManager(config, storage)
 
 	cacheDir := path.Join(testDir, "cache")
-	snapshotCache, _ := CreateFileStorage(cacheDir, 2, false, 1)
+	snapshotCache, _ := CreateFileStorage(cacheDir, 1, false, 1)
 	snapshotCache.CreateDirectory(0, "chunks")
 	snapshotCache.CreateDirectory(0, "snapshots")
 
