@@ -1122,6 +1122,7 @@ func infoStorage(context *cli.Context) {
 		duplicacy.SetKeyringFile(path.Join(preferencePath, "keyring"))
 	}
 
+	resetPasswords := context.Bool("reset-passwords")
 	isEncrypted := context.Bool("e")
 	preference := duplicacy.Preference{
 		Name:              "default",
@@ -1131,12 +1132,18 @@ func infoStorage(context *cli.Context) {
 		DoNotSavePassword: true,
 	}
 
-	password := ""
-	if isEncrypted {
-		password = duplicacy.GetPassword(preference, "password", "Enter the storage password:", false, false)
+	if resetPasswords {
+		// We don't want password entered for the info command to overwrite the saved password for the default storage,
+		// so we simply assign an empty name.
+		preference.Name = ""
 	}
 
-	storage := duplicacy.CreateStorage(preference, context.Bool("reset-passwords"), 1)
+	password := ""
+	if isEncrypted {
+		password = duplicacy.GetPassword(preference, "password", "Enter the storage password:", false, resetPasswords)
+	}
+
+	storage := duplicacy.CreateStorage(preference, resetPasswords, 1)
 	config, isStorageEncrypted, err := duplicacy.DownloadConfig(storage, password)
 
 	if isStorageEncrypted {
