@@ -77,7 +77,9 @@ func (storage *RateLimitedStorage) SetRateLimits(downloadRateLimit int, uploadRa
 
 func checkHostKey(hostname string, remote net.Addr, key ssh.PublicKey) error {
 
-	preferencePath := GetDuplicacyPreferencePath()
+	if preferencePath == "" {
+		return fmt.Errorf("Can't verify SSH host since the preference path is not set")
+	}
 	hostFile := path.Join(preferencePath, "known_hosts")
 	file, err := os.OpenFile(hostFile, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
