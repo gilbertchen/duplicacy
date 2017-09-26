@@ -223,6 +223,11 @@ func configRepository(context *cli.Context, init bool) {
 		storageName = context.Args()[0]
 		snapshotID = context.Args()[1]
 		storageURL = context.Args()[2]
+
+		if strings.ToLower(storageName) == "ssh" {
+			duplicacy.LOG_ERROR("PREFERENCE_INVALID", "'%s' is an invalid storage name", storageName)
+			return
+		}
 	}
 
 	var repository string
