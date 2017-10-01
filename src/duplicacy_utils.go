@@ -182,12 +182,12 @@ func GetPasswordFromPreference(preference Preference, passwordType string) strin
 	// (i.e., preference.Name) in the key, so the key name should really be passwordType rather
 	// than passwordID; we're using passwordID here only for backward compatibility
 	if len(preference.Keys) > 0 && len(preference.Keys[passwordID]) > 0 {
-		LOG_DEBUG("PASSWORD_KEYCHAIN", "Reading %s from preferences", passwordID)
+		LOG_DEBUG("PASSWORD_PREFERENCE", "Reading %s from preferences", passwordID)
 		return preference.Keys[passwordID]
 	}
 
 	if len(preference.Keys) > 0 && len(preference.Keys[passwordType]) > 0 {
-		LOG_DEBUG("PASSWORD_KEYCHAIN", "Reading %s from preferences", passwordType)
+		LOG_DEBUG("PASSWORD_PREFERENCE", "Reading %s from preferences", passwordType)
 		return preference.Keys[passwordType]
 	}
 
@@ -198,9 +198,10 @@ func GetPasswordFromPreference(preference Preference, passwordType string) strin
 func GetPassword(preference Preference, passwordType string, prompt string,
 	showPassword bool, resetPassword bool) string {
 	passwordID := passwordType
-	password := GetPasswordFromPreference(preference, passwordType)
-	if password != "" {
-		return password
+
+	preferencePassword := GetPasswordFromPreference(preference, passwordType)
+	if preferencePassword != "" && !resetPassword {
+		return preferencePassword
 	}
 
 	if preference.Name != "default" {
@@ -212,6 +213,7 @@ func GetPassword(preference Preference, passwordType string, prompt string,
 	} else {
 		password := keyringGet(passwordID)
 		if password != "" {
+			LOG_DEBUG("PASSWORD_KEYCHAIN", "Reading %s from keychain/keyring", passwordType)
 			return password
 		}
 
@@ -222,7 +224,7 @@ func GetPassword(preference Preference, passwordType string, prompt string,
 
 	}
 
-	password = ""
+	password := ""
 	fmt.Printf("%s", prompt)
 	if showPassword {
 		scanner := bufio.NewScanner(os.Stdin)
@@ -235,6 +237,11 @@ func GetPassword(preference Preference, passwordType string, prompt string,
 			return ""
 		}
 		password = string(passwordInBytes)
+	}
+
+	if resetPassword && preferencePassword != "" && preferencePassword != password {
+		LOG_ERROR("PASSWORD_MISMATCH", "The password entered is different from what is in the environment or preference")
+		return ""
 	}
 
 	return password

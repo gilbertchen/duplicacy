@@ -74,6 +74,13 @@ func LoadPreferences(repository string) bool {
 		return false
 	}
 
+	for _, preference := range Preferences {
+		if strings.ToLower(preference.Name) == "ssh" {
+			LOG_ERROR("PREFERENCE_INVALID", "'%s' is an invalid storage name", preference.Name)
+			return false
+		}
+	}
+
 	return true
 }
 

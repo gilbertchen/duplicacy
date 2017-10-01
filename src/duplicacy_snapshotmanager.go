@@ -968,7 +968,7 @@ func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string][]*
 		for _, snapshot := range snapshotList {
 			for _, chunkID := range manager.GetSnapshotChunks(snapshot) {
 				if earliestSeenChunks[chunkID] == 0 {
-					earliestSeenChunks[chunkID] = math.MaxInt64
+					earliestSeenChunks[chunkID] = math.MaxInt32
 				}
 				earliestSeenChunks[chunkID] = MinInt(earliestSeenChunks[chunkID], snapshot.Revision)
 			}
