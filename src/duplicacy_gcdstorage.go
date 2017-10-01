@@ -18,8 +18,6 @@ import (
 	"sync"
 	"time"
 
-	"runtime"
-
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
 	"google.golang.org/api/drive/v3"
@@ -109,32 +107,10 @@ func (storage *GCDStorage) shouldRetry(threadIndex int, err error) (bool, error)
 		storage.backoffsRetries[threadIndex] += 1
 	}
 	delay := storage.backoffs[threadIndex]*rand.Float64() + storage.backoffs[threadIndex]*rand.Float64()
-	if storage.backoffs[threadIndex] >= LIMIT_BACKOFF_TIME {
-		callerChain := findCallerChain()
-		LOG_INFO("GCD_RETRY", "Thread: %3d. Message:%s. Retrying after %6.2f seconds. Current backoff: %6.2f. Number of retries: %2d. caller chain: %s", threadIndex, message, delay, storage.backoffs[threadIndex], storage.backoffsRetries[threadIndex], callerChain)
-	}
+	LOG_DEBUG("GCD_RETRY", "Thread: %3d. Message: %s. Retrying after %6.2f seconds. Current backoff: %6.2f. Number of retries: %2d.", threadIndex, message, delay, storage.backoffs[threadIndex], storage.backoffsRetries[threadIndex])
 	time.Sleep(time.Duration(delay * float64(time.Second)))
 
 	return true, nil
-}
-
-func findCallerChain() string {
-	callerStack := ""
-	pc := make([]uintptr, 15)
-	n := runtime.Callers(1, pc)
-	frames := runtime.CallersFrames(pc[:n])
-
-	for {
-		frame, more := frames.Next()
-		if strings.Contains(frame.File, "runtime/") {
-			break
-		}
-		callerStack += "->" + frame.Function
-		if !more {
-			break
-		}
-	}
-	return callerStack
 }
 
 /*
