@@ -84,14 +84,14 @@ func (client *B2Client) retry(backoff int, response *http.Response) int {
 func (client *B2Client) call(url string, method string, requestHeaders map[string]string, input interface{}) (io.ReadCloser, http.Header, int64, error) {
 
 	switch method {
-		case http.MethodGet:
-        	break
-        case http.MethodHead:
-        	break
-        case http.MethodPost:
-        	break
-        default:
-        	return nil, nil, 0, fmt.Errorf("unhandled http request method: "+method)
+	case http.MethodGet:
+		break
+	case http.MethodHead:
+		break
+	case http.MethodPost:
+		break
+	default:
+		return nil, nil, 0, fmt.Errorf("unhandled http request method: " + method)
 	}
 
 	var response *http.Response
