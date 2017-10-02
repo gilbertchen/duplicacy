@@ -168,6 +168,15 @@ func (client *B2Client) call(url string, method string, requestHeaders map[strin
 				return nil, nil, 0, fmt.Errorf("B2 cap exceeded")
 			}
 			continue
+		} else if response.StatusCode == 404 {
+			if http.MethodHead == method {
+				return nil, nil, 0, fmt.Errorf("URL request '%s' returned status code %d", url, response.StatusCode)
+			}
+		} else if response.StatusCode == 416 {
+			if http.MethodHead == method {
+				// 416 Requested Range Not Satisfiable
+				return nil, nil, 0, fmt.Errorf("URL request '%s' returned status code %d", url, response.StatusCode)
+			}
 		} else if response.StatusCode == 429 || response.StatusCode == 408 {
 			backoff = client.retry(backoff, response)
 			continue
@@ -309,9 +318,10 @@ func (client *B2Client) ListFileNames(startFileName string, singleFile bool, inc
 		if includeVersions {
 			url = client.APIURL + "/b2api/v1/b2_list_file_versions"
 		} else if singleFile {
-			// handle a single file with no versions as a special case to download the first byte of the file
+			// handle a single file with no versions as a special case to download the last byte of the file
 			url = client.DownloadURL + "/file/" + client.BucketName + "/" + startFileName
-			requestHeaders["Range"] = "bytes=0-0"
+			// requesting byte -1 works for empty files where 0-0 fails with a 416 error
+			requestHeaders["Range"] = "bytes=-1"
 			// HEAD request
 			requestMethod = http.MethodHead
 			requestInput = 0
@@ -329,12 +339,42 @@ func (client *B2Client) ListFileNames(startFileName string, singleFile bool, inc
 		output := B2ListFileNamesOutput{}
 
 		if singleFile && !includeVersions {
+			if responseHeader == nil {
+				return nil, fmt.Errorf("b2_download_file_by_name did not return headers")
+			}
+			requiredHeaders := []string{
+				"x-bz-file-id", 
+				"x-bz-file-name",
+			}
+			missingKeys := []string{}
+			for _,headerKey := range requiredHeaders {
+				if "" == responseHeader.Get(headerKey) {
+					missingKeys = append(missingKeys, headerKey)
+				}
+			}
+			if len(missingKeys) > 0 {
+				return nil, fmt.Errorf("b2_download_file_by_name missing headers: %s", missingKeys)
+			}
 			// construct the B2Entry from the response headers of the download request
 			fileID := responseHeader.Get("x-bz-file-id")
 			fileName := responseHeader.Get("x-bz-file-name")
 			fileAction := "upload"
+			// byte range that is returned: "bytes #-#/#
 			rangeString := responseHeader.Get("Content-Range")
-			fileSize, _ := strconv.ParseInt(rangeString[strings.Index(rangeString, "/")+1:], 0, 64)
+			// total file size; 1 if file has content, 0 if it's empty
+			lengthString := responseHeader.Get("Content-Length")
+			var fileSize int64
+			if "" != rangeString {
+				fileSize, _ = strconv.ParseInt(rangeString[strings.Index(rangeString, "/")+1:], 0, 64)
+			} else if "" != lengthString {
+				// this should only execute if the requested file is empty and the range request didn't result in a Content-Range header
+				fileSize, _ = strconv.ParseInt(lengthString, 0, 64)
+				if fileSize != 0 {
+					return nil, fmt.Errorf("b2_download_file_by_name returned non-zero file length")
+				}
+			} else {
+				return nil, fmt.Errorf("could not parse b2_download_file_by_name headers")
+			}
 			fileUploadTimestamp, _ := strconv.ParseInt(responseHeader.Get("X-Bz-Upload-Timestamp"), 0, 64)
 
 			return []*B2Entry{&B2Entry{fileID, fileName, fileAction, fileSize, fileUploadTimestamp}}, nil
