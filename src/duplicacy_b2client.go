@@ -343,11 +343,11 @@ func (client *B2Client) ListFileNames(startFileName string, singleFile bool, inc
 				return nil, fmt.Errorf("b2_download_file_by_name did not return headers")
 			}
 			requiredHeaders := []string{
-				"x-bz-file-id", 
+				"x-bz-file-id",
 				"x-bz-file-name",
 			}
 			missingKeys := []string{}
-			for _,headerKey := range requiredHeaders {
+			for _, headerKey := range requiredHeaders {
 				if "" == responseHeader.Get(headerKey) {
 					missingKeys = append(missingKeys, headerKey)
 				}
