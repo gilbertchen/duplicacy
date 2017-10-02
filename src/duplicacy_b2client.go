@@ -203,7 +203,7 @@ type B2AuthorizeAccountOutput struct {
 
 func (client *B2Client) AuthorizeAccount() (err error) {
 
-	readCloser, _, _, err := client.call(B2AuthorizationURL, http.MethodPost, make(map[string]string), make(map[string]string))
+	readCloser, _, _, err := client.call(B2AuthorizationURL, http.MethodPost, nil, make(map[string]string))
 	if err != nil {
 		return err
 	}
@@ -237,7 +237,7 @@ func (client *B2Client) FindBucket(bucketName string) (err error) {
 
 	url := client.APIURL + "/b2api/v1/b2_list_buckets"
 
-	readCloser, _, _, err := client.call(url, http.MethodPost, make(map[string]string), input)
+	readCloser, _, _, err := client.call(url, http.MethodPost, nil, input)
 	if err != nil {
 		return err
 	}
@@ -299,11 +299,13 @@ func (client *B2Client) ListFileNames(startFileName string, singleFile bool, inc
 	input["bucketId"] = client.BucketID
 	input["startFileName"] = startFileName
 	input["maxFileCount"] = maxFileCount
-	inputMapBool := true
 
 	for {
 		url := client.APIURL + "/b2api/v1/b2_list_file_names"
 		requestHeaders := map[string]string{}
+		requestMethod := http.MethodPost
+		var requestInput interface{}
+		requestInput = input
 		if includeVersions {
 			url = client.APIURL + "/b2api/v1/b2_list_file_versions"
 		} else if singleFile {
@@ -311,16 +313,13 @@ func (client *B2Client) ListFileNames(startFileName string, singleFile bool, inc
 			url = client.DownloadURL + "/file/" + client.BucketName + "/" + startFileName
 			requestHeaders["Range"] = "bytes=0-0"
 			// HEAD request
-			inputMapBool = false
+			requestMethod = http.MethodHead
+			requestInput = 0
 		}
 		var readCloser io.ReadCloser
 		var responseHeader http.Header
 		var err error
-		if inputMapBool {
-			readCloser, responseHeader, _, err = client.call(url, http.MethodPost, requestHeaders, input)
-		} else {
-			readCloser, responseHeader, _, err = client.call(url, http.MethodHead, requestHeaders, 0)
-		}
+		readCloser, responseHeader, _, err = client.call(url, requestMethod, requestHeaders, requestInput)
 		if err != nil {
 			return nil, err
 		}
@@ -329,7 +328,7 @@ func (client *B2Client) ListFileNames(startFileName string, singleFile bool, inc
 
 		output := B2ListFileNamesOutput{}
 
-		if !inputMapBool && singleFile && !includeVersions {
+		if singleFile && !includeVersions {
 			// construct the B2Entry from the response headers of the download request
 			fileID := responseHeader.Get("x-bz-file-id")
 			fileName := responseHeader.Get("x-bz-file-name")
