@@ -81,14 +81,24 @@ func (client *B2Client) retry(backoff int, response *http.Response) int {
 	return backoff
 }
 
-func (client *B2Client) call(url string, requestHeaders map[string]string, input interface{}) (io.ReadCloser, http.Header, int64, error) {
+func (client *B2Client) call(url string, method string, requestHeaders map[string]string, input interface{}) (io.ReadCloser, http.Header, int64, error) {
+
+	switch method {
+		case http.MethodGet:
+        	break
+        case http.MethodHead:
+        	break
+        case http.MethodPost:
+        	break
+        default:
+        	return nil, nil, 0, fmt.Errorf("unhandled http request method: "+method)
+	}
 
 	var response *http.Response
 
 	backoff := 0
 	for i := 0; i < 8; i++ {
 		var inputReader *bytes.Reader
-		method := "POST"
 
 		switch input.(type) {
 		default:
@@ -100,10 +110,6 @@ func (client *B2Client) call(url string, requestHeaders map[string]string, input
 		case []byte:
 			inputReader = bytes.NewReader(input.([]byte))
 		case int:
-			method = "GET"
-			inputReader = bytes.NewReader([]byte(""))
-		case bool:
-			method = "HEAD"
 			inputReader = bytes.NewReader([]byte(""))
 		}
 
@@ -197,7 +203,7 @@ type B2AuthorizeAccountOutput struct {
 
 func (client *B2Client) AuthorizeAccount() (err error) {
 
-	readCloser, _, _, err := client.call(B2AuthorizationURL, make(map[string]string), make(map[string]string))
+	readCloser, _, _, err := client.call(B2AuthorizationURL, http.MethodPost, make(map[string]string), make(map[string]string))
 	if err != nil {
 		return err
 	}
@@ -231,7 +237,7 @@ func (client *B2Client) FindBucket(bucketName string) (err error) {
 
 	url := client.APIURL + "/b2api/v1/b2_list_buckets"
 
-	readCloser, _, _, err := client.call(url, make(map[string]string), input)
+	readCloser, _, _, err := client.call(url, http.MethodPost, make(map[string]string), input)
 	if err != nil {
 		return err
 	}
@@ -311,9 +317,9 @@ func (client *B2Client) ListFileNames(startFileName string, singleFile bool, inc
 		var responseHeader http.Header
 		var err error
 		if inputMapBool {
-			readCloser, responseHeader, _, err = client.call(url, requestHeaders, input)
+			readCloser, responseHeader, _, err = client.call(url, http.MethodPost, requestHeaders, input)
 		} else {
-			readCloser, responseHeader, _, err = client.call(url, requestHeaders, false)
+			readCloser, responseHeader, _, err = client.call(url, http.MethodHead, requestHeaders, 0)
 		}
 		if err != nil {
 			return nil, err
@@ -388,7 +394,7 @@ func (client *B2Client) DeleteFile(fileName string, fileID string) (err error) {
 	input["fileId"] = fileID
 
 	url := client.APIURL + "/b2api/v1/b2_delete_file_version"
-	readCloser, _, _, err := client.call(url, make(map[string]string), input)
+	readCloser, _, _, err := client.call(url, http.MethodPost, make(map[string]string), input)
 	if err != nil {
 		return err
 	}
@@ -408,7 +414,7 @@ func (client *B2Client) HideFile(fileName string) (fileID string, err error) {
 	input["fileName"] = fileName
 
 	url := client.APIURL + "/b2api/v1/b2_hide_file"
-	readCloser, _, _, err := client.call(url, make(map[string]string), input)
+	readCloser, _, _, err := client.call(url, http.MethodPost, make(map[string]string), input)
 	if err != nil {
 		return "", err
 	}
@@ -429,7 +435,7 @@ func (client *B2Client) DownloadFile(filePath string) (io.ReadCloser, int64, err
 
 	url := client.DownloadURL + "/file/" + client.BucketName + "/" + filePath
 
-	readCloser, _, len, err := client.call(url, make(map[string]string), 0)
+	readCloser, _, len, err := client.call(url, http.MethodGet, make(map[string]string), 0)
 	return readCloser, len, err
 }
 
@@ -444,7 +450,7 @@ func (client *B2Client) getUploadURL() error {
 	input["bucketId"] = client.BucketID
 
 	url := client.APIURL + "/b2api/v1/b2_get_upload_url"
-	readCloser, _, _, err := client.call(url, make(map[string]string), input)
+	readCloser, _, _, err := client.call(url, http.MethodPost, make(map[string]string), input)
 	if err != nil {
 		return err
 	}
