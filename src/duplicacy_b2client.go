@@ -170,7 +170,8 @@ func (client *B2Client) call(url string, method string, requestHeaders map[strin
 			continue
 		} else if response.StatusCode == 404 {
 			if http.MethodHead == method {
-				return nil, nil, 0, fmt.Errorf("URL request '%s' returned status code %d", url, response.StatusCode)
+				LOG_DEBUG("BACKBLAZE_CALL", "URL request '%s' returned status code %d", url, response.StatusCode)
+				return nil, nil, 0, nil
 			}
 		} else if response.StatusCode == 416 {
 			if http.MethodHead == method {
@@ -340,7 +341,8 @@ func (client *B2Client) ListFileNames(startFileName string, singleFile bool, inc
 
 		if singleFile && !includeVersions {
 			if responseHeader == nil {
-				return nil, fmt.Errorf("b2_download_file_by_name did not return headers")
+				LOG_DEBUG("BACKBLAZE_LIST", "b2_download_file_by_name did not return headers")
+				return []*B2Entry{}, nil
 			}
 			requiredHeaders := []string{
 				"x-bz-file-id",
