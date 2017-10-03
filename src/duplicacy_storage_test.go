@@ -41,7 +41,7 @@ func init() {
 func loadStorage(localStoragePath string, threads int) (Storage, error) {
 
 	if testStorageName == "" || testStorageName == "file" {
-		return CreateFileStorage(localStoragePath, 1, false, threads)
+		return CreateFileStorage(localStoragePath, 2, false, threads)
 	}
 
 	config, err := ioutil.ReadFile("test_storage.conf")
@@ -64,10 +64,10 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 	if testStorageName == "flat" {
 		return CreateFileStorage(localStoragePath, 0, false, threads)
 	} else if testStorageName == "samba" {
-		return CreateFileStorage(localStoragePath, 1, true, threads)
+		return CreateFileStorage(localStoragePath, 2, true, threads)
 	} else if testStorageName == "sftp" {
 		port, _ := strconv.Atoi(storage["port"])
-		return CreateSFTPStorageWithPassword(storage["server"], port, storage["username"], storage["directory"], 1, storage["password"], threads)
+		return CreateSFTPStorageWithPassword(storage["server"], port, storage["username"], storage["directory"], 2, storage["password"], threads)
 	} else if testStorageName == "s3" || testStorageName == "wasabi" {
 		return CreateS3Storage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads, true, false)
 	} else if testStorageName == "s3c" {

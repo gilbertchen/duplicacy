@@ -146,7 +146,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	}
 
 	if isFileStorage {
-		fileStorage, err := CreateFileStorage(storageURL, 1, isCacheNeeded, threads)
+		fileStorage, err := CreateFileStorage(storageURL, 2, isCacheNeeded, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the file storage at %s: %v", storageURL, err)
 			return nil
@@ -164,7 +164,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	}
 
 	if strings.HasPrefix(storageURL, "samba://") {
-		fileStorage, err := CreateFileStorage(storageURL[8:], 1, true, threads)
+		fileStorage, err := CreateFileStorage(storageURL[8:], 2, true, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the file storage at %s: %v", storageURL, err)
 			return nil
@@ -311,7 +311,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			return checkHostKey(hostname, remote, key)
 		}
 
-		sftpStorage, err := CreateSFTPStorage(server, port, username, storageDir, 1, authMethods, hostKeyChecker, threads)
+		sftpStorage, err := CreateSFTPStorage(server, port, username, storageDir, 2, authMethods, hostKeyChecker, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the SFTP storage at %s: %v", storageURL, err)
 			return nil
