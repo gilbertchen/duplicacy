@@ -1849,6 +1849,8 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 			// If revisions are specified ignore tags and the retention policy.
 			for _, snapshot := range snapshots {
 				if _, found := revisionMap[snapshot.Revision]; found {
+					LOG_DEBUG("SNAPSHOT_DELETE", "Snapshot %s at revision %d to be deleted - specified in command",
+						snapshot.ID, snapshot.Revision)
 					snapshot.Flag = true
 					toBeDeleted++
 				}
@@ -1886,12 +1888,16 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 				if i < len(retentionPolicies) {
 					if retentionPolicies[i].Interval == 0 {
 						// No snapshots to keep if interval is 0
+						LOG_DEBUG("SNAPSHOT_DELETE", "Snapshot %s at revision %d to be deleted - older than %d days",
+							snapshot.ID, snapshot.Revision, retentionPolicies[i].Age)
 						snapshot.Flag = true
 						toBeDeleted++
 					} else if lastSnapshotTime != 0 &&
 						int(snapshot.StartTime-lastSnapshotTime) < retentionPolicies[i].Interval*secondsInDay-600 {
 						// Delete the snapshot if it is too close to the last kept one.  Note that a tolerance of 10
 						// minutes was subtracted from the interval.
+						LOG_DEBUG("SNAPSHOT_DELETE", "Snapshot %s at revision %d to be deleted - older than %d days, less than %d days from previous",
+							snapshot.ID, snapshot.Revision, retentionPolicies[i].Age, retentionPolicies[i].Interval)
 						snapshot.Flag = true
 						toBeDeleted++
 					} else {
