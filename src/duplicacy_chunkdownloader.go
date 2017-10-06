@@ -324,22 +324,39 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 		LOG_DEBUG("CHUNK_FOSSIL", "Chunk %s has been marked as a fossil", chunkID)
 	}
 
-	err = downloader.storage.DownloadFile(threadIndex, chunkPath, chunk)
-	if err != nil {
-		LOG_ERROR("UPLOAD_FATAL", "Failed to download the chunk %s: %v", chunkID, err)
-		return false
-	}
+	const MaxDownloadAttempts = 3
+	for downloadAttempt := 0;; downloadAttempt++ {
+		err = downloader.storage.DownloadFile(threadIndex, chunkPath, chunk)
+		if err != nil {
+			LOG_ERROR("UPLOAD_FATAL", "Failed to download the chunk %s: %v", chunkID, err)
+			return false
+		}
 
-	err = chunk.Decrypt(downloader.config.ChunkKey, task.chunkHash)
-	if err != nil {
-		LOG_ERROR("UPLOAD_CHUNK", "Failed to decrypt the chunk %s: %v", chunkID, err)
-		return false
-	}
+		err = chunk.Decrypt(downloader.config.ChunkKey, task.chunkHash)
+		if err != nil {
+			if downloadAttempt < MaxDownloadAttempts {
+				LOG_WARN("RETRY_DOWNLOAD", "Failed to decrypt the chunk %s: %v", chunkID, err)
+				chunk.Reset(false)
+				continue
+			} else {
+				LOG_ERROR("UPLOAD_CHUNK", "Failed to decrypt the chunk %s: %v", chunkID, err)
+				return false
+			}
+		}
 
-	actualChunkID := chunk.GetID()
-	if actualChunkID != chunkID {
-		LOG_FATAL("UPLOAD_CORRUPTED", "The chunk %s has a hash id of %s", chunkID, actualChunkID)
-		return false
+		actualChunkID := chunk.GetID()
+		if actualChunkID != chunkID {
+			if downloadAttempt < MaxDownloadAttempts {
+				LOG_WARN("RETRY_DOWNLOAD", "The chunk %s has a hash id of %s", chunkID, actualChunkID)
+				chunk.Reset(false)
+				continue
+			} else {
+				LOG_FATAL("UPLOAD_CORRUPTED", "The chunk %s has a hash id of %s", chunkID, actualChunkID)
+				return false
+			}
+		}
+
+		break
 	}
 
 	if len(cachedPath) > 0 {
