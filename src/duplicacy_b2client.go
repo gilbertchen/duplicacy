@@ -81,38 +81,53 @@ func (client *B2Client) retry(backoff int, response *http.Response) int {
 	return backoff
 }
 
-func (client *B2Client) call(url string, input interface{}) (io.ReadCloser, int64, error) {
+func (client *B2Client) call(url string, method string, requestHeaders map[string]string, input interface{}) (io.ReadCloser, http.Header, int64, error) {
+
+	switch method {
+	case http.MethodGet:
+		break
+	case http.MethodHead:
+		break
+	case http.MethodPost:
+		break
+	default:
+		return nil, nil, 0, fmt.Errorf("unhandled http request method: " + method)
+	}
 
 	var response *http.Response
 
 	backoff := 0
 	for i := 0; i < 8; i++ {
 		var inputReader *bytes.Reader
-		method := "POST"
 
 		switch input.(type) {
 		default:
 			jsonInput, err := json.Marshal(input)
 			if err != nil {
-				return nil, 0, err
+				return nil, nil, 0, err
 			}
 			inputReader = bytes.NewReader(jsonInput)
 		case []byte:
 			inputReader = bytes.NewReader(input.([]byte))
 		case int:
-			method = "GET"
 			inputReader = bytes.NewReader([]byte(""))
 		}
 
 		request, err := http.NewRequest(method, url, inputReader)
 		if err != nil {
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
 
 		if url == B2AuthorizationURL {
 			request.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(client.AccountID+":"+client.ApplicationKey)))
 		} else {
 			request.Header.Set("Authorization", client.AuthorizationToken)
+		}
+
+		if requestHeaders != nil {
+			for key, value := range requestHeaders {
+				request.Header.Set(key, value)
+			}
 		}
 
 		if client.TestMode {
@@ -131,11 +146,11 @@ func (client *B2Client) call(url string, input interface{}) (io.ReadCloser, int6
 				backoff = client.retry(backoff, response)
 				continue
 			}
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
 
 		if response.StatusCode < 300 {
-			return response.Body, response.ContentLength, nil
+			return response.Body, response.Header, response.ContentLength, nil
 		}
 
 		LOG_DEBUG("BACKBLAZE_CALL", "URL request '%s' returned status code %d", url, response.StatusCode)
@@ -144,15 +159,25 @@ func (client *B2Client) call(url string, input interface{}) (io.ReadCloser, int6
 		response.Body.Close()
 		if response.StatusCode == 401 {
 			if url == B2AuthorizationURL {
-				return nil, 0, fmt.Errorf("Authorization failure")
+				return nil, nil, 0, fmt.Errorf("Authorization failure")
 			}
 			client.AuthorizeAccount()
 			continue
 		} else if response.StatusCode == 403 {
 			if !client.TestMode {
-				return nil, 0, fmt.Errorf("B2 cap exceeded")
+				return nil, nil, 0, fmt.Errorf("B2 cap exceeded")
 			}
 			continue
+		} else if response.StatusCode == 404 {
+			if http.MethodHead == method {
+				LOG_DEBUG("BACKBLAZE_CALL", "URL request '%s' returned status code %d", url, response.StatusCode)
+				return nil, nil, 0, nil
+			}
+		} else if response.StatusCode == 416 {
+			if http.MethodHead == method {
+				// 416 Requested Range Not Satisfiable
+				return nil, nil, 0, fmt.Errorf("URL request '%s' returned status code %d", url, response.StatusCode)
+			}
 		} else if response.StatusCode == 429 || response.StatusCode == 408 {
 			backoff = client.retry(backoff, response)
 			continue
@@ -170,13 +195,13 @@ func (client *B2Client) call(url string, input interface{}) (io.ReadCloser, int6
 		e := &B2Error{}
 
 		if err := json.NewDecoder(response.Body).Decode(e); err != nil {
-			return nil, 0, err
+			return nil, nil, 0, err
 		}
 
-		return nil, 0, e
+		return nil, nil, 0, e
 	}
 
-	return nil, 0, fmt.Errorf("Maximum backoff reached")
+	return nil, nil, 0, fmt.Errorf("Maximum backoff reached")
 }
 
 type B2AuthorizeAccountOutput struct {
@@ -188,7 +213,7 @@ type B2AuthorizeAccountOutput struct {
 
 func (client *B2Client) AuthorizeAccount() (err error) {
 
-	readCloser, _, err := client.call(B2AuthorizationURL, make(map[string]string))
+	readCloser, _, _, err := client.call(B2AuthorizationURL, http.MethodPost, nil, make(map[string]string))
 	if err != nil {
 		return err
 	}
@@ -222,7 +247,7 @@ func (client *B2Client) FindBucket(bucketName string) (err error) {
 
 	url := client.APIURL + "/b2api/v1/b2_list_buckets"
 
-	readCloser, _, err := client.call(url, input)
+	readCloser, _, _, err := client.call(url, http.MethodPost, nil, input)
 	if err != nil {
 		return err
 	}
@@ -287,10 +312,25 @@ func (client *B2Client) ListFileNames(startFileName string, singleFile bool, inc
 
 	for {
 		url := client.APIURL + "/b2api/v1/b2_list_file_names"
+		requestHeaders := map[string]string{}
+		requestMethod := http.MethodPost
+		var requestInput interface{}
+		requestInput = input
 		if includeVersions {
 			url = client.APIURL + "/b2api/v1/b2_list_file_versions"
+		} else if singleFile {
+			// handle a single file with no versions as a special case to download the last byte of the file
+			url = client.DownloadURL + "/file/" + client.BucketName + "/" + startFileName
+			// requesting byte -1 works for empty files where 0-0 fails with a 416 error
+			requestHeaders["Range"] = "bytes=-1"
+			// HEAD request
+			requestMethod = http.MethodHead
+			requestInput = 0
 		}
-		readCloser, _, err := client.call(url, input)
+		var readCloser io.ReadCloser
+		var responseHeader http.Header
+		var err error
+		readCloser, responseHeader, _, err = client.call(url, requestMethod, requestHeaders, requestInput)
 		if err != nil {
 			return nil, err
 		}
@@ -298,6 +338,49 @@ func (client *B2Client) ListFileNames(startFileName string, singleFile bool, inc
 		defer readCloser.Close()
 
 		output := B2ListFileNamesOutput{}
+
+		if singleFile && !includeVersions {
+			if responseHeader == nil {
+				LOG_DEBUG("BACKBLAZE_LIST", "b2_download_file_by_name did not return headers")
+				return []*B2Entry{}, nil
+			}
+			requiredHeaders := []string{
+				"x-bz-file-id",
+				"x-bz-file-name",
+			}
+			missingKeys := []string{}
+			for _, headerKey := range requiredHeaders {
+				if "" == responseHeader.Get(headerKey) {
+					missingKeys = append(missingKeys, headerKey)
+				}
+			}
+			if len(missingKeys) > 0 {
+				return nil, fmt.Errorf("b2_download_file_by_name missing headers: %s", missingKeys)
+			}
+			// construct the B2Entry from the response headers of the download request
+			fileID := responseHeader.Get("x-bz-file-id")
+			fileName := responseHeader.Get("x-bz-file-name")
+			fileAction := "upload"
+			// byte range that is returned: "bytes #-#/#
+			rangeString := responseHeader.Get("Content-Range")
+			// total file size; 1 if file has content, 0 if it's empty
+			lengthString := responseHeader.Get("Content-Length")
+			var fileSize int64
+			if "" != rangeString {
+				fileSize, _ = strconv.ParseInt(rangeString[strings.Index(rangeString, "/")+1:], 0, 64)
+			} else if "" != lengthString {
+				// this should only execute if the requested file is empty and the range request didn't result in a Content-Range header
+				fileSize, _ = strconv.ParseInt(lengthString, 0, 64)
+				if fileSize != 0 {
+					return nil, fmt.Errorf("b2_download_file_by_name returned non-zero file length")
+				}
+			} else {
+				return nil, fmt.Errorf("could not parse b2_download_file_by_name headers")
+			}
+			fileUploadTimestamp, _ := strconv.ParseInt(responseHeader.Get("X-Bz-Upload-Timestamp"), 0, 64)
+
+			return []*B2Entry{&B2Entry{fileID, fileName, fileAction, fileSize, fileUploadTimestamp}}, nil
+		}
 
 		if err = json.NewDecoder(readCloser).Decode(&output); err != nil {
 			return nil, err
@@ -352,7 +435,7 @@ func (client *B2Client) DeleteFile(fileName string, fileID string) (err error) {
 	input["fileId"] = fileID
 
 	url := client.APIURL + "/b2api/v1/b2_delete_file_version"
-	readCloser, _, err := client.call(url, input)
+	readCloser, _, _, err := client.call(url, http.MethodPost, make(map[string]string), input)
 	if err != nil {
 		return err
 	}
@@ -372,7 +455,7 @@ func (client *B2Client) HideFile(fileName string) (fileID string, err error) {
 	input["fileName"] = fileName
 
 	url := client.APIURL + "/b2api/v1/b2_hide_file"
-	readCloser, _, err := client.call(url, input)
+	readCloser, _, _, err := client.call(url, http.MethodPost, make(map[string]string), input)
 	if err != nil {
 		return "", err
 	}
@@ -393,7 +476,8 @@ func (client *B2Client) DownloadFile(filePath string) (io.ReadCloser, int64, err
 
 	url := client.DownloadURL + "/file/" + client.BucketName + "/" + filePath
 
-	return client.call(url, 0)
+	readCloser, _, len, err := client.call(url, http.MethodGet, make(map[string]string), 0)
+	return readCloser, len, err
 }
 
 type B2GetUploadArgumentOutput struct {
@@ -407,7 +491,7 @@ func (client *B2Client) getUploadURL() error {
 	input["bucketId"] = client.BucketID
 
 	url := client.APIURL + "/b2api/v1/b2_get_upload_url"
-	readCloser, _, err := client.call(url, input)
+	readCloser, _, _, err := client.call(url, http.MethodPost, make(map[string]string), input)
 	if err != nil {
 		return err
 	}
