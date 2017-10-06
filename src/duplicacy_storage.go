@@ -313,7 +313,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			return checkHostKey(hostname, remote, key)
 		}
 
-		sftpStorage, err := CreateSFTPStorage(server, port, username, storageDir, authMethods, hostKeyChecker, threads)
+		sftpStorage, err := CreateSFTPStorage(server, port, username, storageDir, 2, authMethods, hostKeyChecker, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the SFTP storage at %s: %v", storageURL, err)
 			return nil
@@ -375,7 +375,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	} else if matched[1] == "dropbox" {
 		storageDir := matched[3] + matched[5]
 		token := GetPassword(preference, "dropbox_token", "Enter Dropbox access token:", true, resetPassword)
-		dropboxStorage, err := CreateDropboxStorage(token, storageDir, threads)
+		dropboxStorage, err := CreateDropboxStorage(token, storageDir, 1, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the dropbox storage: %v", err)
 			return nil

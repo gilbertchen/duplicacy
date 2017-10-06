@@ -67,7 +67,7 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		return CreateFileStorage(localStoragePath, 2, true, threads)
 	} else if testStorageName == "sftp" {
 		port, _ := strconv.Atoi(storage["port"])
-		return CreateSFTPStorageWithPassword(storage["server"], port, storage["username"], storage["directory"], storage["password"], threads)
+		return CreateSFTPStorageWithPassword(storage["server"], port, storage["username"], storage["directory"], 2, storage["password"], threads)
 	} else if testStorageName == "s3" || testStorageName == "wasabi" {
 		return CreateS3Storage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads, true, false)
 	} else if testStorageName == "s3c" {
@@ -77,7 +77,7 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 	} else if testStorageName == "minios" {
 		return CreateS3Storage(storage["region"], storage["endpoint"], storage["bucket"], storage["directory"], storage["access_key"], storage["secret_key"], threads, true, true)
 	} else if testStorageName == "dropbox" {
-		return CreateDropboxStorage(storage["token"], storage["directory"], threads)
+		return CreateDropboxStorage(storage["token"], storage["directory"], 1, threads)
 	} else if testStorageName == "b2" {
 		return CreateB2Storage(storage["account"], storage["key"], storage["bucket"], threads)
 	} else if testStorageName == "gcs-s3" {

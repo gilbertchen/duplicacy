@@ -18,14 +18,14 @@ import (
 type FileStorage struct {
 	RateLimitedStorage
 
-	minimumLevel    int  // The minimum level of directories to dive into before searching for the chunk file.
+	minimumNesting  int  // The minimum level of directories to dive into before searching for the chunk file.
 	isCacheNeeded   bool // Network storages require caching
 	storageDir      string
 	numberOfThreads int
 }
 
 // CreateFileStorage creates a file storage.
-func CreateFileStorage(storageDir string, minimumLevel int, isCacheNeeded bool, threads int) (storage *FileStorage, err error) {
+func CreateFileStorage(storageDir string, minimumNesting int, isCacheNeeded bool, threads int) (storage *FileStorage, err error) {
 
 	var stat os.FileInfo
 
@@ -51,7 +51,7 @@ func CreateFileStorage(storageDir string, minimumLevel int, isCacheNeeded bool, 
 
 	storage = &FileStorage{
 		storageDir:      storageDir,
-		minimumLevel:    minimumLevel,
+		minimumNesting:  minimumNesting,
 		isCacheNeeded:   isCacheNeeded,
 		numberOfThreads: threads,
 	}
@@ -137,7 +137,7 @@ func (storage *FileStorage) FindChunk(threadIndex int, chunkID string, isFossil 
 	}
 
 	for level := 0; level*2 < len(chunkID); level++ {
-		if level >= storage.minimumLevel {
+		if level >= storage.minimumNesting {
 			filePath = path.Join(dir, chunkID[2*level:]) + suffix
 			// Use Lstat() instead of Stat() since 1) Stat() doesn't work for deduplicated disks on Windows and 2) there isn't
 			// really a need to follow the link if filePath is a link.
@@ -159,7 +159,7 @@ func (storage *FileStorage) FindChunk(threadIndex int, chunkID string, isFossil 
 			continue
 		}
 
-		if level < storage.minimumLevel {
+		if level < storage.minimumNesting {
 			// Create the subdirectory if it doesn't exist.
 
 			if err == nil && !stat.IsDir() {
