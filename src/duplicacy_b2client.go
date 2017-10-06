@@ -335,7 +335,9 @@ func (client *B2Client) ListFileNames(startFileName string, singleFile bool, inc
 			return nil, err
 		}
 
-		defer readCloser.Close()
+		if readCloser != nil {
+			defer readCloser.Close()
+		}
 
 		output := B2ListFileNamesOutput{}
 
