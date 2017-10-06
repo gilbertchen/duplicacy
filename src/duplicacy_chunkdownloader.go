@@ -335,7 +335,7 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 		err = chunk.Decrypt(downloader.config.ChunkKey, task.chunkHash)
 		if err != nil {
 			if downloadAttempt < MaxDownloadAttempts {
-				LOG_WARN("RETRY_DOWNLOAD", "Failed to decrypt the chunk %s: %v", chunkID, err)
+				LOG_WARN("RETRY_DOWNLOAD", "Failed to decrypt the chunk %s: %v; retrying", chunkID, err)
 				chunk.Reset(false)
 				continue
 			} else {
@@ -347,7 +347,7 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 		actualChunkID := chunk.GetID()
 		if actualChunkID != chunkID {
 			if downloadAttempt < MaxDownloadAttempts {
-				LOG_WARN("RETRY_DOWNLOAD", "The chunk %s has a hash id of %s", chunkID, actualChunkID)
+				LOG_WARN("RETRY_DOWNLOAD", "The chunk %s has a hash id of %s; retrying", chunkID, actualChunkID)
 				chunk.Reset(false)
 				continue
 			} else {
