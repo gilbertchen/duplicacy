@@ -239,6 +239,8 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 					signers, err = sshAgent.Signers()
 					if err != nil {
 						LOG_DEBUG("SSH_AGENT", "Can't log in using public key authentication via agent: %v", err)
+					} else if len(signers) == 0 {
+						LOG_DEBUG("SSH_AGENT", "SSH agent doesn't return any signer")
 					}
 				}
 			}
