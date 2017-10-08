@@ -239,11 +239,6 @@ func GetPassword(preference Preference, passwordType string, prompt string,
 		password = string(passwordInBytes)
 	}
 
-	if resetPassword && preferencePassword != "" && preferencePassword != password {
-		LOG_ERROR("PASSWORD_MISMATCH", "The password entered is different from what is in the environment or preference")
-		return ""
-	}
-
 	return password
 }
 
