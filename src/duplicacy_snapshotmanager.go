@@ -1235,7 +1235,7 @@ func (manager *SnapshotManager) PrintFile(snapshotID string, revision int, path 
 		return false
 	}
 
-	fmt.Printf("%s\n", string(content))
+	fmt.Printf("%s", string(content))
 
 	return true
 }
