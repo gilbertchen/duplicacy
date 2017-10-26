@@ -396,7 +396,11 @@ func configRepository(context *cli.Context, init bool) {
 			}
 		}
 
-		duplicacy.ConfigStorage(storage, compressionLevel, averageChunkSize, maximumChunkSize,
+		iterations := context.Int("iterations")
+		if iterations == 0 {
+			iterations = duplicacy.CONFIG_DEFAULT_ITERATIONS
+		}
+		duplicacy.ConfigStorage(storage, iterations, compressionLevel, averageChunkSize, maximumChunkSize,
 			minimumChunkSize, storagePassword, otherConfig)
 	}
 
@@ -576,7 +580,12 @@ func changePassword(context *cli.Context) {
 		return
 	}
 
-	duplicacy.UploadConfig(storage, config, newPassword)
+	iterations := context.Int("iterations")
+	if iterations == 0 {
+		iterations = duplicacy.CONFIG_DEFAULT_ITERATIONS
+	}
+
+	duplicacy.UploadConfig(storage, config, newPassword, iterations)
 
 	duplicacy.SavePassword(*preference, "password", newPassword)
 
@@ -1174,23 +1183,28 @@ func main() {
 				cli.StringFlag{
 					Name:     "chunk-size, c",
 					Value:    "4M",
-					Usage:    "the average size of chunks",
-					Argument: "4M",
+					Usage:    "the average size of chunks (defaults to 4M)",
+					Argument: "<size>",
 				},
 				cli.StringFlag{
 					Name:     "max-chunk-size, max",
-					Usage:    "the maximum size of chunks (defaults to chunk-size * 4)",
-					Argument: "16M",
+					Usage:    "the maximum size of chunks (defaults to chunk-size*4)",
+					Argument: "<size>",
 				},
 				cli.StringFlag{
 					Name:     "min-chunk-size, min",
-					Usage:    "the minimum size of chunks (defaults to chunk-size / 4)",
-					Argument: "1M",
+					Usage:    "the minimum size of chunks (defaults to chunk-size/4)",
+					Argument: "<size>",
+				},
+				cli.IntFlag{
+					Name:     "iterations",
+					Usage:    "the number of iterations used in storage key deriviation (default is 16384)",
+					Argument: "<i>",
 				},
 				cli.StringFlag{
 					Name:     "pref-dir",
-					Usage:    "Specify alternate location for .duplicacy preferences directory (absolute or relative to current directory)",
-					Argument: "<preferences directory path>",
+					Usage:    "alternate location for the .duplicacy directory (absolute or relative to current directory)",
+					Argument: "<path>",
 				},
 			},
 			Usage:     "Initialize the storage if necessary and the current directory as the repository",
@@ -1538,6 +1552,11 @@ func main() {
 					Usage:    "change the password used to access the specified storage",
 					Argument: "<storage name>",
 				},
+				cli.IntFlag{
+					Name:     "iterations",
+					Usage:    "the number of iterations used in storage key deriviation (default is 16384)",
+					Argument: "<i>",
+				},
 			},
 			Usage:     "Change the storage password",
 			ArgsUsage: " ",
@@ -1549,23 +1568,28 @@ func main() {
 			Flags: []cli.Flag{
 				cli.BoolFlag{
 					Name:  "encrypt, e",
-					Usage: "Encrypt the storage with a password",
+					Usage: "encrypt the storage with a password",
 				},
 				cli.StringFlag{
 					Name:     "chunk-size, c",
 					Value:    "4M",
-					Usage:    "the average size of chunks",
-					Argument: "4M",
+					Usage:    "the average size of chunks (default is 4M)",
+					Argument: "<size>",
 				},
 				cli.StringFlag{
 					Name:     "max-chunk-size, max",
-					Usage:    "the maximum size of chunks (defaults to chunk-size * 4)",
-					Argument: "16M",
+					Usage:    "the maximum size of chunks (default is chunk-size*4)",
+					Argument: "<size>",
 				},
 				cli.StringFlag{
 					Name:     "min-chunk-size, min",
-					Usage:    "the minimum size of chunks (defaults to chunk-size / 4)",
-					Argument: "1M",
+					Usage:    "the minimum size of chunks (default is chunk-size/4)",
+					Argument: "<size>",
+				},
+				cli.IntFlag{
+					Name:     "iterations",
+					Usage:    "the number of iterations used in storage key deriviation (default is 16384)",
+					Argument: "<i>",
 				},
 				cli.StringFlag{
 					Name:     "copy",

@@ -13,10 +13,11 @@ USAGE:
 
 OPTIONS:
    -encrypt, -e                    encrypt the storage with a password
-   -chunk-size, -c 4M              the average size of chunks
-   -max-chunk-size, -max 16M       the maximum size of chunks (defaults to chunk-size * 4)
-   -min-chunk-size, -min 1M        the minimum size of chunks (defaults to chunk-size / 4)
-   -pref-dir <preference directory path>    Specify alternate location for .duplicacy preferences directory
+   -chunk-size, -c <size>          the average size of chunks (default is 4M)
+   -max-chunk-size, -max <size>    the maximum size of chunks (default is chunk-size*4)
+   -min-chunk-size, -min <size>    the minimum size of chunks (default is chunk-size/4)
+   -iterations <i>				   the number of iterations used in storage key deriviation (default is 16384)
+   -pref-dir <path>                alternate location for the .duplicacy directory (absolute or relative to current directory)
 ```
 
 The *init* command first connects to the storage specified by the storage URL.  If the storage has been already been initialized before, it will download the storage configuration (stored in the file named *config*) and ignore the options provided in the command line.  Otherwise, it will create the configuration file from the options and upload the file.
@@ -31,7 +32,9 @@ The `-e` option controls whether or not encryption will be enabled for the stora
 
 The three chunk size parameters are passed to the variable-size chunking algorithm.  Their values are important to the overall performance, especially for cloud storages.  If the chunk size is too small, a lot of overhead will be in sending requests and receiving responses.  If the chunk size is too large, the effect of de-duplication will be less obvious as more data will need to be transferred with each chunk.
 
-The `-pref-dir` controls the location of the preferences directory. If not specified, a directory named .duplicacy is created in the repository. If specified, it must point to a non-existing directory. The directory is created and a .duplicacy file is created in the repository. The .duplicacy file contains the absolute path name to the preferences directory.
+The `-iterations` option speicifies how many iterations are used to generate the key that encrypts the `config` file from the storage password.
+
+The `-pref-dir` option controls the location of the preferences directory. If not specified, a directory named .duplicacy is created in the repository. If specified, it must point to a non-existing directory. The directory is created and a .duplicacy file is created in the repository. The .duplicacy file contains the absolute path name to the preferences directory.
 
 Once a storage has been initialized with these parameters, these parameters cannot be modified any more.
 
@@ -314,11 +317,14 @@ USAGE:
 
 OPTIONS:
    -storage <storage name>  change the password used to access the specified storage
+   -iterations <i>          the number of iterations used in storage key deriviation (default is 16384)
 ```
 
 The *password* command decrypts the storage configuration file *config* using the old password, and re-encrypts the file
 using a new password.  It does not change all the encryption keys used to encrypt and decrypt chunk files,
 snapshot files, etc.
+
+The `-iterations` option speicifies how many iterations are used to generate the key that encrypts the `config` file from the storage password.
 
 You can specify the storage to change the password for when working with multiple storages.
 
@@ -332,17 +338,19 @@ USAGE:
    duplicacy add [command options] <storage name> <snapshot id> <storage url>
 
 OPTIONS:
-   -encrypt, -e                    Encrypt the storage with a password
-   -chunk-size, -c 4M              the average size of chunks
-   -max-chunk-size, -max 16M       the maximum size of chunks (defaults to chunk-size * 4)
-   -min-chunk-size, -min 1M        the minimum size of chunks (defaults to chunk-size / 4)
-   -compression-level, -l <level>  compression level (defaults to -1)
+   -encrypt, -e                    encrypt the storage with a password
+   -chunk-size, -c <size> 		   the average size of chunks (defaults to 4M)
+   -max-chunk-size, -max <size>    the maximum size of chunks (defaults to chunk-size*4)
+   -min-chunk-size, -min <size>    the minimum size of chunks (defaults to chunk-size/4)
+   -iterations <i>                 the number of iterations used in storage key deriviation (default is 16384)
    -copy <storage name>            make the new storage copy-compatible with an existing one
 ```
 
 The *add* command connects another storage to the current repository.  Like the *init* command, if the storage has not been initialized before, a storage configuration file derived from the command line options will be uploaded, but those options will be ignored if the configuration file already exists in the storage.
 
 A unique storage name must be given in order to distinguish it from other storages.
+
+The `-iterations` option speicifies how many iterations are used to generate the key that encrypts the `config` file from the storage password.
 
 The `-copy` option is required if later you want to copy snapshots between this storage and another storage. Two storages are copy-compatible if they have the same average chunk size, the same maximum chunk size, the same minimum chunk size, the same chunk seed (used in calculating the rolling hash in the variable-size chunks algorithm), and the same hash key.  If the `-copy` option is specified, these parameters will be copied from the existing storage rather than from the command line.
 
