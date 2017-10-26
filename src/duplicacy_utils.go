@@ -159,8 +159,8 @@ func RateLimitedCopy(writer io.Writer, reader io.Reader, rate int) (written int6
 }
 
 // GenerateKeyFromPassword generates a key from the password.
-func GenerateKeyFromPassword(password string, salt []byte, iteartions int) []byte {
-	return pbkdf2.Key([]byte(password), salt, iteartions, 32, sha256.New)
+func GenerateKeyFromPassword(password string, salt []byte, iterations int) []byte {
+	return pbkdf2.Key([]byte(password), salt, iterations, 32, sha256.New)
 }
 
 // Get password from preference, env, but don't start any keyring request
