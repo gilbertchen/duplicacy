@@ -410,15 +410,15 @@ The two methods are described below:
 
 1. Wildcard Matching
 
-An include pattern starts with "+", and an exclude pattern starts with "-".  Patterns may contain wildcard characters "*" which matches a path string of any length, and "?" matches
-a single character.  Note that both "*" and "?" will match any character including the path separator "/".
+An include pattern starts with "+", and an exclude pattern starts with "-".  Patterns may contain wildcard characters "\*" which matches a path string of any length, and "?" matches
+a single character.  Note that both "\*" and "?" will match any character including the path separator "/".
 
 The path separator is always a "/", even on Windows.
 
 When matching a path against a list of patterns, the path is compared with the part after "+" or "-", one pattern at a time.  Therefore, the order of the patterns is significant.  If a match with an include pattern is found, the path is said to be included without further comparisons.  If a match with an exclude pattern is found, the path is said to be excluded without further comparison.  If a match is not found, the path will be excluded if all patterns are include patterns, but included otherwise.
 
 Patterns ending with a "/" apply to directories only, and patterns not ending with a "/" apply to files only.
-Patterns ending with "*" and "?", however, apply to both directories and files.  When a directory is excluded, all files and subdirectories
+Patterns ending with "\*" and "?", however, apply to both directories and files.  When a directory is excluded, all files and subdirectories
 under it will also be excluded.  Therefore, to include a subdirectory, all parent directories must be explicitly included.
 For instance, the following pattern list doesn't do what is intended, since the `foo` directory will be excluded so the `foo/bar` will never be visited:
 
