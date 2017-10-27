@@ -372,7 +372,8 @@ func configRepository(context *cli.Context, init bool) {
 			otherPreference := duplicacy.FindPreference(context.String("copy"))
 
 			if otherPreference == nil {
-
+				duplicacy.LOG_ERROR("STORAGE_NOTFOUND", "Storage '%s' can't be found", context.String("copy"))
+				return
 			}
 
 			otherStorage := duplicacy.CreateStorage(*otherPreference, false, 1)
