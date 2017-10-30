@@ -711,7 +711,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 // the same as 'top'.  'quickMode' will bypass files with unchanged sizes and timestamps.  'deleteMode' will
 // remove local files that don't exist in the snapshot. 'patterns' is used to include/exclude certain files.
 func (manager *BackupManager) Restore(top string, revision int, inPlace bool, quickMode bool, threads int, overwrite bool,
-	deleteMode bool, showStatistics bool, patterns []string) bool {
+	deleteMode bool, setOwner bool, showStatistics bool, patterns []string) bool {
 
 	startTime := time.Now().Unix()
 
@@ -878,7 +878,8 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 			if quickMode {
 				if file.IsSameAsFileInfo(stat) {
 					LOG_TRACE("RESTORE_SKIP", "File %s unchanged (by size and timestamp)", file.Path)
-					file.RestoreMetadata(fullPath, &stat)
+					// shouldn't this be skipped?
+					// file.RestoreMetadata(fullPath, &stat)
 					continue
 				}
 			}
@@ -903,7 +904,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 			}
 			newFile.Close()
 
-			file.RestoreMetadata(fullPath, nil)
+			file.RestoreMetadata(fullPath, nil, setOwner)
 			if !showStatistics {
 				LOG_INFO("DOWNLOAD_DONE", "Downloaded %s (0)", file.Path)
 			}
@@ -915,9 +916,9 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 			totalFileSize, downloadedFileSize, startDownloadingTime) {
 			downloadedFileSize += file.Size
 			downloadedFiles = append(downloadedFiles, file)
+			file.RestoreMetadata(fullPath, nil, setOwner)
 		}
 
-		file.RestoreMetadata(fullPath, nil)
 	}
 
 	if deleteMode && len(patterns) == 0 {
@@ -933,7 +934,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 	for _, entry := range remoteSnapshot.Files {
 		if entry.IsDir() && !entry.IsLink() {
 			dir := joinPath(top, entry.Path)
-			entry.RestoreMetadata(dir, nil)
+			entry.RestoreMetadata(dir, nil, setOwner)
 		}
 	}
 
