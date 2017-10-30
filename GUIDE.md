@@ -87,17 +87,20 @@ OPTIONS:
    -hash                    detect file differences by hash (rather than size and timestamp)
    -overwrite               overwrite existing files in the repository
    -delete                  delete files not in the snapshot
+   -ignore-owner            do not set the original uid/gid on restored files
    -stats                   show statistics during and after restore
    -threads <n>             number of downloading threads
    -limit-rate <kB/s>       the maximum download rate (in kilobytes/sec)
    -storage <storage name>  restore from the specified storage instead of the default one
 ```
 
-The *restore* command restores the repository to a previous revision.  By default the restore procedure will treat files that have the same sizes and timestamps as those in the snapshot as unchanged files, but with the -hash option, every file will be fully scanned to make sure they are in fact unchanged.
+The *restore* command restores the repository to a previous revision.  By default the restore procedure will treat files that have the same sizes and timestamps as those in the snapshot as unchanged files, but with the `-hash` option, every file will be fully scanned to make sure they are in fact unchanged.
 
 By default the restore procedure will not overwriting existing files, unless the `-overwrite` option is specified.
 
 The `-delete` option indicates that files not in the snapshot will be removed.
+
+If the `-ignore-owner` option is specified, the restore procedure will not attempt to restore the original user/group id ownership on restored files (all restored files will be owned by the current user); this can be useful when restoring to a new or different machine.
 
 If the `-stats` option is specified, statistical information such as transfer speed, and number of chunks will be displayed throughout the restore procedure.
 
