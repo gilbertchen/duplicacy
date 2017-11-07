@@ -16,7 +16,7 @@ import (
 )
 
 type S3Storage struct {
-	RateLimitedStorage
+	StorageBase
 
 	client          *s3.S3
 	bucket          string
@@ -53,7 +53,7 @@ func CreateS3Storage(regionName string, endpoint string, bucketName string, stor
 		}
 	}
 
-	config := &aws.Config{
+	s3Config := &aws.Config{
 		Region:           aws.String(regionName),
 		Credentials:      auth,
 		Endpoint:         aws.String(endpoint),
@@ -66,12 +66,14 @@ func CreateS3Storage(regionName string, endpoint string, bucketName string, stor
 	}
 
 	storage = &S3Storage{
-		client:          s3.New(session.New(config)),
+		client:          s3.New(session.New(s3Config)),
 		bucket:          bucketName,
 		storageDir:      storageDir,
 		numberOfThreads: threads,
 	}
 
+	storage.DerivedStorage = storage
+	storage.SetDefaultNestingLevels([]int{0}, 0)
 	return storage, nil
 }
 
@@ -186,25 +188,6 @@ func (storage *S3Storage) GetFileInfo(threadIndex int, filePath string) (exist b
 	} else {
 		return true, false, *output.ContentLength, nil
 	}
-}
-
-// FindChunk finds the chunk with the specified id.  If 'isFossil' is true, it will search for chunk files with
-// the suffix '.fsl'.
-func (storage *S3Storage) FindChunk(threadIndex int, chunkID string, isFossil bool) (filePath string, exist bool, size int64, err error) {
-
-	filePath = "chunks/" + chunkID
-	if isFossil {
-		filePath += ".fsl"
-	}
-
-	exist, _, size, err = storage.GetFileInfo(threadIndex, filePath)
-
-	if err != nil {
-		return "", false, 0, err
-	} else {
-		return filePath, exist, size, err
-	}
-
 }
 
 // DownloadFile reads the file at 'filePath' into the chunk.

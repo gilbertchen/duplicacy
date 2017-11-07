@@ -24,7 +24,7 @@ import (
 )
 
 type GCSStorage struct {
-	RateLimitedStorage
+	StorageBase
 
 	bucket     *gcs.BucketHandle
 	storageDir string
@@ -101,8 +101,9 @@ func CreateGCSStorage(tokenFile string, bucketName string, storageDir string, th
 		numberOfThreads: threads,
 	}
 
+	storage.DerivedStorage = storage
+	storage.SetDefaultNestingLevels([]int{0}, 0)
 	return storage, nil
-
 }
 
 func (storage *GCSStorage) shouldRetry(backoff *int, err error) (bool, error) {
@@ -236,19 +237,6 @@ func (storage *GCSStorage) GetFileInfo(threadIndex int, filePath string) (exist 
 	}
 
 	return true, false, attributes.Size, nil
-}
-
-// FindChunk finds the chunk with the specified id.  If 'isFossil' is true, it will search for chunk files with
-// the suffix '.fsl'.
-func (storage *GCSStorage) FindChunk(threadIndex int, chunkID string, isFossil bool) (filePath string, exist bool, size int64, err error) {
-	filePath = "chunks/" + chunkID
-	if isFossil {
-		filePath += ".fsl"
-	}
-
-	exist, _, size, err = storage.GetFileInfo(threadIndex, filePath)
-
-	return filePath, exist, size, err
 }
 
 // DownloadFile reads the file at 'filePath' into the chunk.

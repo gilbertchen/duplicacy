@@ -13,7 +13,7 @@ import (
 
 // S3CStorage is a storage backend for s3 compatible storages that require V2 Signing.
 type S3CStorage struct {
-	RateLimitedStorage
+	StorageBase
 
 	buckets    []*s3.Bucket
 	storageDir string
@@ -58,6 +58,8 @@ func CreateS3CStorage(regionName string, endpoint string, bucketName string, sto
 		storageDir: storageDir,
 	}
 
+	storage.DerivedStorage = storage
+	storage.SetDefaultNestingLevels([]int{0}, 0)
 	return storage, nil
 }
 
@@ -152,25 +154,6 @@ func (storage *S3CStorage) GetFileInfo(threadIndex int, filePath string) (exist 
 	} else {
 		return true, false, response.ContentLength, nil
 	}
-}
-
-// FindChunk finds the chunk with the specified id.  If 'isFossil' is true, it will search for chunk files with
-// the suffix '.fsl'.
-func (storage *S3CStorage) FindChunk(threadIndex int, chunkID string, isFossil bool) (filePath string, exist bool, size int64, err error) {
-
-	filePath = "chunks/" + chunkID
-	if isFossil {
-		filePath += ".fsl"
-	}
-
-	exist, _, size, err = storage.GetFileInfo(threadIndex, filePath)
-
-	if err != nil {
-		return "", false, 0, err
-	} else {
-		return filePath, exist, size, err
-	}
-
 }
 
 // DownloadFile reads the file at 'filePath' into the chunk.

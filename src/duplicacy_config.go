@@ -46,6 +46,8 @@ type Config struct {
 
 	ChunkSeed []byte `json:"chunk-seed"`
 
+	FixedNesting bool `json:"fixed-nesting"`
+
 	// Use HMAC-SHA256(hashKey, plaintext) as the chunk hash.
 	// Use HMAC-SHA256(idKey, chunk hash) as the file name of the chunk
 	// For chunks, use HMAC-SHA256(chunkKey, chunk hash) as the encryption key
@@ -63,7 +65,7 @@ type Config struct {
 	// for encrypting a non-chunk file
 	FileKey []byte `json:"-"`
 
-	chunkPool      chan *Chunk `json:"-"`
+	chunkPool      chan *Chunk
 	numberOfChunks int32
 	dryRun         bool
 }
@@ -148,6 +150,7 @@ func CreateConfigFromParameters(compressionLevel int, averageChunkSize int, maxi
 		AverageChunkSize: averageChunkSize,
 		MaximumChunkSize: maximumChunkSize,
 		MinimumChunkSize: mininumChunkSize,
+		FixedNesting:     true,
 	}
 
 	if isEncrypted {
@@ -379,6 +382,8 @@ func DownloadConfig(storage Storage, password string) (config *Config, isEncrypt
 	if err != nil {
 		return nil, false, fmt.Errorf("Failed to parse the config file: %v", err)
 	}
+
+	storage.SetNestingLevels(config)
 
 	return config, false, nil
 

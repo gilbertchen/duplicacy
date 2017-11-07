@@ -11,21 +11,21 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"strings"
 	"time"
 )
 
 // FileStorage is a local on-disk file storage implementing the Storage interface.
 type FileStorage struct {
-	RateLimitedStorage
+	StorageBase
 
-	minimumNesting  int  // The minimum level of directories to dive into before searching for the chunk file.
 	isCacheNeeded   bool // Network storages require caching
 	storageDir      string
 	numberOfThreads int
 }
 
 // CreateFileStorage creates a file storage.
-func CreateFileStorage(storageDir string, minimumNesting int, isCacheNeeded bool, threads int) (storage *FileStorage, err error) {
+func CreateFileStorage(storageDir string, isCacheNeeded bool, threads int) (storage *FileStorage, err error) {
 
 	var stat os.FileInfo
 
@@ -51,7 +51,6 @@ func CreateFileStorage(storageDir string, minimumNesting int, isCacheNeeded bool
 
 	storage = &FileStorage{
 		storageDir:      storageDir,
-		minimumNesting:  minimumNesting,
 		isCacheNeeded:   isCacheNeeded,
 		numberOfThreads: threads,
 	}
@@ -59,6 +58,8 @@ func CreateFileStorage(storageDir string, minimumNesting int, isCacheNeeded bool
 	// Random number fo generating the temporary chunk file suffix.
 	rand.Seed(time.Now().UnixNano())
 
+	storage.DerivedStorage = storage
+	storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 	return storage, nil
 }
 
@@ -126,67 +127,6 @@ func (storage *FileStorage) GetFileInfo(threadIndex int, filePath string) (exist
 	return true, stat.IsDir(), stat.Size(), nil
 }
 
-// FindChunk finds the chunk with the specified id.  If 'isFossil' is true, it will search for chunk files with the
-// suffix '.fsl'.
-func (storage *FileStorage) FindChunk(threadIndex int, chunkID string, isFossil bool) (filePath string, exist bool, size int64, err error) {
-	dir := path.Join(storage.storageDir, "chunks")
-
-	suffix := ""
-	if isFossil {
-		suffix = ".fsl"
-	}
-
-	for level := 0; level*2 < len(chunkID); level++ {
-		if level >= storage.minimumNesting {
-			filePath = path.Join(dir, chunkID[2*level:]) + suffix
-			// Use Lstat() instead of Stat() since 1) Stat() doesn't work for deduplicated disks on Windows and 2) there isn't
-			// really a need to follow the link if filePath is a link.
-			stat, err := os.Lstat(filePath)
-			if err != nil {
-				LOG_DEBUG("FS_FIND", "File %s can't be found: %v", filePath, err)
-			} else if stat.IsDir() {
-				return filePath[len(storage.storageDir)+1:], false, 0, fmt.Errorf("The path %s is a directory", filePath)
-			} else {
-				return filePath[len(storage.storageDir)+1:], true, stat.Size(), nil
-			}
-		}
-
-		// Find the subdirectory the chunk file may reside.
-		subDir := path.Join(dir, chunkID[2*level:2*level+2])
-		stat, err := os.Stat(subDir)
-		if err == nil && stat.IsDir() {
-			dir = subDir
-			continue
-		}
-
-		if level < storage.minimumNesting {
-			// Create the subdirectory if it doesn't exist.
-
-			if err == nil && !stat.IsDir() {
-				return "", false, 0, fmt.Errorf("The path %s is not a directory", subDir)
-			}
-
-			err = os.Mkdir(subDir, 0744)
-			if err != nil {
-				// The directory may have been created by other threads so check it again.
-				stat, _ := os.Stat(subDir)
-				if stat == nil || !stat.IsDir() {
-					return "", false, 0, err
-				}
-			}
-			dir = subDir
-			continue
-		}
-
-		// The chunk must be under this subdirectory but it doesn't exist.
-		return path.Join(dir, chunkID[2*level:])[len(storage.storageDir)+1:] + suffix, false, 0, nil
-
-	}
-
-	return "", false, 0, fmt.Errorf("The maximum level of directories searched")
-
-}
-
 // DownloadFile reads the file at 'filePath' into the chunk.
 func (storage *FileStorage) DownloadFile(threadIndex int, filePath string, chunk *Chunk) (err error) {
 
@@ -209,6 +149,26 @@ func (storage *FileStorage) DownloadFile(threadIndex int, filePath string, chunk
 func (storage *FileStorage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
 
 	fullPath := path.Join(storage.storageDir, filePath)
+
+	if len(strings.Split(filePath, "/")) > 2 {
+		dir := path.Dir(fullPath)
+		// Use Lstat() instead of Stat() since 1) Stat() doesn't work for deduplicated disks on Windows and 2) there isn't
+		// really a need to follow the link if filePath is a link.
+		stat, err := os.Lstat(dir)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				return err
+			}
+			err = os.MkdirAll(dir, 0744)
+			if err != nil {
+				return err
+			}
+		} else {
+			if !stat.IsDir() {
+				fmt.Errorf("The path %s is not a directory", dir)
+			}
+		}
+	}
 
 	letters := "abcdefghijklmnopqrstuvwxyz"
 	suffix := make([]byte, 8)
