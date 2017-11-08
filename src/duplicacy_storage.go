@@ -245,6 +245,10 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 				}
 			}
 
+			if len(signers) > 0 {
+				return signers, nil
+			}
+
 			keyFile = GetPassword(preference, "ssh_key_file", "Enter the path of the private key file:",
 				true, resetPassword)
 
