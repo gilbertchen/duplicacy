@@ -198,6 +198,10 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			return nil
 		}
 
+		if !strings.HasPrefix(storageDir, "/") {
+			storageDir = "/" + storageDir
+		}
+
 		if username != "" {
 			username = username[:len(username)-1]
 		}
