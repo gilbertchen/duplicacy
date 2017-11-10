@@ -9,10 +9,11 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 )
 
 type ACDStorage struct {
-	RateLimitedStorage
+	StorageBase
 
 	client          *ACDClient
 	idCache         map[string]string
@@ -35,11 +36,13 @@ func CreateACDStorage(tokenFile string, storagePath string, threads int) (storag
 		numberOfThreads: threads,
 	}
 
-	storagePathID, _, _, err := storage.getIDFromPath(0, storagePath)
+	storagePathID, err := storage.getIDFromPath(0, storagePath, false)
 	if err != nil {
 		return nil, err
 	}
 
+	// Set 'storagePath' as the root of the storage and clean up the id cache accordingly
+	storage.idCache = make(map[string]string)
 	storage.idCache[""] = storagePathID
 
 	for _, dir := range []string{"chunks", "fossils", "snapshots"} {
@@ -48,7 +51,6 @@ func CreateACDStorage(tokenFile string, storagePath string, threads int) (storag
 			return nil, err
 		}
 		if dirID == "" {
-			dirID, err = client.CreateDirectory(storagePathID, dir)
 			if err != nil {
 				return nil, err
 			}
@@ -58,8 +60,9 @@ func CreateACDStorage(tokenFile string, storagePath string, threads int) (storag
 		storage.idCache[dir] = dirID
 	}
 
+	storage.DerivedStorage = storage
+	storage.SetDefaultNestingLevels([]int{0}, 0)
 	return storage, nil
-
 }
 
 func (storage *ACDStorage) getPathID(path string) string {
@@ -88,6 +91,9 @@ func (storage *ACDStorage) deletePathID(path string) {
 	storage.idCacheLock.Unlock()
 }
 
+// convertFilePath converts the path for a fossil in the form of 'chunks/id.fsl' to 'fossils/id'.  This is because
+// ACD doesn't support file renaming. Instead, it only allows one file to be moved from one directory to another.
+// By adding a layer of path conversion we're pretending that we can rename between 'chunks/id' and 'chunks/id.fsl'
 func (storage *ACDStorage) convertFilePath(filePath string) string {
 	if strings.HasPrefix(filePath, "chunks/") && strings.HasSuffix(filePath, ".fsl") {
 		return "fossils/" + filePath[len("chunks/"):len(filePath)-len(".fsl")]
@@ -95,35 +101,80 @@ func (storage *ACDStorage) convertFilePath(filePath string) string {
 	return filePath
 }
 
-func (storage *ACDStorage) getIDFromPath(threadIndex int, path string) (fileID string, isDir bool, size int64, err error) {
+// getIDFromPath returns the id of the given path.  If 'createDirectories' is true, create the given path and all its
+// parent directories if they don't exist.  Note that if 'createDirectories' is false, it may return an empty 'fileID'
+// if the file doesn't exist.
+func (storage *ACDStorage) getIDFromPath(threadIndex int, filePath string, createDirectories bool) (fileID string, err error) {
+
+	if fileID, ok := storage.findPathID(filePath); ok {
+		return fileID, nil
+	}
 
 	parentID, ok := storage.findPathID("")
 	if !ok {
-		parentID, isDir, size, err = storage.client.ListByName("", "")
+		parentID, _, _, err = storage.client.ListByName("", "")
 		if err != nil {
-			return "", false, 0, err
+			return "", err
 		}
+		storage.savePathID("", parentID)
 	}
 
-	names := strings.Split(path, "/")
+	names := strings.Split(filePath, "/")
+	current := ""
 	for i, name := range names {
-		parentID, isDir, _, err = storage.client.ListByName(parentID, name)
-		if err != nil {
-			return "", false, 0, err
+
+		current = path.Join(current, name)
+		fileID, ok := storage.findPathID(current)
+		if ok {
+			parentID = fileID
+			continue
 		}
-		if parentID == "" {
-			if i == len(names)-1 {
-				return "", false, 0, nil
-			} else {
-				return "", false, 0, fmt.Errorf("File path '%s' does not exist", path)
+		isDir := false
+		fileID, isDir, _, err = storage.client.ListByName(parentID, name)
+		if err != nil {
+			return "", err
+		}
+		if fileID == "" {
+			if !createDirectories {
+				return "", nil
 			}
+			// Create the current directory
+			fileID, err = storage.client.CreateDirectory(parentID, name)
+			if err != nil {
+				// Check if the directory has been created by another thread
+				if e, ok := err.(ACDError); !ok || e.Status != 409 {
+					return "", fmt.Errorf("Failed to create directory '%s': %v", current, err)
+				}
+				// A 409 means the directory may have already created by another thread.  Wait 10 seconds
+				// until we seed the directory.
+				for i := 0; i < 10; i++ {
+					var createErr error
+					fileID, isDir, _, createErr = storage.client.ListByName(parentID, name)
+					if createErr != nil {
+						return "", createErr
+					}
+					if fileID == "" {
+						time.Sleep(time.Second)
+					} else {
+						break
+					}
+				}
+				if fileID == "" {
+					return "", fmt.Errorf("All attempts to create directory '%s' failed: %v", current, err)
+				}
+			} else {
+				isDir = true
+			}
+		} else {
+			storage.savePathID(current, fileID)
 		}
 		if i != len(names)-1 && !isDir {
-			return "", false, 0, fmt.Errorf("Invalid path %s", path)
+			return "", fmt.Errorf("Path '%s' is not a directory", current)
 		}
+		parentID = fileID
 	}
 
-	return parentID, isDir, size, err
+	return parentID, nil
 }
 
 // ListFiles return the list of files and subdirectories under 'dir' (non-recursively)
@@ -136,7 +187,7 @@ func (storage *ACDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 
 	if dir == "snapshots" {
 
-		entries, err := storage.client.ListEntries(storage.getPathID(dir), false)
+		entries, err := storage.client.ListEntries(storage.getPathID(dir), false, true)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -159,9 +210,10 @@ func (storage *ACDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 			if pathID == "" {
 				return nil, nil, nil
 			}
+			storage.savePathID(dir, pathID)
 		}
 
-		entries, err := storage.client.ListEntries(pathID, true)
+		entries, err := storage.client.ListEntries(pathID, true, false)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -176,21 +228,33 @@ func (storage *ACDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 	} else {
 		files := []string{}
 		sizes := []int64{}
-		for _, parent := range []string{"chunks", "fossils"} {
-			entries, err := storage.client.ListEntries(storage.getPathID(parent), true)
+		parents := []string{"chunks", "fossils"}
+		for i := 0; i < len(parents); i++ {
+			parent := parents[i]
+			pathID, ok := storage.findPathID(parent)
+			if !ok {
+				continue
+			}
+			entries, err := storage.client.ListEntries(pathID, true, true)
 			if err != nil {
 				return nil, nil, err
 			}
-
 			for _, entry := range entries {
-				name := entry.Name
-				if parent == "fossils" {
-					name += ".fsl"
+				if entry.Kind != "FOLDER" {
+					name := entry.Name
+					if strings.HasPrefix(parent, "fossils") {
+						name = parent + "/" + name + ".fsl"
+						name = name[len("fossils/"):]
+					} else {
+						name = parent + "/" + name
+						name = name[len("chunks/"):]
+					}
+					files = append(files, name)
+					sizes = append(sizes, entry.Size)
+				} else {
+					parents = append(parents, parent+"/"+entry.Name)
 				}
-
 				storage.savePathID(parent+"/"+entry.Name, entry.ID)
-				files = append(files, name)
-				sizes = append(sizes, entry.Size)
 			}
 		}
 		return files, sizes, nil
@@ -201,17 +265,13 @@ func (storage *ACDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 // DeleteFile deletes the file or directory at 'filePath'.
 func (storage *ACDStorage) DeleteFile(threadIndex int, filePath string) (err error) {
 	filePath = storage.convertFilePath(filePath)
-	fileID, ok := storage.findPathID(filePath)
-	if !ok {
-		fileID, _, _, err = storage.getIDFromPath(threadIndex, filePath)
-		if err != nil {
-			return err
-		}
-		if fileID == "" {
-			LOG_TRACE("ACD_STORAGE", "File %s has disappeared before deletion", filePath)
-			return nil
-		}
-		storage.savePathID(filePath, fileID)
+	fileID, err := storage.getIDFromPath(threadIndex, filePath, false)
+	if err != nil {
+		return err
+	}
+	if fileID == "" {
+		LOG_TRACE("ACD_STORAGE", "File '%s' to be deleted does not exist", filePath)
+		return nil
 	}
 
 	err = storage.client.DeleteFile(fileID)
@@ -232,11 +292,19 @@ func (storage *ACDStorage) MoveFile(threadIndex int, from string, to string) (er
 		return fmt.Errorf("Attempting to rename file %s with unknown id", from)
 	}
 
-	fromParentID := storage.getPathID("chunks")
-	toParentID := storage.getPathID("fossils")
+	fromParent := path.Dir(from)
+	fromParentID, err := storage.getIDFromPath(threadIndex, fromParent, false)
+	if err != nil {
+		return fmt.Errorf("Failed to retrieve the id of the parent directory '%s': %v", fromParent, err)
+	}
+	if fromParentID == "" {
+		return fmt.Errorf("The parent directory '%s' does not exist", fromParent)
+	}
 
-	if strings.HasPrefix(from, "fossils") {
-		fromParentID, toParentID = toParentID, fromParentID
+	toParent := path.Dir(to)
+	toParentID, err := storage.getIDFromPath(threadIndex, toParent, true)
+	if err != nil {
+		return fmt.Errorf("Failed to retrieve the id of the parent directory '%s': %v", toParent, err)
 	}
 
 	err = storage.client.MoveFile(fileID, fromParentID, toParentID)
@@ -261,24 +329,25 @@ func (storage *ACDStorage) CreateDirectory(threadIndex int, dir string) (err err
 		dir = dir[:len(dir)-1]
 	}
 
-	if dir == "chunks" || dir == "snapshots" {
-		return nil
+	parentPath := path.Dir(dir)
+	if parentPath == "." {
+		parentPath = ""
+	}
+	parentID, ok := storage.findPathID(parentPath)
+	if !ok {
+		return fmt.Errorf("Path directory '%s' has unknown id", parentPath)
 	}
 
-	if strings.HasPrefix(dir, "snapshots/") {
-		name := dir[len("snapshots/"):]
-		dirID, err := storage.client.CreateDirectory(storage.getPathID("snapshots"), name)
-		if err != nil {
-			if e, ok := err.(ACDError); ok && e.Status == 409 {
-				return nil
-			} else {
-				return err
-			}
+	name := path.Base(dir)
+	dirID, err := storage.client.CreateDirectory(parentID, name)
+	if err != nil {
+		if e, ok := err.(ACDError); ok && e.Status == 409 {
+			return nil
+		} else {
+			return err
 		}
-		storage.savePathID(dir, dirID)
-		return nil
-
 	}
+	storage.savePathID(dir, dirID)
 
 	return nil
 }
@@ -291,8 +360,21 @@ func (storage *ACDStorage) GetFileInfo(threadIndex int, filePath string) (exist 
 	}
 
 	filePath = storage.convertFilePath(filePath)
-	fileID := ""
-	fileID, isDir, size, err = storage.getIDFromPath(threadIndex, filePath)
+
+	parentPath := path.Dir(filePath)
+	if parentPath == "." {
+		parentPath = ""
+	}
+	parentID, err := storage.getIDFromPath(threadIndex, parentPath, false)
+	if err != nil {
+		return false, false, 0, err
+	}
+	if parentID == "" {
+		return false, false, 0, nil
+	}
+
+	name := path.Base(filePath)
+	fileID, isDir, size, err := storage.client.ListByName(parentID, name)
 	if err != nil {
 		return false, false, 0, err
 	}
@@ -300,43 +382,18 @@ func (storage *ACDStorage) GetFileInfo(threadIndex int, filePath string) (exist 
 		return false, false, 0, nil
 	}
 
+	storage.savePathID(filePath, fileID)
 	return true, isDir, size, nil
-}
-
-// FindChunk finds the chunk with the specified id.  If 'isFossil' is true, it will search for chunk files with
-// the suffix '.fsl'.
-func (storage *ACDStorage) FindChunk(threadIndex int, chunkID string, isFossil bool) (filePath string, exist bool, size int64, err error) {
-	parentID := ""
-	filePath = "chunks/" + chunkID
-	realPath := filePath
-	if isFossil {
-		parentID = storage.getPathID("fossils")
-		filePath += ".fsl"
-		realPath = "fossils/" + chunkID + ".fsl"
-	} else {
-		parentID = storage.getPathID("chunks")
-	}
-
-	fileID := ""
-	fileID, _, size, err = storage.client.ListByName(parentID, chunkID)
-	if fileID != "" {
-		storage.savePathID(realPath, fileID)
-	}
-	return filePath, fileID != "", size, err
 }
 
 // DownloadFile reads the file at 'filePath' into the chunk.
 func (storage *ACDStorage) DownloadFile(threadIndex int, filePath string, chunk *Chunk) (err error) {
-	fileID, ok := storage.findPathID(filePath)
-	if !ok {
-		fileID, _, _, err = storage.getIDFromPath(threadIndex, filePath)
-		if err != nil {
-			return err
-		}
-		if fileID == "" {
-			return fmt.Errorf("File path '%s' does not exist", filePath)
-		}
-		storage.savePathID(filePath, fileID)
+	fileID, err := storage.getIDFromPath(threadIndex, filePath, false)
+	if err != nil {
+		return err
+	}
+	if fileID == "" {
+		return fmt.Errorf("File path '%s' does not exist", filePath)
 	}
 
 	readCloser, _, err := storage.client.DownloadFile(fileID)
@@ -353,22 +410,16 @@ func (storage *ACDStorage) DownloadFile(threadIndex int, filePath string, chunk 
 // UploadFile writes 'content' to the file at 'filePath'.
 func (storage *ACDStorage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
 	parent := path.Dir(filePath)
-
 	if parent == "." {
 		parent = ""
 	}
 
-	parentID, ok := storage.findPathID(parent)
-
-	if !ok {
-		parentID, _, _, err = storage.getIDFromPath(threadIndex, parent)
-		if err != nil {
-			return err
-		}
-		if parentID == "" {
-			return fmt.Errorf("File path '%s' does not exist", parent)
-		}
-		storage.savePathID(parent, parentID)
+	parentID, err := storage.getIDFromPath(threadIndex, parent, true)
+	if err != nil {
+		return err
+	}
+	if parentID == "" {
+		return fmt.Errorf("File path '%s' does not exist", parent)
 	}
 
 	fileID, err := storage.client.UploadFile(parentID, path.Base(filePath), content, storage.UploadRateLimit/storage.numberOfThreads)

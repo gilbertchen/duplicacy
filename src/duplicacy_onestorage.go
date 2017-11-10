@@ -11,7 +11,7 @@ import (
 )
 
 type OneDriveStorage struct {
-	RateLimitedStorage
+	StorageBase
 
 	client         *OneDriveClient
 	storageDir     string
@@ -65,8 +65,17 @@ func CreateOneDriveStorage(tokenFile string, storagePath string, threads int) (s
 		}
 	}
 
+	storage.DerivedStorage = storage
+	storage.SetDefaultNestingLevels([]int{0}, 0)
 	return storage, nil
 
+}
+
+func (storage *OneDriveStorage) convertFilePath(filePath string) string {
+	if strings.HasPrefix(filePath, "chunks/") && strings.HasSuffix(filePath, ".fsl") {
+		return "fossils/" + filePath[len("chunks/"):len(filePath)-len(".fsl")]
+	}
+	return filePath
 }
 
 // ListFiles return the list of files and subdirectories under 'dir' (non-recursively)
@@ -105,19 +114,29 @@ func (storage *OneDriveStorage) ListFiles(threadIndex int, dir string) ([]string
 	} else {
 		files := []string{}
 		sizes := []int64{}
-		for _, parent := range []string{"chunks", "fossils"} {
+		parents := []string{"chunks", "fossils"}
+		for i := 0; i < len(parents); i++ {
+			parent := parents[i]
 			entries, err := storage.client.ListEntries(storage.storageDir + "/" + parent)
 			if err != nil {
 				return nil, nil, err
 			}
 
 			for _, entry := range entries {
-				name := entry.Name
-				if parent == "fossils" {
-					name += ".fsl"
+				if len(entry.Folder) == 0 {
+					name := entry.Name
+					if strings.HasPrefix(parent, "fossils") {
+						name = parent + "/" + name + ".fsl"
+						name = name[len("fossils/"):]
+					} else {
+						name = parent + "/" + name
+						name = name[len("chunks/"):]
+					}
+					files = append(files, name)
+					sizes = append(sizes, entry.Size)
+				} else {
+					parents = append(parents, parent+"/"+entry.Name)
 				}
-				files = append(files, name)
-				sizes = append(sizes, entry.Size)
 			}
 		}
 		return files, sizes, nil
@@ -127,9 +146,7 @@ func (storage *OneDriveStorage) ListFiles(threadIndex int, dir string) ([]string
 
 // DeleteFile deletes the file or directory at 'filePath'.
 func (storage *OneDriveStorage) DeleteFile(threadIndex int, filePath string) (err error) {
-	if strings.HasSuffix(filePath, ".fsl") && strings.HasPrefix(filePath, "chunks/") {
-		filePath = "fossils/" + filePath[len("chunks/"):len(filePath)-len(".fsl")]
-	}
+	filePath = storage.convertFilePath(filePath)
 
 	err = storage.client.DeleteFile(storage.storageDir + "/" + filePath)
 	if e, ok := err.(OneDriveError); ok && e.Status == 404 {
@@ -141,14 +158,11 @@ func (storage *OneDriveStorage) DeleteFile(threadIndex int, filePath string) (er
 
 // MoveFile renames the file.
 func (storage *OneDriveStorage) MoveFile(threadIndex int, from string, to string) (err error) {
-	fromPath := storage.storageDir + "/" + from
-	toParent := storage.storageDir + "/fossils"
-	if strings.HasSuffix(from, ".fsl") {
-		fromPath = storage.storageDir + "/fossils/" + from[len("chunks/"):len(from)-len(".fsl")]
-		toParent = storage.storageDir + "/chunks"
-	}
 
-	err = storage.client.MoveFile(fromPath, toParent)
+	fromPath := storage.storageDir + "/" + storage.convertFilePath(from)
+	toPath := storage.storageDir + "/" + storage.convertFilePath(to)
+
+	err = storage.client.MoveFile(fromPath, path.Dir(toPath))
 	if err != nil {
 		if e, ok := err.(OneDriveError); ok && e.Status == 409 {
 			LOG_DEBUG("ONEDRIVE_MOVE", "Ignore 409 conflict error")
@@ -180,22 +194,11 @@ func (storage *OneDriveStorage) GetFileInfo(threadIndex int, filePath string) (e
 	for len(filePath) > 0 && filePath[len(filePath)-1] == '/' {
 		filePath = filePath[:len(filePath)-1]
 	}
+
+	filePath = storage.convertFilePath(filePath)
+
 	fileID, isDir, size, err := storage.client.GetFileInfo(storage.storageDir + "/" + filePath)
 	return fileID != "", isDir, size, err
-}
-
-// FindChunk finds the chunk with the specified id.  If 'isFossil' is true, it will search for chunk files with
-// the suffix '.fsl'.
-func (storage *OneDriveStorage) FindChunk(threadIndex int, chunkID string, isFossil bool) (filePath string, exist bool, size int64, err error) {
-	filePath = "chunks/" + chunkID
-	realPath := storage.storageDir + "/" + filePath
-	if isFossil {
-		filePath += ".fsl"
-		realPath = storage.storageDir + "/fossils/" + chunkID
-	}
-
-	fileID, _, size, err := storage.client.GetFileInfo(realPath)
-	return filePath, fileID != "", size, err
 }
 
 // DownloadFile reads the file at 'filePath' into the chunk.

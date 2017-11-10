@@ -10,7 +10,7 @@ import (
 )
 
 type HubicStorage struct {
-	RateLimitedStorage
+	StorageBase
 
 	client          *HubicClient
 	storageDir      string
@@ -64,8 +64,9 @@ func CreateHubicStorage(tokenFile string, storagePath string, threads int) (stor
 		}
 	}
 
+	storage.DerivedStorage = storage
+	storage.SetDefaultNestingLevels([]int{0}, 0)
 	return storage, nil
-
 }
 
 // ListFiles return the list of files and subdirectories under 'dir' (non-recursively)
@@ -156,18 +157,6 @@ func (storage *HubicStorage) GetFileInfo(threadIndex int, filePath string) (exis
 		filePath = filePath[:len(filePath)-1]
 	}
 	return storage.client.GetFileInfo(storage.storageDir + "/" + filePath)
-}
-
-// FindChunk finds the chunk with the specified id.  If 'isFossil' is true, it will search for chunk files with
-// the suffix '.fsl'.
-func (storage *HubicStorage) FindChunk(threadIndex int, chunkID string, isFossil bool) (filePath string, exist bool, size int64, err error) {
-	filePath = "chunks/" + chunkID
-	if isFossil {
-		filePath += ".fsl"
-	}
-
-	exist, _, size, err = storage.client.GetFileInfo(storage.storageDir + "/" + filePath)
-	return filePath, exist, size, err
 }
 
 // DownloadFile reads the file at 'filePath' into the chunk.

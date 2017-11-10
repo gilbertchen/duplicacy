@@ -9,7 +9,7 @@ import (
 )
 
 type B2Storage struct {
-	RateLimitedStorage
+	StorageBase
 
 	clients []*B2Client
 }
@@ -38,6 +38,9 @@ func CreateB2Storage(accountID string, applicationKey string, bucket string, thr
 	storage = &B2Storage{
 		clients: clients,
 	}
+
+	storage.DerivedStorage = storage
+	storage.SetDefaultNestingLevels([]int{0}, 0)
 	return storage, nil
 }
 
@@ -202,17 +205,6 @@ func (storage *B2Storage) GetFileInfo(threadIndex int, filePath string) (exist b
 		}
 	}
 	return true, false, entries[0].Size, nil
-}
-
-// FindChunk finds the chunk with the specified id.  If 'isFossil' is true, it will search for chunk files with
-// the suffix '.fsl'.
-func (storage *B2Storage) FindChunk(threadIndex int, chunkID string, isFossil bool) (filePath string, exist bool, size int64, err error) {
-	filePath = "chunks/" + chunkID
-	if isFossil {
-		filePath += ".fsl"
-	}
-	exist, _, size, err = storage.GetFileInfo(threadIndex, filePath)
-	return filePath, exist, size, err
 }
 
 // DownloadFile reads the file at 'filePath' into the chunk.

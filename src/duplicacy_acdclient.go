@@ -69,7 +69,7 @@ func NewACDClient(tokenFile string) (*ACDClient, error) {
 
 func (client *ACDClient) call(url string, method string, input interface{}, contentType string) (io.ReadCloser, int64, error) {
 
-	LOG_DEBUG("ACD_CALL", "Calling %s", url)
+	//LOG_DEBUG("ACD_CALL", "%s %s", method, url)
 
 	var response *http.Response
 
@@ -256,7 +256,7 @@ type ACDListEntriesOutput struct {
 	Entries   []ACDEntry `json:"data"`
 }
 
-func (client *ACDClient) ListEntries(parentID string, listFiles bool) ([]ACDEntry, error) {
+func (client *ACDClient) ListEntries(parentID string, listFiles bool, listDirectories bool) ([]ACDEntry, error) {
 
 	startToken := ""
 
@@ -264,20 +264,22 @@ func (client *ACDClient) ListEntries(parentID string, listFiles bool) ([]ACDEntr
 
 	for {
 
-		url := client.MetadataURL + "nodes/" + parentID + "/children?filters="
+		url := client.MetadataURL + "nodes/" + parentID + "/children?"
 
-		if listFiles {
-			url += "kind:FILE"
-		} else {
-			url += "kind:FOLDER"
+		if listFiles && !listDirectories {
+			url += "filters=kind:FILE&"
+		} else if !listFiles && listDirectories {
+			url += "filters=kind:FOLDER&"
 		}
 
 		if startToken != "" {
-			url += "&startToken=" + startToken
+			url += "startToken=" + startToken + "&"
 		}
 
 		if client.TestMode {
-			url += "&limit=8"
+			url += "limit=8"
+		} else {
+			url += "limit=200"
 		}
 
 		readCloser, _, err := client.call(url, "GET", 0, "")

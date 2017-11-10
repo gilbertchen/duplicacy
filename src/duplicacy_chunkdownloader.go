@@ -326,7 +326,7 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 	}
 
 	const MaxDownloadAttempts = 3
-	for downloadAttempt := 0;; downloadAttempt++ {
+	for downloadAttempt := 0; ; downloadAttempt++ {
 		err = downloader.storage.DownloadFile(threadIndex, chunkPath, chunk)
 		if err != nil {
 			if err == io.ErrUnexpectedEOF && downloadAttempt < MaxDownloadAttempts {

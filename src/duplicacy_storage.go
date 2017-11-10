@@ -5,6 +5,7 @@
 package duplicacy
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net"
@@ -20,8 +21,10 @@ import (
 )
 
 type Storage interface {
-	// ListFiles return the list of files and subdirectories under 'dir' (non-recursively)
-	ListFiles(threadIndex int, dir string) (files []string, size []int64, err error)
+	// ListFiles return the list of files and subdirectories under 'dir'.  A subdirectories returned must have a trailing '/', with
+	// a size of 0.  If 'dir' is 'snapshots', only subdirectories will be returned.  If 'dir' is 'snapshots/repository_id', then only
+	// files will be returned.  If 'dir' is 'chunks', the implementation can return the list either recusively or non-recusively.
+	ListFiles(threadIndex int, dir string) (files []string, sizes []int64, err error)
 
 	// DeleteFile deletes the file or directory at 'filePath'.
 	DeleteFile(threadIndex int, filePath string) (err error)
@@ -45,6 +48,9 @@ type Storage interface {
 	// UploadFile writes 'content' to the file at 'filePath'.
 	UploadFile(threadIndex int, filePath string, content []byte) (err error)
 
+	// SetNestingLevels sets up the chunk nesting structure.
+	SetNestingLevels(config *Config)
+
 	// If a local snapshot cache is needed for the storage to avoid downloading/uploading chunks too often when
 	// managing snapshots.
 	IsCacheNeeded() bool
@@ -65,14 +71,95 @@ type Storage interface {
 	SetRateLimits(downloadRateLimit int, uploadRateLimit int)
 }
 
-type RateLimitedStorage struct {
-	DownloadRateLimit int
-	UploadRateLimit   int
+// StorageBase is the base struct from which all storages are derived from
+type StorageBase struct {
+	DownloadRateLimit int // Maximum download rate (bytes/seconds)
+	UploadRateLimit   int // Maximum upload reate (bytes/seconds)
+
+	DerivedStorage Storage // Used as the pointer to the derived storage class
+
+	readLevels []int // At which nesting level to find the chunk with the given id
+	writeLevel int   // Store the uploaded chunk to this level
 }
 
-func (storage *RateLimitedStorage) SetRateLimits(downloadRateLimit int, uploadRateLimit int) {
+// SetRateLimits sets the maximum download and upload rates
+func (storage *StorageBase) SetRateLimits(downloadRateLimit int, uploadRateLimit int) {
 	storage.DownloadRateLimit = downloadRateLimit
 	storage.UploadRateLimit = uploadRateLimit
+}
+
+// SetDefaultNestingLevels sets the default read and write levels.  This is usually called by
+// derived storages to set the levels with old values so that storages initialied by ealier versions
+// will continue to work.
+func (storage *StorageBase) SetDefaultNestingLevels(readLevels []int, writeLevel int) {
+	storage.readLevels = readLevels
+	storage.writeLevel = writeLevel
+}
+
+// SetNestingLevels sets the new read and write levels (normally both at 1) if the 'config' file has
+// the 'fixed-nesting' key, or if a file named 'nesting' exists on the storage.
+func (storage *StorageBase) SetNestingLevels(config *Config) {
+
+	// 'FixedNesting' is true only for the 'config' file with the new format (2.0.10+)
+	if config.FixedNesting {
+
+		storage.readLevels = nil
+
+		// Check if the 'nesting' file exist
+		exist, _, _, err := storage.DerivedStorage.GetFileInfo(0, "nesting")
+		if err == nil && exist {
+			nestingFile := CreateChunk(CreateConfig(), true)
+			if storage.DerivedStorage.DownloadFile(0, "config", nestingFile) == nil {
+				var nesting struct {
+					ReadLevels []int `json:"read-levels"`
+					WriteLevel int   `json:"write-level"`
+				}
+				if json.Unmarshal(nestingFile.GetBytes(), &nesting) == nil {
+					storage.readLevels = nesting.ReadLevels
+					storage.writeLevel = nesting.WriteLevel
+				}
+			}
+		}
+
+		if len(storage.readLevels) == 0 {
+			storage.readLevels = []int{1}
+			storage.writeLevel = 1
+		}
+	}
+
+	LOG_DEBUG("STORAGE_NESTING", "Chunk read levels: %v, write level: %d", storage.readLevels, storage.writeLevel)
+	for _, level := range storage.readLevels {
+		if storage.writeLevel == level {
+			return
+		}
+	}
+	LOG_ERROR("STORAGE_NESTING", "The write level %d isn't in the read levels %v", storage.readLevels, storage.writeLevel)
+}
+
+// FindChunk finds the chunk with the specified id at the levels one by one as specified by 'readLevels'.
+func (storage *StorageBase) FindChunk(threadIndex int, chunkID string, isFossil bool) (filePath string, exist bool, size int64, err error) {
+	chunkPaths := make([]string, 0)
+	for _, level := range storage.readLevels {
+		chunkPath := "chunks/"
+		for i := 0; i < level; i++ {
+			chunkPath += chunkID[2*i:2*i+2] + "/"
+		}
+		chunkPath += chunkID[2*level:]
+		if isFossil {
+			chunkPath += ".fsl"
+		}
+		exist, _, size, err = storage.DerivedStorage.GetFileInfo(threadIndex, chunkPath)
+		if err == nil && exist {
+			return chunkPath, exist, size, err
+		}
+		chunkPaths = append(chunkPaths, chunkPath)
+	}
+	for i, level := range storage.readLevels {
+		if storage.writeLevel == level {
+			return chunkPaths[i], false, 0, nil
+		}
+	}
+	return "", false, 0, fmt.Errorf("Invalid chunk nesting setup")
 }
 
 func checkHostKey(hostname string, remote net.Addr, key ssh.PublicKey) error {
@@ -148,7 +235,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	}
 
 	if isFileStorage {
-		fileStorage, err := CreateFileStorage(storageURL, 2, isCacheNeeded, threads)
+		fileStorage, err := CreateFileStorage(storageURL, isCacheNeeded, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the file storage at %s: %v", storageURL, err)
 			return nil
@@ -157,7 +244,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	}
 
 	if strings.HasPrefix(storageURL, "flat://") {
-		fileStorage, err := CreateFileStorage(storageURL[7:], 0, false, threads)
+		fileStorage, err := CreateFileStorage(storageURL[7:], false, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the file storage at %s: %v", storageURL, err)
 			return nil
@@ -166,7 +253,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	}
 
 	if strings.HasPrefix(storageURL, "samba://") {
-		fileStorage, err := CreateFileStorage(storageURL[8:], 2, true, threads)
+		fileStorage, err := CreateFileStorage(storageURL[8:], true, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the file storage at %s: %v", storageURL, err)
 			return nil

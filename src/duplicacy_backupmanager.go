@@ -79,7 +79,7 @@ func (manager *BackupManager) SetupSnapshotCache(storageName string) bool {
 	preferencePath := GetDuplicacyPreferencePath()
 	cacheDir := path.Join(preferencePath, "cache", storageName)
 
-	storage, err := CreateFileStorage(cacheDir, 2, false, 1)
+	storage, err := CreateFileStorage(cacheDir, false, 1)
 	if err != nil {
 		LOG_ERROR("BACKUP_CACHE", "Failed to create the snapshot cache dir: %v", err)
 		return false
@@ -93,6 +93,7 @@ func (manager *BackupManager) SetupSnapshotCache(storageName string) bool {
 		}
 	}
 
+	storage.SetDefaultNestingLevels([]int{1}, 1)
 	manager.snapshotCache = storage
 	manager.SnapshotManager.snapshotCache = storage
 	return true

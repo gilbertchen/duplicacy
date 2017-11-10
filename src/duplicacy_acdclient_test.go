@@ -103,7 +103,7 @@ func TestACDClient(t *testing.T) {
 		}
 	}
 
-	entries, err := acdClient.ListEntries(test1ID, true)
+	entries, err := acdClient.ListEntries(test1ID, true, false)
 	if err != nil {
 		t.Errorf("Error list randomly generated files: %v", err)
 		return
@@ -117,7 +117,7 @@ func TestACDClient(t *testing.T) {
 		}
 	}
 
-	entries, err = acdClient.ListEntries(test2ID, true)
+	entries, err = acdClient.ListEntries(test2ID, true, false)
 	if err != nil {
 		t.Errorf("Error list randomly generated files: %v", err)
 		return

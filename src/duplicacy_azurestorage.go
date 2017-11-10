@@ -12,7 +12,7 @@ import (
 )
 
 type AzureStorage struct {
-	RateLimitedStorage
+	StorageBase
 
 	containers []*storage.Container
 }
@@ -47,6 +47,8 @@ func CreateAzureStorage(accountName string, accountKey string,
 		containers: containers,
 	}
 
+	azureStorage.DerivedStorage = azureStorage
+	azureStorage.SetDefaultNestingLevels([]int{0}, 0)
 	return
 }
 
@@ -147,23 +149,6 @@ func (storage *AzureStorage) GetFileInfo(threadIndex int, filePath string) (exis
 	}
 
 	return true, false, blob.Properties.ContentLength, nil
-}
-
-// FindChunk finds the chunk with the specified id.  If 'isFossil' is true, it will search for chunk files with
-// the suffix '.fsl'.
-func (storage *AzureStorage) FindChunk(threadIndex int, chunkID string, isFossil bool) (filePath string, exist bool, size int64, err error) {
-	filePath = "chunks/" + chunkID
-	if isFossil {
-		filePath += ".fsl"
-	}
-
-	exist, _, size, err = storage.GetFileInfo(threadIndex, filePath)
-
-	if err != nil {
-		return "", false, 0, err
-	} else {
-		return filePath, exist, size, err
-	}
 }
 
 // DownloadFile reads the file at 'filePath' into the chunk.
