@@ -1212,13 +1212,15 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 			// truncated portion of the existing file
 			for i := entry.StartChunk; i <= entry.EndChunk+1; i++ {
 				hasher := manager.config.NewKeyedHasher(manager.config.HashKey)
-				chunkSize := 1 // the size of extra chunk beyond EndChunk
+				chunkSize := 0
 				if i == entry.StartChunk {
-					chunkSize -= entry.StartOffset
+					chunkSize = chunkDownloader.taskList[i].chunkLength - entry.StartOffset
 				} else if i == entry.EndChunk {
 					chunkSize = entry.EndOffset
 				} else if i > entry.StartChunk && i < entry.EndChunk {
 					chunkSize = chunkDownloader.taskList[i].chunkLength
+				} else {
+					chunkSize = 1 // the size of extra chunk beyond EndChunk
 				}
 				count := 0
 				for count < chunkSize {
