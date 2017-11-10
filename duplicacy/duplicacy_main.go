@@ -691,6 +691,8 @@ func restoreRepository(context *cli.Context) {
 	quickMode := !context.Bool("hash")
 	overwrite := context.Bool("overwrite")
 	deleteMode := context.Bool("delete")
+	setOwner := !context.Bool("ignore-owner")
+
 	showStatistics := context.Bool("stats")
 
 	var patterns []string
@@ -732,7 +734,7 @@ func restoreRepository(context *cli.Context) {
 	duplicacy.SavePassword(*preference, "password", password)
 
 	backupManager.SetupSnapshotCache(preference.Name)
-	backupManager.Restore(repository, revision, true, quickMode, threads, overwrite, deleteMode, showStatistics, patterns)
+	backupManager.Restore(repository, revision, true, quickMode, threads, overwrite, deleteMode, setOwner, showStatistics, patterns)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1278,6 +1280,10 @@ func main() {
 				cli.BoolFlag{
 					Name:  "delete",
 					Usage: "delete files not in the snapshot",
+				},
+				cli.BoolFlag{
+					Name:  "ignore-owner",
+					Usage: "do not set the original uid/gid on restored files",
 				},
 				cli.BoolFlag{
 					Name:  "stats",

@@ -286,7 +286,7 @@ func (entry *Entry) String(maxSizeDigits int) string {
 	return fmt.Sprintf("%*d %s %64s %s", maxSizeDigits, entry.Size, modifiedTime, entry.Hash, entry.Path)
 }
 
-func (entry *Entry) RestoreMetadata(fullPath string, fileInfo *os.FileInfo) bool {
+func (entry *Entry) RestoreMetadata(fullPath string, fileInfo *os.FileInfo, setOwner bool) bool {
 
 	if fileInfo == nil {
 		stat, err := os.Stat(fullPath)
@@ -318,7 +318,11 @@ func (entry *Entry) RestoreMetadata(fullPath string, fileInfo *os.FileInfo) bool
 		entry.SetAttributesToFile(fullPath)
 	}
 
-	return SetOwner(fullPath, entry, fileInfo)
+	if setOwner {
+		return SetOwner(fullPath, entry, fileInfo)
+	} else {
+		return true
+	}
 }
 
 // Return -1 if 'left' should appear before 'right', 1 if opposite, and 0 if they are the same.
