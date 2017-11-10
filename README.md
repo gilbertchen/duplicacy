@@ -1,6 +1,6 @@
 # Duplicacy: A lock-free deduplication cloud backup tool
 
-Duplicacy is a new generation cross-platform cloud backup tool based on the idea of [[Lock-Free Deduplication]].  It is the only cloud backup tool that allows multiple computers to back up to the same storage simultaneously without using any locks (thus readily amenable to various cloud storage services).
+Duplicacy is a new generation cross-platform cloud backup tool based on the idea of [Lock-Free Deduplication](https://github.com/gilbertchen/duplicacy/wiki/Lock-Free-Deduplication).  It is the only cloud backup tool that allows multiple computers to back up to the same storage simultaneously without using any locks (thus readily amenable to various cloud storage services).
 
 The repository hosts source code, design documents, and binary releases of the command line version.  There is also a Duplicacy GUI frontend built for Windows and Mac OS X available from https://duplicacy.com.
 
@@ -18,7 +18,7 @@ Duplicacy currently supports major cloud storage providers (Amazon S3, Google Cl
 * Concurrent access: multiple clients can back up to the same storage at the same time
 * Snapshot migration: all or selected snapshots can be migrated from one storage to another
 
-The key idea of **[[Lock-Free Deduplication]]** can be summarized as follows:
+The key idea of **[Lock-Free Deduplication](https://github.com/gilbertchen/duplicacy/wiki/Lock-Free-Deduplication)** can be summarized as follows:
 
 * Use variable-size chunking algorithm to split files into chunks
 * Store each chunk in the storage using a file name derived from its hash, and rely on the file system API to manage chunks without using a centralized indexing database
