@@ -9,7 +9,7 @@ All documentation has been moved to our wiki page:
     * [prune](https://github.com/gilbertchen/duplicacy/wiki/prune)
     * [cat](https://github.com/gilbertchen/duplicacy/wiki/cat)
     * [history](https://github.com/gilbertchen/duplicacy/wiki/history)
-    * [diff]](https://github.com/gilbertchen/duplicacy/wiki/diff)
+    * [diff](https://github.com/gilbertchen/duplicacy/wiki/diff)
     * [password](https://github.com/gilbertchen/duplicacy/wiki/password)
     * [add](https://github.com/gilbertchen/duplicacy/wiki/add)
     * [set](https://github.com/gilbertchen/duplicacy/wiki/set)
