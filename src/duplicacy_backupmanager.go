@@ -879,8 +879,6 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 			if quickMode {
 				if file.IsSameAsFileInfo(stat) {
 					LOG_TRACE("RESTORE_SKIP", "File %s unchanged (by size and timestamp)", file.Path)
-					// shouldn't this be skipped?
-					// file.RestoreMetadata(fullPath, &stat)
 					continue
 				}
 			}
