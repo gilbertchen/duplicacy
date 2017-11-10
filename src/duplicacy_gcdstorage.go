@@ -120,7 +120,7 @@ func (storage *GCDStorage) shouldRetry(threadIndex int, err error) (bool, error)
 }
 
 // convertFilePath converts the path for a fossil in the form of 'chunks/id.fsl' to 'fossils/id'.  This is because
-// ACD doesn't support file renaming. Instead, it only allows one file to be moved from one directory to another.
+// GCD doesn't support file renaming. Instead, it only allows one file to be moved from one directory to another.
 // By adding a layer of path conversion we're pretending that we can rename between 'chunks/id' and 'chunks/id.fsl'
 func (storage *GCDStorage) convertFilePath(filePath string) string {
 	if strings.HasPrefix(filePath, "chunks/") && strings.HasSuffix(filePath, ".fsl") {

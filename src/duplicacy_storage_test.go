@@ -86,6 +86,10 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		storage, err := CreateS3CStorage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
+	} else if testStorageName == "digitalocean" {
+		storage, err := CreateS3CStorage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads)
+		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
+		return storage, err
 	} else if testStorageName == "minio" {
 		storage, err := CreateS3Storage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads, false, true)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
@@ -578,5 +582,13 @@ func TestCleanStorage(t *testing.T) {
 
 	storage.DeleteFile(0, "config")
 	LOG_INFO("DELETE_FILE", "Deleted config")
+
+
+	files, _, err := storage.ListFiles(0, "chunks/")
+	for _, file := range files {
+			if len(file) > 0 && file[len(file)-1] != '/' {
+				LOG_DEBUG("FILE_EXIST", "File %s exists after deletion", file)
+			}
+	}
 
 }
