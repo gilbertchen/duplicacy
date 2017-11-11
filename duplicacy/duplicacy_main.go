@@ -367,6 +367,7 @@ func configRepository(context *cli.Context, init bool) {
 		}
 
 		var otherConfig *duplicacy.Config
+		var bitCopy bool
 		if context.String("copy") != "" {
 
 			otherPreference := duplicacy.FindPreference(context.String("copy"))
@@ -395,6 +396,8 @@ func configRepository(context *cli.Context, init bool) {
 				duplicacy.LOG_ERROR("STORAGE_NOT_CONFIGURED",
 					"The storage to copy the configuration from has not been initialized")
 			}
+
+			bitCopy = context.Bool("bit")
 		}
 
 		iterations := context.Int("iterations")
@@ -402,7 +405,7 @@ func configRepository(context *cli.Context, init bool) {
 			iterations = duplicacy.CONFIG_DEFAULT_ITERATIONS
 		}
 		duplicacy.ConfigStorage(storage, iterations, compressionLevel, averageChunkSize, maximumChunkSize,
-			minimumChunkSize, storagePassword, otherConfig)
+			minimumChunkSize, storagePassword, otherConfig, bitCopy)
 	}
 
 	duplicacy.Preferences = append(duplicacy.Preferences, preference)
@@ -1602,6 +1605,10 @@ func main() {
 					Name:     "copy",
 					Usage:    "make the new storage compatible with an existing one to allow for copy operations",
 					Argument: "<storage name>",
+				},
+				cli.BoolFlag{
+					Name:     "bit",
+					Usage:    "(when using -copy) make the new storage bit-identical to also allow rsync etc.",
 				},
 			},
 			Usage:     "Add an additional storage to be used for the existing repository",
