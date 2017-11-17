@@ -31,23 +31,7 @@ The key idea of **[Lock-Free Deduplication](https://github.com/gilbertchen/dupli
 
 ## Storages
 
-Duplicacy currently supports local file storage, SFTP, and many cloud storage providers:
-
-* Local or networked drive
-* SFTP
-* Dropbox
-* Amazon S3
-* Wasabi
-* Google Cloud Storage
-* Microsoft Azure
-* Backblaze B2
-* Google Drive
-* Microsoft OneDrive
-* Hubic
-
-Please consult the [wiki page](https://github.com/gilbertchen/duplicacy/wiki/Storage-Backends) on how to set up Duplicacy to work with each storage.
-
-<details> <summary>Cost comparison of cloud storages</summary>
+With Duplicacy, you can back up files to local or networked drives, SFTP server, or many cloud storage providers.  The following table compares the costs of all cloud storages supported by Duplicacy.
 
 | Type         |   Storage (monthly)    |   Upload           |    Download    |    API Charge   |
 |:------------:|:-------------:|:------------------:|:--------------:|:-----------:|
@@ -62,27 +46,22 @@ Please consult the [wiki page](https://github.com/gilbertchen/duplicacy/wiki/Sto
 | Dropbox | 2GB free <br> $8.25/TB | free | free | no |
 | Hubic | 25GB free <br> €1/100GB <br> €5/10TB | free | free | no |
 
-</details>
+Please consult the [wiki page](https://github.com/gilbertchen/duplicacy/wiki/Storage-Backends) on how to set up Duplicacy to work with each cloud storage.  It should be noted that their performances vary a lot.  A [performance comparison](https://github.com/gilbertchen/cloud-storage-comparison) of these storages measured the running times (in seconds) of backing up and restoring the [Linux code base](https://github.com/torvalds/linux) as follows:
 
-<details> <summary>Performance comparison of cloud storages</summary>
-
-A [performance comparison](https://github.com/gilbertchen/cloud-storage-comparison) of these storages measured the running times (in seconds) of backing up and restoring the [Linux code base](https://github.com/torvalds/linux) as follows:
-
-| Storage              | initial backup | 2nd | 3rd | 4th | 5th | 6th | initial restore | 2nd | 3rd | 4th | 5th | 6th |
-|:--------------------:|:------:|:----:|:-----:|:----:|:-----:|:----:|:-----:|:----:|:----:|:----:|:----:|:----:|
-| SFTP                 |  31.5  | 6.6  | 20.6  | 4.3  | 27.0  | 7.4  | 22.5  | 7.8  | 18.4 | 3.6  | 18.7 | 8.7  | 
-| Amazon S3            |  41.1  | 5.9  | 21.9  | 4.1  | 23.1  | 7.6  | 27.7  | 7.6  | 23.5 | 3.5  | 23.7 | 7.2  | 
-| Wasabi               |  38.7  | 5.7  | 31.7  | 3.9  | 21.5  | 6.8  | 25.7  | 6.5  | 23.2 | 3.3  | 22.4 | 7.6  | 
-| DigitalOcean Spaces  |  51.6  | 7.1  | 31.7  | 3.8  | 24.7  | 7.5  | 29.3  | 6.4  | 27.6 | 2.7  | 24.7 | 6.2  | 
-| Backblaze B2         |  106.7 | 24.0 | 88.2  | 13.5 | 46.3  | 14.8 | 67.9  | 14.4 | 39.1 | 6.2  | 38.0 | 11.2 | 
-| Google Cloud Storage |  76.9  | 11.9 | 33.1  | 6.7  | 32.1  | 12.7 | 39.5  | 9.9  | 26.2 | 4.8  | 25.5 | 10.4 | 
-| Google Drive         |  139.3 | 14.7 | 45.2  | 9.8  | 60.5  | 19.8 | 129.4 | 17.8 | 54.4 | 8.4  | 67.3 | 17.4 | 
-| Microsoft Azure      |  35.0  | 5.4  | 20.4  | 3.9  | 22.1  | 6.1  | 30.7  | 7.1  | 21.5 | 3.6  | 21.6 | 9.2  | 
-| Microsoft OneDrive   |  250.0 | 31.6 | 80.2  | 16.9 | 82.7  | 36.4 | 333.4 | 26.2 | 82.0 | 12.9 | 71.1 | 24.4 |  
-| Dropbox              |  267.2 | 35.8 | 113.7 | 19.5 | 109.0 | 38.3 | 164.0 | 31.6 | 80.3 | 14.3 | 73.4 | 22.9 | 
+| Storage              | initial backup | 2nd | 3rd | initial restore | 2nd | 3rd |
+|:--------------------:|:------:|:----:|:-----:|:----:|:-----:|:----:|
+| SFTP                 |  31.5  | 6.6  | 20.6  | 22.5  | 7.8  | 18.4 |
+| Amazon S3            |  41.1  | 5.9  | 21.9  | 27.7  | 7.6  | 23.5 |
+| Wasabi               |  38.7  | 5.7  | 31.7  | 25.7  | 6.5  | 23.2 | 
+| DigitalOcean Spaces  |  51.6  | 7.1  | 31.7  | 29.3  | 6.4  | 27.6 | 
+| Backblaze B2         |  106.7 | 24.0 | 88.2  | 67.9  | 14.4 | 39.1 | 
+| Google Cloud Storage |  76.9  | 11.9 | 33.1  | 39.5  | 9.9  | 26.2 | 
+| Google Drive         |  139.3 | 14.7 | 45.2  | 129.4 | 17.8 | 54.4 |
+| Microsoft Azure      |  35.0  | 5.4  | 20.4  | 30.7  | 7.1  | 21.5 | 
+| Microsoft OneDrive   |  250.0 | 31.6 | 80.2  | 333.4 | 26.2 | 82.0 | 
+| Dropbox              |  267.2 | 35.8 | 113.7 | 164.0 | 31.6 | 80.3 |
 
 For more details please visit https://github.com/gilbertchen/cloud-storage-comparison.
-</details>
 
 ## Feature Comparison with Other Backup Tools
 
