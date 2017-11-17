@@ -46,7 +46,8 @@ Duplicacy currently supports local file storage, SFTP, and many cloud storage pr
 * Hubic
 
 Please consult the [wiki page](https://github.com/gilbertchen/duplicacy/wiki/Storage-Backends) on how to set up Duplicacy to work with each storage.
-<details> <summary>Cost Comparison</summary>
+
+<details> <summary>Cost comparison of cloud storages</summary>
 
 | Type         |   Storage (monthly)    |   Upload           |    Download    |    API Charge   |
 |:------------:|:-------------:|:------------------:|:--------------:|:-----------:|
@@ -63,7 +64,7 @@ Please consult the [wiki page](https://github.com/gilbertchen/duplicacy/wiki/Sto
 
 </details>
 
-<details> <summary>Performance Comparison</summary>
+<details> <summary>Performance comparison of cloud storages</summary>
 
 A [performance comparison](https://github.com/gilbertchen/cloud-storage-comparison) of these storages measured the running times (in seconds) of backing up and restoring the [Linux code base](https://github.com/torvalds/linux) as follows:
 
