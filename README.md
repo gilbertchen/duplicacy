@@ -31,7 +31,7 @@ The key idea of **[Lock-Free Deduplication](https://github.com/gilbertchen/dupli
 
 ## Storages
 
-With Duplicacy, you can back up files to local or networked drives, SFTP server, or many cloud storage providers.  The following table compares the costs of all cloud storages supported by Duplicacy.
+With Duplicacy, you can back up files to local or networked drives, SFTP servers, or many cloud storage providers.  The following table compares the costs of all cloud storages supported by Duplicacy.
 
 | Type         |   Storage (monthly)    |   Upload           |    Download    |    API Charge   |
 |:------------:|:-------------:|:------------------:|:--------------:|:-----------:|
@@ -46,7 +46,9 @@ With Duplicacy, you can back up files to local or networked drives, SFTP server,
 | Dropbox | 2GB free <br> $8.25/TB | free | free | no |
 | Hubic | 25GB free <br> €1/100GB <br> €5/10TB | free | free | no |
 
-Please consult the [wiki page](https://github.com/gilbertchen/duplicacy/wiki/Storage-Backends) on how to set up Duplicacy to work with each cloud storage.  It should be noted that their performances vary a lot.  A [performance comparison](https://github.com/gilbertchen/cloud-storage-comparison) of these storages measured the running times (in seconds) of backing up and restoring the [Linux code base](https://github.com/torvalds/linux) as follows:
+Please consult the [wiki page](https://github.com/gilbertchen/duplicacy/wiki/Storage-Backends) on how to set up Duplicacy to work with each cloud storage.
+
+It should be noted that their performances vary a lot.  A [performance comparison](https://github.com/gilbertchen/cloud-storage-comparison) of these storages measured the running times (in seconds) of backing up and restoring the [Linux code base](https://github.com/torvalds/linux) as follows:
 
 | Storage              | initial backup | 2nd | 3rd | initial restore | 2nd | 3rd |
 |:--------------------:|:------:|:----:|:-----:|:----:|:-----:|:----:|
