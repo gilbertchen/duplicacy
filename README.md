@@ -31,7 +31,22 @@ The key idea of **[Lock-Free Deduplication](https://github.com/gilbertchen/dupli
 
 ## Storages
 
-With Duplicacy, you can back up files to local or networked drives, SFTP server, or many cloud storage providers.  The following table compares the costs of all cloud storages supported by Duplicacy.
+Duplicacy currently supports local file storage, SFTP, and many cloud storage providers:
+
+* Local or networked drive
+* SFTP
+* Dropbox
+* Amazon S3
+* Wasabi
+* Google Cloud Storage
+* Microsoft Azure
+* Backblaze B2
+* Google Drive
+* Microsoft OneDrive
+* Hubic
+
+Please consult the [wiki page](https://github.com/gilbertchen/duplicacy/wiki/Storage-Backends) on how to set up Duplicacy to work with each storage.
+<details> <summary>Cost Comparison</summary>
 
 | Type         |   Storage (monthly)    |   Upload           |    Download    |    API Charge   |
 |:------------:|:-------------:|:------------------:|:--------------:|:-----------:|
@@ -46,7 +61,11 @@ With Duplicacy, you can back up files to local or networked drives, SFTP server,
 | Dropbox | 2GB free <br> $8.25/TB | free | free | no |
 | Hubic | 25GB free <br> €1/100GB <br> €5/10TB | free | free | no |
 
-Please consult the [wiki page](https://github.com/gilbertchen/duplicacy/wiki/Storage-Backends) on how to set up Duplicacy to work with each cloud storage.  It should be noted that their performances vary a lot.  A [performance comparison](https://github.com/gilbertchen/cloud-storage-comparison) of these storages measured the running times (in seconds) of backing up and restoring the [Linux code base](https://github.com/torvalds/linux) as follows:
+</details>
+
+<details> <summary>Performance Comparison</summary>
+
+A [performance comparison](https://github.com/gilbertchen/cloud-storage-comparison) of these storages measured the running times (in seconds) of backing up and restoring the [Linux code base](https://github.com/torvalds/linux) as follows:
 
 | Storage              | initial backup | 2nd | 3rd | 4th | 5th | 6th | initial restore | 2nd | 3rd | 4th | 5th | 6th |
 |:--------------------:|:------:|:----:|:-----:|:----:|:-----:|:----:|:-----:|:----:|:----:|:----:|:----:|:----:|
@@ -62,6 +81,7 @@ Please consult the [wiki page](https://github.com/gilbertchen/duplicacy/wiki/Sto
 | Dropbox              |  267.2 | 35.8 | 113.7 | 19.5 | 109.0 | 38.3 | 164.0 | 31.6 | 80.3 | 14.3 | 73.4 | 22.9 | 
 
 For more details please visit https://github.com/gilbertchen/cloud-storage-comparison.
+</details>
 
 ## Feature Comparison with Other Backup Tools
 
