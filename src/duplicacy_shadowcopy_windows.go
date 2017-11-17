@@ -416,7 +416,7 @@ func CreateShadowCopy(top string, shadowCopy bool) (shadowTop string) {
 		return top
 	}
 
-	if !async.Wait(20) {
+	if !async.Wait(60) {
 		LOG_ERROR("VSS_GATHER", "Shadow copy creation failed: GatherWriterMetadata didn't finish properly")
 		return top
 	}
@@ -456,7 +456,7 @@ func CreateShadowCopy(top string, shadowCopy bool) (shadowTop string) {
 		return top
 	}
 
-	if !async.Wait(20) {
+	if !async.Wait(60) {
 		LOG_ERROR("VSS_PREPARE", "Shadow copy creation failed: PrepareForBackup didn't finish properly")
 		return top
 	}
@@ -473,7 +473,7 @@ func CreateShadowCopy(top string, shadowCopy bool) (shadowTop string) {
 		return top
 	}
 
-	if !async.Wait(60) {
+	if !async.Wait(180) {
 		LOG_ERROR("VSS_SNAPSHOT", "Shadow copy creation failed: DoSnapshotSet didn't finish properly")
 		return top
 	}
