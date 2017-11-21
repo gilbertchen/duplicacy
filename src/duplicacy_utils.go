@@ -200,7 +200,7 @@ func GetPassword(preference Preference, passwordType string, prompt string,
 	passwordID := passwordType
 
 	preferencePassword := GetPasswordFromPreference(preference, passwordType)
-	if preferencePassword != "" && !resetPassword {
+	if preferencePassword != "" {
 		return preferencePassword
 	}
 
