@@ -143,7 +143,7 @@ func (config *Config) Print() {
 }
 
 func CreateConfigFromParameters(compressionLevel int, averageChunkSize int, maximumChunkSize int, mininumChunkSize int,
-	isEncrypted bool, copyFrom *Config) (config *Config) {
+	isEncrypted bool, copyFrom *Config, bitCopy bool) (config *Config) {
 
 	config = &Config{
 		CompressionLevel: compressionLevel,
@@ -182,6 +182,12 @@ func CreateConfigFromParameters(compressionLevel int, averageChunkSize int, maxi
 
 		config.ChunkSeed = copyFrom.ChunkSeed
 		config.HashKey = copyFrom.HashKey
+
+		if bitCopy {
+			config.IDKey = copyFrom.IDKey
+			config.ChunkKey = copyFrom.ChunkKey
+			config.FileKey = copyFrom.FileKey
+		}
 	}
 
 	config.chunkPool = make(chan *Chunk, runtime.NumCPU()*16)
@@ -471,7 +477,7 @@ func UploadConfig(storage Storage, config *Config, password string, iterations i
 // it simply creates a file named 'config' that stores various parameters as well as a set of keys if encryption
 // is enabled.
 func ConfigStorage(storage Storage, iterations int, compressionLevel int, averageChunkSize int, maximumChunkSize int,
-	minimumChunkSize int, password string, copyFrom *Config) bool {
+	minimumChunkSize int, password string, copyFrom *Config, bitCopy bool) bool {
 
 	exist, _, _, err := storage.GetFileInfo(0, "config")
 	if err != nil {
@@ -485,7 +491,7 @@ func ConfigStorage(storage Storage, iterations int, compressionLevel int, averag
 	}
 
 	config := CreateConfigFromParameters(compressionLevel, averageChunkSize, maximumChunkSize, minimumChunkSize, len(password) > 0,
-		copyFrom)
+		copyFrom, bitCopy)
 	if config == nil {
 		return false
 	}
