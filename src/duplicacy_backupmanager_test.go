@@ -246,8 +246,8 @@ func TestBackupManager(t *testing.T) {
 	backupManager.Backup(testDir+"/repository1" /*quickMode=*/, true, threads, "first", false, false)
 	time.Sleep(time.Duration(delay) * time.Second)
 	SetDuplicacyPreferencePath(testDir + "/repository2/.duplicacy")
-	backupManager.Restore(testDir+"/repository2", threads /*inPlace=*/, false /*quickMode=*/, false, threads /*overwrite=*/, true,
-		/*deleteMode=*/ false /*showStatistics=*/, false /*patterns=*/, nil)
+	backupManager.Restore(testDir+"/repository2", threads, /*inPlace=*/false, /*quickMode=*/false, threads, /*overwrite=*/true,
+		/*deleteMode=*/false, /*setowner=*/false, /*showStatistics=*/false, /*patterns=*/ nil)
 
 	for _, f := range []string{"file1", "file2", "dir1/file3"} {
 		if _, err := os.Stat(testDir + "/repository2/" + f); os.IsNotExist(err) {
@@ -270,8 +270,8 @@ func TestBackupManager(t *testing.T) {
 	backupManager.Backup(testDir+"/repository1" /*quickMode=*/, true, threads, "second", false, false)
 	time.Sleep(time.Duration(delay) * time.Second)
 	SetDuplicacyPreferencePath(testDir + "/repository2/.duplicacy")
-	backupManager.Restore(testDir+"/repository2", 2 /*inPlace=*/, true /*quickMode=*/, true, threads /*overwrite=*/, true,
-		/*deleteMode=*/ false /*showStatistics=*/, false /*patterns=*/, nil)
+	backupManager.Restore(testDir+"/repository2", 2, /*inPlace=*/true, /*quickMode=*/true, threads, /*overwrite=*/true,
+		/*deleteMode=*/false, /*setowner=*/false, /*showStatistics=*/false, /*patterns=*/nil)
 
 	for _, f := range []string{"file1", "file2", "dir1/file3"} {
 		hash1 := getFileHash(testDir + "/repository1/" + f)
@@ -298,8 +298,8 @@ func TestBackupManager(t *testing.T) {
 	createRandomFile(testDir+"/repository2/dir5/file5", 100)
 
 	SetDuplicacyPreferencePath(testDir + "/repository2/.duplicacy")
-	backupManager.Restore(testDir+"/repository2", 3 /*inPlace=*/, true /*quickMode=*/, false, threads /*overwrite=*/, true,
-		/*deleteMode=*/ true /*showStatistics=*/, false /*patterns=*/, nil)
+	backupManager.Restore(testDir+"/repository2", 3, /*inPlace=*/true, /*quickMode=*/false, threads, /*overwrite=*/true,
+		/*deleteMode=*/true, /*setowner=*/false, /*showStatistics=*/false, /*patterns=*/nil)
 
 	for _, f := range []string{"file1", "file2", "dir1/file3"} {
 		hash1 := getFileHash(testDir + "/repository1/" + f)
@@ -325,8 +325,8 @@ func TestBackupManager(t *testing.T) {
 	os.Remove(testDir + "/repository1/file2")
 	os.Remove(testDir + "/repository1/dir1/file3")
 	SetDuplicacyPreferencePath(testDir + "/repository1/.duplicacy")
-	backupManager.Restore(testDir+"/repository1", 3 /*inPlace=*/, true /*quickMode=*/, false, threads /*overwrite=*/, true,
-		/*deleteMode=*/ false /*showStatistics=*/, false /*patterns=*/, []string{"+file2", "+dir1/file3", "-*"})
+	backupManager.Restore(testDir+"/repository1", 3, /*inPlace=*/true, /*quickMode=*/false, threads, /*overwrite=*/true,
+		/*deleteMode=*/false,  /*setowner=*/false, /*showStatistics=*/false, /*patterns=*/[]string{"+file2", "+dir1/file3", "-*"})
 
 	for _, f := range []string{"file1", "file2", "dir1/file3"} {
 		hash1 := getFileHash(testDir + "/repository1/" + f)
