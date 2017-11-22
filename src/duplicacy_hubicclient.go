@@ -151,6 +151,13 @@ func (client *HubicClient) call(url string, method string, input interface{}, ex
 
 		response, err = client.HTTPClient.Do(request)
 		if err != nil {
+			if url != HubicCredentialURL {
+				retryAfter := time.Duration(rand.Float32() * 1000.0 * float32(backoff))
+				LOG_INFO("HUBIC_CALL", "%s %s returned an error: %v; retry after %d milliseconds", method, url, err, retryAfter)
+				time.Sleep(retryAfter * time.Millisecond)
+				backoff *= 2
+				continue
+			}
 			return nil, 0, "", err
 		}
 
