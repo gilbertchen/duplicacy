@@ -397,7 +397,7 @@ func configRepository(context *cli.Context, init bool) {
 					"The storage to copy the configuration from has not been initialized")
 			}
 
-			bitCopy = context.Bool("bit")
+			bitCopy = context.Bool("bit-identical")
 		}
 
 		iterations := context.Int("iterations")
@@ -1607,7 +1607,7 @@ func main() {
 					Argument: "<storage name>",
 				},
 				cli.BoolFlag{
-					Name:     "bit",
+					Name:     "bit-identical",
 					Usage:    "(when using -copy) make the new storage bit-identical to also allow rsync etc.",
 				},
 			},
