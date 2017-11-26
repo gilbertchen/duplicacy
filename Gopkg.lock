@@ -44,10 +44,10 @@
   version = "v10.2.1-beta"
 
 [[projects]]
+  branch = "master"
   name = "github.com/gilbertchen/cli"
   packages = ["."]
-  revision = "565493f259bf868adb54d45d5f4c68d405117adf"
-  version = "v1.2.0"
+  revision = "1de0a1836ce9c3ae1bf737a0869c4f04f28a7f98"
 
 [[projects]]
   branch = "master"
@@ -207,6 +207,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "95a162eedee5e915fbd1917c3ba5021e646aa2f13a542c7cbeb02bcf30a3acb9"
+  inputs-digest = "a84af96e0c7019aa041120828de9995efb9cca3fde6e56a8ad5b80962f23806d"
   solver-name = "gps-cdcl"
   solver-version = 1

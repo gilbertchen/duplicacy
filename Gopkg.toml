@@ -42,8 +42,8 @@
   version = "10.2.1-beta"
 
 [[constraint]]
+  branch = "master"
   name = "github.com/gilbertchen/cli"
-  version = "1.2.0"
 
 [[constraint]]
   branch = "master"
