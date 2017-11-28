@@ -1113,6 +1113,14 @@ func (manager *SnapshotManager) RetrieveFile(snapshot *Snapshot, file *Entry, ou
 
 	manager.CreateChunkDownloader()
 
+	// Temporarily disable the snapshot cache of the download so that downloaded file chunks won't be saved
+	// to the cache.
+	snapshotCache := manager.chunkDownloader.snapshotCache
+	manager.chunkDownloader.snapshotCache = nil
+	defer func() {
+		manager.chunkDownloader.snapshotCache = snapshotCache
+	}()
+
 	fileHasher := manager.config.NewFileHasher()
 	alternateHash := false
 	if strings.HasPrefix(file.Hash, "#") {
