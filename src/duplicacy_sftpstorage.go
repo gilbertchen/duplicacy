@@ -53,7 +53,7 @@ func CreateSFTPStorage(server string, port int, username string, storageDir stri
 	}
 
 	if server == "sftp.hidrive.strato.com" {
-		sftpConfig.Ciphers = []string{"aes128-cbc", "aes128-ctr", "aes256-ctr"}
+		sftpConfig.Ciphers = []string{"aes128-ctr", "aes256-ctr"}
 	}
 
 	serverAddress := fmt.Sprintf("%s:%d", server, port)
