@@ -65,3 +65,8 @@ fabric.properties
 # Project-local glide cache, RE: https://github.com/Masterminds/glide/issues/736
 .glide/
 
+# Intellij local
+.idea/**/*.iml
+.idea/**/modules.xml
+.idea/**/vcs.xml
+
