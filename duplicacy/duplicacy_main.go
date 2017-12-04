@@ -1170,6 +1170,19 @@ func infoStorage(context *cli.Context) {
 	} else {
 		config.Print()
 	}
+
+	dirs, _, err := storage.ListFiles(0, "snapshots/")
+	if err != nil {
+		duplicacy.LOG_ERROR("STORAGE_LIST", "Failed to list repository ids: %v", err)
+		return
+	}
+
+	for _, dir := range dirs {
+		if len(dir) > 0 && dir[len(dir)-1] == '/' {
+			duplicacy.LOG_INFO("STORAGE_SNAPSHOT", "%s", dir[0:len(dir) - 1])
+		}
+	}
+
 }
 
 func main() {
