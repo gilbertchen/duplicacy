@@ -68,6 +68,7 @@ type Config struct {
 	chunkPool      chan *Chunk
 	numberOfChunks int32
 	dryRun         bool
+	skipNoFiles         bool
 }
 
 // Create an alias to avoid recursive calls on Config.MarshalJSON

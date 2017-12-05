@@ -38,6 +38,9 @@ type BackupManager struct {
 func (manager *BackupManager) SetDryRun(dryRun bool) {
 	manager.config.dryRun = dryRun
 }
+func (manager *BackupManager) SetSkipNoFiles(skipNoFiles bool) {
+	manager.config.skipNoFiles = skipNoFiles
+}
 
 // CreateBackupManager creates a backup manager using the specified 'storage'.  'snapshotID' is a unique id to
 // identify snapshots created for this repository.  'top' is the top directory of the repository.  'password' is the
@@ -612,9 +615,17 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	localSnapshot.FileSize = preservedFileSize + uploadedFileSize
 	localSnapshot.NumberOfFiles = int64(len(preservedEntries) + len(uploadedEntries))
 
-	totalSnapshotChunkLength, numberOfNewSnapshotChunks,
-		totalUploadedSnapshotChunkLength, totalUploadedSnapshotChunkBytes :=
-		manager.UploadSnapshot(chunkMaker, chunkUploader, top, localSnapshot, chunkCache)
+	var totalSnapshotChunkLength int64
+	var numberOfNewSnapshotChunks int
+	var backupSkippedNoFiles bool
+	if manager.config.skipNoFiles && len(uploadedEntries) == 0 {
+		LOG_INFO("SKIP_NO_FILES", "Skipped backup of revision, No file changed")
+		backupSkippedNoFiles = true
+	} else {
+		totalSnapshotChunkLength, numberOfNewSnapshotChunks,
+			totalUploadedSnapshotChunkLength, totalUploadedSnapshotChunkBytes =
+			manager.UploadSnapshot(chunkMaker, chunkUploader, top, localSnapshot, chunkCache)
+	}
 
 	if showStatistics && !RunInBackground {
 		for _, entry := range uploadedEntries {
@@ -634,7 +645,9 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	if !manager.config.dryRun {
 		manager.SnapshotManager.CleanSnapshotCache(localSnapshot, nil)
 	}
-	LOG_INFO("BACKUP_END", "Backup for %s at revision %d completed", top, localSnapshot.Revision)
+	if !backupSkippedNoFiles {
+		LOG_INFO("BACKUP_END", "Backup for %s at revision %d completed", top, localSnapshot.Revision)
+	}
 
 	RunAtError = func() {}
 	RemoveIncompleteSnapshot()
