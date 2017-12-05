@@ -216,7 +216,10 @@ func configRepository(context *cli.Context, init bool) {
 	var storageURL string
 
 	if init {
-		storageName = "default"
+		storageName = context.String("storage-name")
+		if len(storageName) == 0 {
+			storageName = "default"
+		}
 		snapshotID = context.Args()[0]
 		storageURL = context.Args()[1]
 	} else {
@@ -1224,6 +1227,11 @@ func main() {
 					Name:     "pref-dir",
 					Usage:    "alternate location for the .duplicacy directory (absolute or relative to current directory)",
 					Argument: "<path>",
+				},
+				cli.StringFlag{
+					Name:     "storage-name",
+					Usage:    "assign a name to the storage",
+					Argument: "<name>",
 				},
 			},
 			Usage:     "Initialize the storage if necessary and the current directory as the repository",
