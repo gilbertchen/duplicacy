@@ -332,7 +332,7 @@ func CreateGCDStorage(tokenFile string, storagePath string, threads int) (storag
 		storage.attempts[i] = 0
 	}
 
-	storagePathID, err := storage.getIDFromPath(0, storagePath, false)
+	storagePathID, err := storage.getIDFromPath(0, storagePath, true)
 	if err != nil {
 		return nil, err
 	}
