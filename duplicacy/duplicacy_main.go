@@ -592,11 +592,45 @@ func changePassword(context *cli.Context) {
 		iterations = duplicacy.CONFIG_DEFAULT_ITERATIONS
 	}
 
+	description, err := json.MarshalIndent(config, "", "    ")
+	if err != nil {
+		duplicacy.LOG_ERROR("CONFIG_MARSHAL", "Failed to marshal the config: %v", err)
+		return
+	}
+
+	configPath := path.Join(duplicacy.GetDuplicacyPreferencePath(), "config")
+	err = ioutil.WriteFile(configPath, description, 0600)
+	if err != nil {
+		duplicacy.LOG_ERROR("CONFIG_SAVE", "Failed to save the old config to %s: %v", configPath, err)
+		return
+	}
+	duplicacy.LOG_INFO("CONFIG_SAVE", "The old config has been temporarily saved to %s", configPath)
+
+	removeLocalCopy := false
+	defer func() {
+		if removeLocalCopy {
+			err = os.Remove(configPath)
+			if err != nil {
+				duplicacy.LOG_WARN("CONFIG_CLEAN", "Failed to delete %s: %v", configPath, err)
+			} else {
+				duplicacy.LOG_INFO("CONFIG_CLEAN", "The local copy of the old config has been removed")
+			}
+		}
+	} ()
+
+	err = storage.DeleteFile(0, "config")
+	if err != nil {
+		duplicacy.LOG_ERROR("CONFIG_DELETE", "Failed to delete the old config from the storage: %v", err)
+		return
+	}
+
 	duplicacy.UploadConfig(storage, config, newPassword, iterations)
 
 	duplicacy.SavePassword(*preference, "password", newPassword)
 
 	duplicacy.LOG_INFO("STORAGE_SET", "The password for storage %s has been changed", preference.StorageURL)
+
+	removeLocalCopy = true
 }
 
 func backupRepository(context *cli.Context) {
