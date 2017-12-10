@@ -106,17 +106,19 @@ func (storage *HubicStorage) ListFiles(threadIndex int, dir string) ([]string, [
 	} else {
 		files := []string{}
 		sizes := []int64{}
-		entries, err := storage.client.ListEntries(storage.storageDir + "/chunks")
+		entries, err := storage.client.ListEntries(storage.storageDir + "/" + dir)
 		if err != nil {
 			return nil, nil, err
 		}
 
 		for _, entry := range entries {
 			if entry.Type == "application/directory" {
-				continue
+				files = append(files,  entry.Name + "/")
+				sizes = append(sizes, 0)
+			} else {
+				files = append(files, entry.Name)
+				sizes = append(sizes, entry.Size)
 			}
-			files = append(files, entry.Name)
-			sizes = append(sizes, entry.Size)
 		}
 		return files, sizes, nil
 	}
