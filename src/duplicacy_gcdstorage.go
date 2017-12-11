@@ -24,14 +24,24 @@ import (
 	"google.golang.org/api/googleapi"
 )
 
+var (
+	GCDFileMimeType = "application/octet-stream"
+	GCDDirectoryMimeType = "application/vnd.google-apps.folder"
+)
+type GCDFileInfo struct {
+	ID string
+	IsDir bool
+	Size int64
+}
+
 type GCDStorage struct {
 	StorageBase
 
-	service     *drive.Service
-	idCache     map[string]string
-	idCacheLock sync.Mutex
-	backoffs    []int // desired backoff time in seconds for each thread
-	attempts    []int // number of failed attempts since last success for each thread
+	service           *drive.Service
+	fileInfoCache     map[string]GCDFileInfo
+	fileInfoLock      sync.Mutex
+	backoffs          []int // desired backoff time in seconds for each thread
+	attempts          []int // number of failed attempts since last success for each thread
 
 	createDirectoryLock sync.Mutex
 	isConnected         bool
@@ -129,30 +139,32 @@ func (storage *GCDStorage) convertFilePath(filePath string) string {
 	return filePath
 }
 
-func (storage *GCDStorage) getPathID(path string) string {
-	storage.idCacheLock.Lock()
-	pathID := storage.idCache[path]
-	storage.idCacheLock.Unlock()
-	return pathID
+// getPathIDFromCache assumes that the path to be found exists in the cache
+func (storage *GCDStorage) getPathIDFromCache(path string) (pathID string) {
+	storage.fileInfoLock.Lock()
+	fileInfo := storage.fileInfoCache[path]
+	storage.fileInfoLock.Unlock()
+	return fileInfo.ID
 }
 
-func (storage *GCDStorage) findPathID(path string) (string, bool) {
-	storage.idCacheLock.Lock()
-	pathID, ok := storage.idCache[path]
-	storage.idCacheLock.Unlock()
-	return pathID, ok
+// findFileInfoFromCache doesn't assume that the path to be found exists in the cache
+func (storage *GCDStorage) findFileInfoFromCache(path string) (pathID string, exist bool, isDir bool, size int64) {
+	storage.fileInfoLock.Lock()
+	fileInfo, ok := storage.fileInfoCache[path]
+	storage.fileInfoLock.Unlock()
+	return fileInfo.ID, ok, fileInfo.IsDir, fileInfo.Size
 }
 
-func (storage *GCDStorage) savePathID(path string, pathID string) {
-	storage.idCacheLock.Lock()
-	storage.idCache[path] = pathID
-	storage.idCacheLock.Unlock()
+func (storage *GCDStorage) saveFileInfoToCache(path string, pathID string, isDir bool, size int64) {
+	storage.fileInfoLock.Lock()
+	storage.fileInfoCache[path] = GCDFileInfo { ID: pathID, IsDir: isDir, Size: size }
+	storage.fileInfoLock.Unlock()
 }
 
-func (storage *GCDStorage) deletePathID(path string) {
-	storage.idCacheLock.Lock()
-	delete(storage.idCache, path)
-	storage.idCacheLock.Unlock()
+func (storage *GCDStorage) deleteFileInfoFromCache(path string) {
+	storage.fileInfoLock.Lock()
+	delete(storage.fileInfoCache, path)
+	storage.fileInfoLock.Unlock()
 }
 
 func (storage *GCDStorage) listFiles(threadIndex int, parentID string, listFiles bool, listDirectories bool) ([]*drive.File, error) {
@@ -165,7 +177,7 @@ func (storage *GCDStorage) listFiles(threadIndex int, parentID string, listFiles
 
 	startToken := ""
 
-	query := "'" + parentID + "' in parents "
+	query := "'" + parentID + "' in parents and trashed != true "
 	if listFiles && !listDirectories {
 		query += "and mimeType != 'application/vnd.google-apps.folder'"
 	} else if !listFiles && !listDirectories {
@@ -209,7 +221,7 @@ func (storage *GCDStorage) listByName(threadIndex int, parentID string, name str
 	var err error
 
 	for {
-		query := "name = '" + name + "' and '" + parentID + "' in parents"
+		query := "name = '" + name + "' and '" + parentID + "' in parents and trashed != true"
 		fileList, err = storage.service.Files.List().Q(query).Fields("files(name, mimeType, id, size)").Do()
 
 		if retry, e := storage.shouldRetry(threadIndex, err); e == nil && !retry {
@@ -227,7 +239,7 @@ func (storage *GCDStorage) listByName(threadIndex int, parentID string, name str
 
 	file := fileList.Files[0]
 
-	return file.Id, file.MimeType == "application/vnd.google-apps.folder", file.Size, nil
+	return file.Id, file.MimeType == GCDDirectoryMimeType, file.Size, nil
 }
 
 // getIDFromPath returns the id of the given path.  If 'createDirectories' is true, create the given path and all its
@@ -235,13 +247,13 @@ func (storage *GCDStorage) listByName(threadIndex int, parentID string, name str
 // if the file doesn't exist.
 func (storage *GCDStorage) getIDFromPath(threadIndex int, filePath string, createDirectories bool) (string, error) {
 
-	if fileID, ok := storage.findPathID(filePath); ok {
+	if fileID, ok, _, _ := storage.findFileInfoFromCache(filePath); ok {
 		return fileID, nil
 	}
 
 	fileID := "root"
 
-	if rootID, ok := storage.findPathID(""); ok {
+	if rootID, ok, _, _ := storage.findFileInfoFromCache(""); ok {
 		fileID = rootID
 	}
 
@@ -250,7 +262,7 @@ func (storage *GCDStorage) getIDFromPath(threadIndex int, filePath string, creat
 	for i, name := range names {
 		// Find the intermediate directory in the cache first.
 		current = path.Join(current, name)
-		currentID, ok := storage.findPathID(current)
+		currentID, ok, _, _ := storage.findFileInfoFromCache(current)
 		if ok {
 			fileID = currentID
 			continue
@@ -259,7 +271,8 @@ func (storage *GCDStorage) getIDFromPath(threadIndex int, filePath string, creat
 		// Check if the directory exists.
 		var err error
 		var isDir bool
-		fileID, isDir, _, err = storage.listByName(threadIndex, fileID, name)
+		var size int64
+		fileID, isDir, size, err = storage.listByName(threadIndex, fileID, name)
 		if err != nil {
 			return "", err
 		}
@@ -277,14 +290,14 @@ func (storage *GCDStorage) getIDFromPath(threadIndex int, filePath string, creat
 			if err != nil {
 				return "", fmt.Errorf("Failed to create directory '%s': %v", current, err)
 			}
-			currentID, ok = storage.findPathID(current)
+			currentID, ok, _, _= storage.findFileInfoFromCache(current)
 			if !ok {
 				return "", fmt.Errorf("Directory '%s' created by id not found", current)
 			}
 			fileID = currentID
 			continue
 		} else {
-			storage.savePathID(current, fileID)
+			storage.saveFileInfoToCache(current, fileID, isDir, size)
 		}
 		if i != len(names)-1 && !isDir {
 			return "", fmt.Errorf("Path '%s' is not a directory", current)
@@ -322,7 +335,7 @@ func CreateGCDStorage(tokenFile string, storagePath string, threads int) (storag
 	storage = &GCDStorage{
 		service:         service,
 		numberOfThreads: threads,
-		idCache:         make(map[string]string),
+		fileInfoCache:   make(map[string]GCDFileInfo),
 		backoffs:        make([]int, threads),
 		attempts:        make([]int, threads),
 	}
@@ -337,7 +350,9 @@ func CreateGCDStorage(tokenFile string, storagePath string, threads int) (storag
 		return nil, err
 	}
 
-	storage.idCache[""] = storagePathID
+	// Clear the file info cache and set storagePathID as the root id
+	storage.fileInfoCache = make(map[string]GCDFileInfo)
+	storage.saveFileInfoToCache("", storagePathID, true, 0)
 
 	for _, dir := range []string{"chunks", "snapshots", "fossils"} {
 		dirID, isDir, _, err := storage.listByName(0, storagePathID, dir)
@@ -352,7 +367,7 @@ func CreateGCDStorage(tokenFile string, storagePath string, threads int) (storag
 		} else if !isDir {
 			return nil, fmt.Errorf("%s/%s is not a directory", storagePath, dir)
 		} else {
-			storage.idCache[dir] = dirID
+			storage.saveFileInfoToCache(dir, dirID, true, 0)
 		}
 	}
 
@@ -371,7 +386,7 @@ func (storage *GCDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 
 	if dir == "snapshots" {
 
-		files, err := storage.listFiles(threadIndex, storage.getPathID(dir), false, true)
+		files, err := storage.listFiles(threadIndex, storage.getPathIDFromCache(dir), false, true)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -379,8 +394,8 @@ func (storage *GCDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 		subDirs := []string{}
 
 		for _, file := range files {
-			storage.savePathID("snapshots/"+file.Name, file.Id)
-			subDirs = append(subDirs, file.Name+"/")
+			storage.saveFileInfoToCache("snapshots/" + file.Name, file.Id, file.MimeType == GCDDirectoryMimeType, file.Size)
+			subDirs = append(subDirs, file.Name + "/")
 		}
 		return subDirs, nil, nil
 	} else if strings.HasPrefix(dir, "snapshots/") {
@@ -400,7 +415,7 @@ func (storage *GCDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 		files := []string{}
 
 		for _, entry := range entries {
-			storage.savePathID(dir+"/"+entry.Name, entry.Id)
+			storage.saveFileInfoToCache(dir + "/" + entry.Name, entry.Id, entry.MimeType == GCDDirectoryMimeType, entry.Size)
 			files = append(files, entry.Name)
 		}
 		return files, nil, nil
@@ -411,7 +426,7 @@ func (storage *GCDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 		parents := []string{"chunks", "fossils"}
 		for i := 0; i < len(parents); i++ {
 			parent := parents[i]
-			pathID, ok := storage.findPathID(parent)
+			pathID, ok, _, _ := storage.findFileInfoFromCache(parent)
 			if !ok {
 				continue
 			}
@@ -420,7 +435,7 @@ func (storage *GCDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 				return nil, nil, err
 			}
 			for _, entry := range entries {
-				if entry.MimeType != "application/vnd.google-apps.folder" {
+				if entry.MimeType != GCDDirectoryMimeType {
 					name := entry.Name
 					if strings.HasPrefix(parent, "fossils") {
 						name = parent + "/" + name + ".fsl"
@@ -432,9 +447,9 @@ func (storage *GCDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 					files = append(files, name)
 					sizes = append(sizes, entry.Size)
 				} else {
-					parents = append(parents, parent+"/"+entry.Name)
+					parents = append(parents, parent + "/" + entry.Name)
 				}
-				storage.savePathID(parent+"/"+entry.Name, entry.Id)
+				storage.saveFileInfoToCache(parent + "/" + entry.Name, entry.Id, entry.MimeType == GCDDirectoryMimeType, entry.Size)
 			}
 		}
 		return files, sizes, nil
@@ -454,7 +469,7 @@ func (storage *GCDStorage) DeleteFile(threadIndex int, filePath string) (err err
 	for {
 		err = storage.service.Files.Delete(fileID).Fields("id").Do()
 		if retry, err := storage.shouldRetry(threadIndex, err); err == nil && !retry {
-			storage.deletePathID(filePath)
+			storage.deleteFileInfoFromCache(filePath)
 			return nil
 		} else if retry {
 			continue
@@ -474,7 +489,7 @@ func (storage *GCDStorage) MoveFile(threadIndex int, from string, to string) (er
 	from = storage.convertFilePath(from)
 	to = storage.convertFilePath(to)
 
-	fileID, ok := storage.findPathID(from)
+	fileID, ok, isDir, size:= storage.findFileInfoFromCache(from)
 	if !ok {
 		return fmt.Errorf("Attempting to rename file %s with unknown id", from)
 	}
@@ -505,8 +520,8 @@ func (storage *GCDStorage) MoveFile(threadIndex int, from string, to string) (er
 		}
 	}
 
-	storage.savePathID(to, storage.getPathID(from))
-	storage.deletePathID(from)
+	storage.saveFileInfoToCache(to, fileID, isDir, size)
+	storage.deleteFileInfoFromCache(from)
 	return nil
 }
 
@@ -533,19 +548,21 @@ func (storage *GCDStorage) CreateDirectory(threadIndex int, dir string) (err err
 	if parentDir == "." {
 		parentDir = ""
 	}
-	parentID := storage.getPathID(parentDir)
+	parentID := storage.getPathIDFromCache(parentDir)
 	if parentID == "" {
 		return fmt.Errorf("Parent directory '%s' does not exist", parentDir)
 	}
 	name := path.Base(dir)
 
-	file := &drive.File{
-		Name:     name,
-		MimeType: "application/vnd.google-apps.folder",
-		Parents:  []string{parentID},
-	}
-
+	var file *drive.File
 	for {
+
+		file = &drive.File{
+			Name:     name,
+			MimeType: GCDDirectoryMimeType,
+			Parents:  []string{parentID},
+		}
+
 		file, err = storage.service.Files.Create(file).Fields("id").Do()
 		if retry, err := storage.shouldRetry(threadIndex, err); err == nil && !retry {
 			break
@@ -565,7 +582,7 @@ func (storage *GCDStorage) CreateDirectory(threadIndex int, dir string) (err err
 		}
 	}
 
-	storage.savePathID(dir, file.Id)
+	storage.saveFileInfoToCache(dir, file.Id, true, 0)
 	return nil
 }
 
@@ -576,37 +593,28 @@ func (storage *GCDStorage) GetFileInfo(threadIndex int, filePath string) (exist 
 	}
 	filePath = storage.convertFilePath(filePath)
 
-	fileID, ok := storage.findPathID(filePath)
-	if !ok {
-		dir := path.Dir(filePath)
-		if dir == "." {
-			dir = ""
-		}
-		dirID, err := storage.getIDFromPath(threadIndex, dir, false)
-		if err != nil {
-			return false, false, 0, err
-		}
-		if dirID == "" {
-			return false, false, 0, nil
-		}
-
-		fileID, isDir, size, err = storage.listByName(threadIndex, dirID, path.Base(filePath))
-		if fileID != "" {
-			storage.savePathID(filePath, fileID)
-		}
-		return fileID != "", isDir, size, err
+	fileID, ok, isDir, size := storage.findFileInfoFromCache(filePath)
+	if ok {
+		return true, isDir, size, nil
 	}
 
-	for {
-		file, err := storage.service.Files.Get(fileID).Fields("id, mimeType").Do()
-		if retry, err := storage.shouldRetry(threadIndex, err); err == nil && !retry {
-			return true, file.MimeType == "application/vnd.google-apps.folder", file.Size, nil
-		} else if retry {
-			continue
-		} else {
-			return false, false, 0, err
-		}
+	dir := path.Dir(filePath)
+	if dir == "." {
+		dir = ""
 	}
+	dirID, err := storage.getIDFromPath(threadIndex, dir, false)
+	if err != nil {
+		return false, false, 0, err
+	}
+	if dirID == "" {
+		return false, false, 0, nil
+	}
+
+	fileID, isDir, size, err = storage.listByName(threadIndex, dirID, path.Base(filePath))
+	if err != nil {
+		return false, false, 0, err
+	}
+	return fileID != "", isDir, size, err
 }
 
 // DownloadFile reads the file at 'filePath' into the chunk.
@@ -654,15 +662,18 @@ func (storage *GCDStorage) UploadFile(threadIndex int, filePath string, content 
 		return err
 	}
 
-	file := &drive.File{
-		Name:     path.Base(filePath),
-		MimeType: "application/octet-stream",
-		Parents:  []string{parentID},
-	}
+	var file *drive.File
 
 	for {
+
+		file = &drive.File{
+			Name:     path.Base(filePath),
+			MimeType: GCDFileMimeType,
+			Parents:  []string{parentID},
+		}
+
 		reader := CreateRateLimitedReader(content, storage.UploadRateLimit/storage.numberOfThreads)
-		_, err = storage.service.Files.Create(file).Media(reader).Fields("id").Do()
+		file, err = storage.service.Files.Create(file).Media(reader).Fields("id").Do()
 		if retry, err := storage.shouldRetry(threadIndex, err); err == nil && !retry {
 			break
 		} else if retry {
@@ -671,6 +682,8 @@ func (storage *GCDStorage) UploadFile(threadIndex int, filePath string, content 
 			return err
 		}
 	}
+
+	storage.saveFileInfoToCache(filePath, file.Id, false, int64(len(content)))
 
 	return err
 }
