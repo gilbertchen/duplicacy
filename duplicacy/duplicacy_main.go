@@ -16,6 +16,9 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"net/http"
+
+	_ "net/http/pprof"
 
 	"github.com/gilbertchen/cli"
 
@@ -137,6 +140,15 @@ func setGlobalOptions(context *cli.Context) {
 	if context.GlobalBool("no-script") {
 		ScriptEnabled = false
 	}
+
+	address := context.GlobalString("profile")
+	if address != "" {
+		go func() {
+			http.ListenAndServe(address, nil)
+		}()
+	}
+
+
 
 	duplicacy.RunInBackground = context.GlobalBool("background")
 }
@@ -1302,7 +1314,7 @@ func main() {
 				},
 				cli.BoolFlag{
 					Name:  "dry-run",
-					Usage: "Dry run for testing, don't backup anything. Use with -stats and -d",
+					Usage: "dry run for testing, don't backup anything. Use with -stats and -d",
 				},
 				cli.BoolFlag{
 					Name:  "vss",
@@ -1811,7 +1823,13 @@ func main() {
 			Name:  "background",
 			Usage: "read passwords, tokens, or keys only from keychain/keyring or env",
 		},
-	}
+		cli.StringFlag{
+			Name:     "profile",
+			Value:    "",
+			Usage:    "enable the profiling tool and listen on the specified address:port",
+			Argument: "<address:port>",
+		},
+}
 
 	app.HideVersion = true
 	app.Name = "duplicacy"
