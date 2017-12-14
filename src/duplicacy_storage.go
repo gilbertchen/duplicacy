@@ -109,7 +109,7 @@ func (storage *StorageBase) SetNestingLevels(config *Config) {
 		exist, _, _, err := storage.DerivedStorage.GetFileInfo(0, "nesting")
 		if err == nil && exist {
 			nestingFile := CreateChunk(CreateConfig(), true)
-			if storage.DerivedStorage.DownloadFile(0, "config", nestingFile) == nil {
+			if storage.DerivedStorage.DownloadFile(0, "nesting", nestingFile) == nil {
 				var nesting struct {
 					ReadLevels []int `json:"read-levels"`
 					WriteLevel int   `json:"write-level"`
