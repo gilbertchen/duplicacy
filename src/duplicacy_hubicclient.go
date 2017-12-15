@@ -82,7 +82,7 @@ func NewHubicClient(tokenFile string) (*HubicClient, error) {
 		CredentialLock: &sync.Mutex{},
 	}
 
-	err = client.RefreshToken()
+	err = client.RefreshToken(false)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +186,7 @@ func (client *HubicClient) call(url string, method string, input interface{}, ex
 				return nil, 0, "", HubicError{Status: response.StatusCode, Message: "Authorization error when retrieving credentials"}
 			}
 
-			err = client.RefreshToken()
+			err = client.RefreshToken(true)
 			if err != nil {
 				return nil, 0, "", err
 			}
@@ -210,11 +210,11 @@ func (client *HubicClient) call(url string, method string, input interface{}, ex
 	return nil, 0, "", fmt.Errorf("Maximum number of retries reached")
 }
 
-func (client *HubicClient) RefreshToken() (err error) {
+func (client *HubicClient) RefreshToken(force bool) (err error) {
 	client.TokenLock.Lock()
 	defer client.TokenLock.Unlock()
 
-	if client.Token.Valid() {
+	if !force && client.Token.Valid() {
 		return nil
 	}
 

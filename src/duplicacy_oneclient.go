@@ -65,6 +65,8 @@ func NewOneDriveClient(tokenFile string) (*OneDriveClient, error) {
 		TokenLock:  &sync.Mutex{},
 	}
 
+	client.RefreshToken(false)
+
 	return client, nil
 }
 
@@ -154,7 +156,7 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 				return nil, 0, OneDriveError{Status: response.StatusCode, Message: "Authorization error when refreshing token"}
 			}
 
-			err = client.RefreshToken()
+			err = client.RefreshToken(true)
 			if err != nil {
 				return nil, 0, err
 			}
@@ -178,11 +180,11 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 	return nil, 0, fmt.Errorf("Maximum number of retries reached")
 }
 
-func (client *OneDriveClient) RefreshToken() (err error) {
+func (client *OneDriveClient) RefreshToken(force bool) (err error) {
 	client.TokenLock.Lock()
 	defer client.TokenLock.Unlock()
 
-	if client.Token.Valid() {
+	if !force && client.Token.Valid() {
 		return nil
 	}
 
