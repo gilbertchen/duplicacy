@@ -242,6 +242,9 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 				}
 			}
 
+			LOG_DEBUG("CHUNK_INCOMPLETE", "The incomplete snapshot contains %d files and %d chunks", len(incompleteSnapshot.Files), len(incompleteSnapshot.ChunkHashes))
+			LOG_DEBUG("CHUNK_INCOMPLETE", "Last chunk in the incomplete snapshot that exist in the storage: %d", lastCompleteChunk)
+
 			// Only keep those files whose chunks exist in the cache
 			var files []*Entry
 			for _, file := range incompleteSnapshot.Files {
