@@ -817,7 +817,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 				if !found {
 					if !searchFossils {
 						missingChunks += 1
-						LOG_WARN("SNAPHOST_VALIDATE",
+						LOG_WARN("SNAPSHOT_VALIDATE",
 							"Chunk %s referenced by snapshot %s at revision %d does not exist",
 							chunkID, snapshotID, revision)
 						continue
@@ -825,14 +825,14 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 
 					chunkPath, exist, size, err := manager.storage.FindChunk(0, chunkID, true)
 					if err != nil {
-						LOG_ERROR("SNAPHOST_VALIDATE", "Failed to check the existence of chunk %s: %v",
+						LOG_ERROR("SNAPSHOT_VALIDATE", "Failed to check the existence of chunk %s: %v",
 							chunkID, err)
 						return false
 					}
 
 					if !exist {
 						missingChunks += 1
-						LOG_WARN("SNAPHOST_VALIDATE",
+						LOG_WARN("SNAPSHOT_VALIDATE",
 							"Chunk %s referenced by snapshot %s at revision %d does not exist",
 							chunkID, snapshotID, revision)
 						continue
@@ -841,7 +841,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 					if resurrect {
 						manager.resurrectChunk(chunkPath, chunkID)
 					} else {
-						LOG_WARN("SNAPHOST_FOSSIL", "Chunk %s referenced by snapshot %s at revision %d "+
+						LOG_WARN("SNAPSHOT_FOSSIL", "Chunk %s referenced by snapshot %s at revision %d "+
 							"has been marked as a fossil", chunkID, snapshotID, revision)
 					}
 
