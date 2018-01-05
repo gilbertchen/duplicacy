@@ -72,7 +72,7 @@ func NewHubicClient(tokenFile string) (*HubicClient, error) {
 					KeepAlive: 30 * time.Second,
 				}).Dial,
 				TLSHandshakeTimeout:   60 * time.Second,
-				ResponseHeaderTimeout: 30 * time.Second,
+				ResponseHeaderTimeout: 300 * time.Second,
 				ExpectContinueTimeout: 10 * time.Second,
 			},
 		},
@@ -100,7 +100,7 @@ func (client *HubicClient) call(url string, method string, input interface{}, ex
 	var response *http.Response
 
 	backoff := 1
-	for i := 0; i < 8; i++ {
+	for i := 0; i < 11; i++ {
 
 		LOG_DEBUG("HUBIC_CALL", "%s %s", method, url)
 
@@ -152,7 +152,7 @@ func (client *HubicClient) call(url string, method string, input interface{}, ex
 		response, err = client.HTTPClient.Do(request)
 		if err != nil {
 			if url != HubicCredentialURL {
-				retryAfter := time.Duration(rand.Float32() * 1000.0 * float32(backoff))
+				retryAfter := time.Duration((0.5 + rand.Float32()) * 1000.0 * float32(backoff))
 				LOG_INFO("HUBIC_CALL", "%s %s returned an error: %v; retry after %d milliseconds", method, url, err, retryAfter)
 				time.Sleep(retryAfter * time.Millisecond)
 				backoff *= 2
@@ -197,7 +197,13 @@ func (client *HubicClient) call(url string, method string, input interface{}, ex
 			}
 			continue
 		} else if response.StatusCode >= 500 && response.StatusCode < 600 {
-			retryAfter := time.Duration(rand.Float32() * 1000.0 * float32(backoff))
+			retryAfter := time.Duration((0.5 + rand.Float32()) * 1000.0 * float32(backoff))
+			LOG_INFO("HUBIC_RETRY", "Response status: %d; retry after %d milliseconds", response.StatusCode, retryAfter)
+			time.Sleep(retryAfter * time.Millisecond)
+			backoff *= 2
+			continue
+		} else if response.StatusCode == 408 {
+			retryAfter := time.Duration((0.5 + rand.Float32()) * 1000.0 * float32(backoff))
 			LOG_INFO("HUBIC_RETRY", "Response status: %d; retry after %d milliseconds", response.StatusCode, retryAfter)
 			time.Sleep(retryAfter * time.Millisecond)
 			backoff *= 2
