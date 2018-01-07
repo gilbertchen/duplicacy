@@ -1196,6 +1196,11 @@ func infoStorage(context *cli.Context) {
 		DoNotSavePassword: true,
 	}
 
+	storageName := context.String("storage-name")
+	if storageName != "" {
+		preference.Name = storageName
+	}
+
 	if resetPasswords {
 		// We don't want password entered for the info command to overwrite the saved password for the default storage,
 		// so we simply assign an empty name.
@@ -1222,7 +1227,7 @@ func infoStorage(context *cli.Context) {
 
 	dirs, _, err := storage.ListFiles(0, "snapshots/")
 	if err != nil {
-		duplicacy.LOG_ERROR("STORAGE_LIST", "Failed to list repository ids: %v", err)
+		duplicacy.LOG_WARN("STORAGE_LIST", "Failed to list repository ids: %v", err)
 		return
 	}
 
@@ -1786,6 +1791,11 @@ func main() {
 					Name:     "repository",
 					Usage:    "retrieve saved passwords from the specified repository",
 					Argument: "<repository directory>",
+				},
+				cli.StringFlag{
+					Name:     "storage-name",
+					Usage:    "the storage name to be assigned to the storage url",
+					Argument: "<name>",
 				},
 				cli.BoolFlag{
 					Name:  "reset-passwords",
