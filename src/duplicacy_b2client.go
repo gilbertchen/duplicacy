@@ -580,7 +580,7 @@ func (client *B2Client) UploadFile(filePath string, content []byte, rateLimit in
 		LOG_DEBUG("BACKBLAZE_UPLOAD", "URL request '%s' returned status code %d", client.UploadURL, response.StatusCode)
 
 		if response.StatusCode == 401 {
-			LOG_INFO("BACKBLAZE_UPLOAD", "Re-authorizatoin required")
+			LOG_INFO("BACKBLAZE_UPLOAD", "Re-authorization required")
 			client.UploadURL = ""
 			client.UploadToken = ""
 			continue
