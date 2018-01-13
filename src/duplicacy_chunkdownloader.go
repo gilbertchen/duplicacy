@@ -317,6 +317,12 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 			}
 
 			if !exist {
+				// Retry for the Hubic backend as it may return 404 even when the chunk exists
+				if _, ok := downloader.storage.(*HubicStorage); ok && downloadAttempt < MaxDownloadAttempts {
+					LOG_WARN("DOWNLOAD_RETRY", "Failed to find the chunk %s; retrying", chunkID)
+					continue
+				}
+
 				// A chunk is not found.  This is a serious error and hopefully it will never happen.
 				if err != nil {
 					LOG_FATAL("DOWNLOAD_CHUNK", "Chunk %s can't be found: %v", chunkID, err)
@@ -340,7 +346,9 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 
 		err = downloader.storage.DownloadFile(threadIndex, chunkPath, chunk)
 		if err != nil {
-			if err == io.ErrUnexpectedEOF && downloadAttempt < MaxDownloadAttempts {
+			_, isHubic := downloader.storage.(*HubicStorage)
+			// Retry on EOF or if it is a Hubic backend as it may return 404 even when the chunk exists
+			if (err == io.ErrUnexpectedEOF || isHubic) && downloadAttempt < MaxDownloadAttempts {
 				LOG_WARN("DOWNLOAD_RETRY", "Failed to download the chunk %s: %v; retrying", chunkID, err)
 				chunk.Reset(false)
 				continue
