@@ -484,12 +484,12 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			bucket, storageDir, key, secret, threads)
 
 		if err != nil {
-			LOG_ERROR("STORAGE_CREATE", "Failed to load the S3 storage at %s: %v", storageURL, err)
+			LOG_ERROR("STORAGE_CREATE", "Failed to load the Wasabi storage at %s: %v", storageURL, err)
 			return nil
 		}
 
-		SavePassword(preference, "key", key)
-		SavePassword(preference, "secret", secret)
+		SavePassword(preference, "wasabi_key", key)
+		SavePassword(preference, "wasabi_secret", secret)
 
 		return storage
 
