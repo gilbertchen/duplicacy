@@ -32,6 +32,7 @@ type WasabiStorage struct {
 	storageDir string
 	key        string
 	secret     string
+	client     *http.Client
 }
 
 // See the Storage interface in duplicacy_storage.go for function
@@ -66,6 +67,7 @@ func CreateWasabiStorage(
 		storageDir: storageDir,
 		key:        accessKey,
 		secret:     secretKey,
+		client:     &http.Client{},
 	}
 
 	wasabi.DerivedStorage = wasabi
@@ -129,12 +131,11 @@ func (storage *WasabiStorage) MoveFile(
 	request.Header.Add("Host", storage.endpoint)
 	request.Header.Add("Overwrite", "true")
 
-	client := &http.Client{}
-
-	response, error := client.Do(request)
+	response, error := storage.client.Do(request)
 	if error != nil {
 		return error
 	}
+	defer response.Body.Close()
 
 	if response.StatusCode != 200 {
 		return errors.New(response.Status)
@@ -182,7 +183,7 @@ func (storage *WasabiStorage) IsStrongConsistent() bool {
 }
 
 func (storage *WasabiStorage) IsFastListing() bool {
-	return true
+	return storage.s3.IsFastListing()
 }
 
 func (storage *WasabiStorage) EnableTestMode() {
