@@ -2,6 +2,11 @@
 // Free for personal use and commercial trial
 // Commercial use requires per-user licenses available from https://duplicacy.com
 
+// NOTE: The code in the Wasabi storage module relies on all functions
+// in this one except MoveFile(), IsMoveFileImplemented() and
+// IsStrongConsistent().  Changes to the API here will need to be
+// reflected there.
+
 package duplicacy
 
 import (
