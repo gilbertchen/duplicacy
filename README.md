@@ -35,9 +35,9 @@ With Duplicacy, you can back up files to local or networked drives, SFTP servers
 
 | Type         |   Storage (monthly)    |   Upload           |    Download    |    API Charge   |
 |:------------:|:-------------:|:------------------:|:--------------:|:-----------:|
-| Amazon S3    | $0.023/GB | free | $0.09/GB | [yes](https://aws.amazon.com/s3/pricing/) |
-| Wasabi       | $3.99 first 1TB <br> $0.0039/GB additional | free | $.04/GB | no |
-| DigitalOcean Spaces| $5 first 250GB <br> $0.02/GB additional | free | first 1TB free <br> $0.01/GB additional| no |
+| Amazon S3    | $0.023/GB | free | $0.090/GB | [yes](https://aws.amazon.com/s3/pricing/) |
+| Wasabi       | $3.99 first 1TB <br> $0.0039/GB additional | free | $0.04/GB | no |
+| DigitalOcean Spaces| $5 first 250GB <br> $0.020/GB additional | free | first 1TB free <br> $0.01/GB additional| no |
 | Backblaze B2 | 10GB free <br> $0.005/GB | free | 1GB free/day <br> $0.02/GB | [yes](https://www.backblaze.com/b2/b2-transactions-price.html) |
 | Google Cloud Storage| $0.026/GB | free |$ 0.12/GB | [yes](https://cloud.google.com/storage/pricing) |
 | Google Drive | 15GB free <br> $1.99/100GB <br> $9.99/TB | free | free | no |
