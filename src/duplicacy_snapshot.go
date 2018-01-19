@@ -357,6 +357,11 @@ func (snapshot *Snapshot) LoadChunks(description []byte) (err error) {
 	return err
 }
 
+// ClearChunks removes loaded chunks from memory
+func (snapshot *Snapshot) ClearChunks() {
+	snapshot.ChunkHashes = nil
+}
+
 // LoadLengths construct 'ChunkLengths' from the json description.
 func (snapshot *Snapshot) LoadLengths(description []byte) (err error) {
 	return json.Unmarshal(description, &snapshot.ChunkLengths)

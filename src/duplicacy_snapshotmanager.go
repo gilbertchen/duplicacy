@@ -387,7 +387,7 @@ func (manager *SnapshotManager) CleanSnapshotCache(latestSnapshot *Snapshot, all
 	chunks := make(map[string]bool)
 
 	if latestSnapshot != nil {
-		for _, chunkID := range manager.GetSnapshotChunks(latestSnapshot) {
+		for _, chunkID := range manager.GetSnapshotChunks(latestSnapshot, false) {
 			chunks[chunkID] = true
 		}
 	}
@@ -597,8 +597,9 @@ func (manager *SnapshotManager) ListAllFiles(storage Storage, top string) (allFi
 	return allFiles, allSizes
 }
 
-// GetSnapshotChunks returns all chunks referenced by a given snapshot.
-func (manager *SnapshotManager) GetSnapshotChunks(snapshot *Snapshot) (chunks []string) {
+// GetSnapshotChunks returns all chunks referenced by a given snapshot. If
+// keepChunkHashes is true, snapshot.ChunkHashes will be populated.
+func (manager *SnapshotManager) GetSnapshotChunks(snapshot *Snapshot, keepChunkHashes bool) (chunks []string) {
 
 	for _, chunkHash := range snapshot.FileSequence {
 		chunks = append(chunks, manager.config.GetChunkIDFromHash(chunkHash))
@@ -625,6 +626,10 @@ func (manager *SnapshotManager) GetSnapshotChunks(snapshot *Snapshot) (chunks []
 
 	for _, chunkHash := range snapshot.ChunkHashes {
 		chunks = append(chunks, manager.config.GetChunkIDFromHash(chunkHash))
+	}
+
+	if !keepChunkHashes {
+		snapshot.ClearChunks()
 	}
 
 	return chunks
@@ -715,7 +720,7 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 			}
 
 			if showChunks {
-				for _, chunkID := range manager.GetSnapshotChunks(snapshot) {
+				for _, chunkID := range manager.GetSnapshotChunks(snapshot, false) {
 					LOG_INFO("SNAPSHOT_CHUNKS", "chunk: %s", chunkID)
 				}
 			}
@@ -805,7 +810,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 			}
 
 			chunks := make(map[string]bool)
-			for _, chunkID := range manager.GetSnapshotChunks(snapshot) {
+			for _, chunkID := range manager.GetSnapshotChunks(snapshot, false) {
 				chunks[chunkID] = true
 			}
 
@@ -895,7 +900,7 @@ func (manager *SnapshotManager) ShowStatistics(snapshotMap map[string][]*Snapsho
 		for _, snapshot := range snapshotList {
 
 			chunks := make(map[string]bool)
-			for _, chunkID := range manager.GetSnapshotChunks(snapshot) {
+			for _, chunkID := range manager.GetSnapshotChunks(snapshot, false) {
 				chunks[chunkID] = true
 				snapshotChunks[chunkID] = true
 			}
@@ -948,7 +953,7 @@ func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string][]*
 		earliestSeenChunks := make(map[string]int)
 
 		for _, snapshot := range snapshotList {
-			for _, chunkID := range manager.GetSnapshotChunks(snapshot) {
+			for _, chunkID := range manager.GetSnapshotChunks(snapshot, true) {
 				if earliestSeenChunks[chunkID] == 0 {
 					earliestSeenChunks[chunkID] = math.MaxInt32
 				}
@@ -959,7 +964,7 @@ func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string][]*
 		for _, snapshot := range snapshotList {
 
 			chunks := make(map[string]bool)
-			for _, chunkID := range manager.GetSnapshotChunks(snapshot) {
+			for _, chunkID := range manager.GetSnapshotChunks(snapshot, true) {
 				chunks[chunkID] = true
 				snapshotChunks[chunkID] = true
 			}
@@ -1754,7 +1759,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 			newChunks := make(map[string]bool)
 
 			for _, newSnapshot := range newSnapshots {
-				for _, chunk := range manager.GetSnapshotChunks(newSnapshot) {
+				for _, chunk := range manager.GetSnapshotChunks(newSnapshot, false) {
 					newChunks[chunk] = true
 				}
 			}
@@ -1938,7 +1943,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 				continue
 			}
 
-			chunks := manager.GetSnapshotChunks(snapshot)
+			chunks := manager.GetSnapshotChunks(snapshot, false)
 
 			for _, chunk := range chunks {
 				// The initial value is 'false'.  When a referenced chunk is found it will change the value to 'true'.
@@ -2064,7 +2069,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 					continue
 				}
 
-				chunks := manager.GetSnapshotChunks(snapshot)
+				chunks := manager.GetSnapshotChunks(snapshot, false)
 
 				for _, chunk := range chunks {
 
