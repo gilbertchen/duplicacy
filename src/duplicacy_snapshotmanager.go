@@ -2292,6 +2292,10 @@ func (manager *SnapshotManager) DownloadFile(path string, derivationKey string) 
 		return nil
 	}
 
+	if len(derivationKey) > 64 {
+		derivationKey = derivationKey[len(derivationKey) - 64:]
+	}
+
 	err = manager.fileChunk.Decrypt(manager.config.FileKey, derivationKey)
 	if err != nil {
 		LOG_ERROR("DOWNLOAD_DECRYPT", "Failed to decrypt the file %s: %v", path, err)
@@ -2320,6 +2324,10 @@ func (manager *SnapshotManager) UploadFile(path string, derivationKey string, co
 		} else {
 			LOG_DEBUG("UPLOAD_FILE_CACHE", "Saved file %s to the snapshot cache", path)
 		}
+	}
+
+	if len(derivationKey) > 64 {
+		derivationKey = derivationKey[len(derivationKey) - 64:]
 	}
 
 	err := manager.fileChunk.Encrypt(manager.config.FileKey, derivationKey)
