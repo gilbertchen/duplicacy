@@ -750,7 +750,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 	}
 
 	remoteSnapshot := manager.SnapshotManager.DownloadSnapshot(manager.snapshotID, revision)
-	manager.SnapshotManager.DownloadSnapshotContents(remoteSnapshot, patterns)
+	manager.SnapshotManager.DownloadSnapshotContents(remoteSnapshot, patterns, true)
 
 	localSnapshot, _, _, err := CreateSnapshotFromDirectory(manager.snapshotID, top)
 	if err != nil {
