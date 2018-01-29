@@ -918,9 +918,8 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 			totalFileSize, downloadedFileSize, startDownloadingTime) {
 			downloadedFileSize += file.Size
 			downloadedFiles = append(downloadedFiles, file)
-			file.RestoreMetadata(fullPath, nil, setOwner)
 		}
-
+		file.RestoreMetadata(fullPath, nil, setOwner)
 	}
 
 	if deleteMode && len(patterns) == 0 {

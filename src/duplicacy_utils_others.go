@@ -69,7 +69,7 @@ func (entry *Entry) SetAttributesToFile(fullPath string) {
 		newAttribute, found := entry.Attributes[name]
 		if found {
 			oldAttribute, _ := xattr.Getxattr(fullPath, name)
-			if bytes.Equal(oldAttribute, newAttribute) {
+			if !bytes.Equal(oldAttribute, newAttribute) {
 				xattr.Setxattr(fullPath, name, newAttribute)
 			}
 			delete(entry.Attributes, name)
