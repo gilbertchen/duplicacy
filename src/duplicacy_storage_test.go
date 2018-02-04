@@ -138,6 +138,10 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		storage, err := CreateHubicStorage(config["token_file"], config["storage_path"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
+	} else if testStorageName == "memset" {
+		storage, err := CreateSwiftStorage(config["storage_url"], config["key"], threads)
+		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
+		return storage, err
 	} else {
 		return nil, fmt.Errorf("Invalid storage named: %s", testStorageName)
 	}
