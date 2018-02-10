@@ -80,9 +80,11 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		return storage, err
 	} else if testStorageName == "s3" {
 		storage, err := CreateS3Storage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads, true, false)
+		return storage, err
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 	} else if testStorageName == "wasabi" {
 		storage, err := CreateWasabiStorage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads)
+		return storage, err
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 	} else if testStorageName == "s3c" {
 		storage, err := CreateS3CStorage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads)
@@ -140,9 +142,9 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		storage, err := CreateHubicStorage(config["token_file"], config["storage_path"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else {
-		return nil, fmt.Errorf("Invalid storage named: %s", testStorageName)
 	}
+
+	return nil, fmt.Errorf("Invalid storage named: %s", testStorageName)
 }
 
 func cleanStorage(storage Storage) {
@@ -585,12 +587,11 @@ func TestCleanStorage(t *testing.T) {
 	storage.DeleteFile(0, "config")
 	LOG_INFO("DELETE_FILE", "Deleted config")
 
-
 	files, _, err := storage.ListFiles(0, "chunks/")
 	for _, file := range files {
-			if len(file) > 0 && file[len(file)-1] != '/' {
-				LOG_DEBUG("FILE_EXIST", "File %s exists after deletion", file)
-			}
+		if len(file) > 0 && file[len(file)-1] != '/' {
+			LOG_DEBUG("FILE_EXIST", "File %s exists after deletion", file)
+		}
 	}
 
 }
