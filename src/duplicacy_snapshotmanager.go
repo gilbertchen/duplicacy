@@ -1865,7 +1865,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 				}
 
 				if len(tagMap) > 0 {
-					if _, found := tagMap[snapshot.Tag]; found {
+					if _, found := tagMap[snapshot.Tag]; !found {
 						continue
 					}
 				}
