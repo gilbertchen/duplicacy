@@ -468,6 +468,10 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		endpoint := matched[3]
 		bucket := matched[5]
 
+		if region != "" {
+			region = region[:len(region)-1]
+		}
+
 		key := GetPassword(preference, "wasabi_key",
 			"Enter Wasabi key:", true, resetPassword)
 		secret := GetPassword(preference, "wasabi_secret",

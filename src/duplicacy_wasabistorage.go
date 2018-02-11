@@ -19,7 +19,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -45,15 +44,6 @@ func CreateWasabiStorage(
 	accessKey string, secretKey string,
 	threads int,
 ) (storage *WasabiStorage, err error) {
-
-	// The application code that parses the URL from the
-	// configuration leaves an @ on the end, while the code that
-	// does the testing doesn't.  Force the incoming value to
-	// behave like the application.
-
-	if regionName != "" && !strings.HasSuffix(regionName, "@") {
-		regionName = regionName + "@"
-	}
 
 	s3storage, error := CreateS3Storage(regionName, endpoint, bucketName,
 		storageDir, accessKey, secretKey, threads,
@@ -110,8 +100,7 @@ func (storage *WasabiStorage) MoveFile(
 	// The from path includes the bucket
 	from_path := fmt.Sprintf("/%s/%s/%s", storage.bucket, storage.storageDir, from)
 
-	// We get the region with an @ on the end, so don't add another.
-	object := fmt.Sprintf("https://%s%s%s",
+	object := fmt.Sprintf("https://%s@%s%s",
 		storage.region, storage.endpoint, from_path)
 
 	// The object's new name is relative to the top of the bucket.
