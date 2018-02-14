@@ -190,7 +190,7 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
 	for {
 
 		// If the buffer still has some space left and EOF is not seen, read more data.
-		for maker.bufferSize < maker.bufferCapacity && !isEOF {
+		for maker.bufferSize < maker.bufferCapacity {
 			start := maker.bufferStart + maker.bufferSize
 			count := maker.bufferCapacity - start
 			if start >= maker.bufferCapacity {
@@ -211,21 +211,22 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
 
 			// if EOF is seen, try to switch to next file and continue
 			if err == io.EOF {
+				var ok bool
+				reader, ok = nextReader(fileSize, hex.EncodeToString(fileHasher.Sum(nil)))
+				if !ok {
+					fill(maker.bufferSize)
+					endOfChunk(chunk, true)
+					return
+				} else {
+					fileSize = 0
+					fileHasher = maker.config.NewFileHasher()
+				}
+
 				// make new chunk if minimum chunksize has been gathered
 				if maker.bufferSize >= maker.minimumChunkSize {
 					fill(maker.bufferSize)
 					endOfChunk(chunk, false)
 					startNewChunk()
-				}
-
-				var ok bool
-				reader, ok = nextReader(fileSize, hex.EncodeToString(fileHasher.Sum(nil)))
-				if !ok {
-					isEOF = true
-				} else {
-					fileSize = 0
-					fileHasher = maker.config.NewFileHasher()
-					isEOF = false
 				}
 			}
 		}
