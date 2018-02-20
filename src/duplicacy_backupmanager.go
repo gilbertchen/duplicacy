@@ -378,6 +378,11 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	// Set all file sizes to -1 to indicate they haven't been processed.   This must be done before creating the file
 	// reader because the file reader may skip inaccessible files on construction.
 	for _, entry := range modifiedEntries {
+		entry.Pass = 1
+		if entry.Size < int64(manager.config.MinimumChunkSize) {
+			// small files are processed in the second pass
+			entry.Pass = 2
+		}
 		entry.Size = -1
 	}
 

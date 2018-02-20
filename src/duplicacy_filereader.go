@@ -17,6 +17,8 @@ type FileReader struct {
 	CurrentIndex int
 	CurrentEntry *Entry
 
+	pass	      int
+
 	SkippedFiles []string
 }
 
@@ -27,6 +29,7 @@ func CreateFileReader(top string, files []*Entry) *FileReader {
 		top:          top,
 		files:        files,
 		CurrentIndex: -1,
+		pass:	      1,
 	}
 
 	reader.NextFile()
@@ -42,10 +45,16 @@ func (reader *FileReader) NextFile() bool {
 	}
 
 	reader.CurrentIndex++
-	for reader.CurrentIndex < len(reader.files) {
-
+	for reader.pass <= 2 {
+		// perform two passes of the files
+		if reader.CurrentIndex >= len(reader.files) {
+			reader.pass++
+			reader.CurrentIndex = 0
+			continue
+		}
 		reader.CurrentEntry = reader.files[reader.CurrentIndex]
-		if !reader.CurrentEntry.IsFile() || reader.CurrentEntry.Size == 0 {
+		if !reader.CurrentEntry.IsFile() || reader.CurrentEntry.Size == 0 ||
+		   reader.CurrentEntry.Pass != reader.pass {
 			reader.CurrentIndex++
 			continue
 		}
