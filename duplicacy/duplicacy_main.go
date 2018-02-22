@@ -1271,7 +1271,7 @@ func main() {
 				},
 				cli.IntFlag{
 					Name:     "iterations",
-					Usage:    "the number of iterations used in storage key deriviation (default is 16384)",
+					Usage:    "the number of iterations used in storage key derivation (default is 16384)",
 					Argument: "<i>",
 				},
 				cli.StringFlag{
@@ -1582,7 +1582,7 @@ func main() {
 				},
 				cli.StringSliceFlag{
 					Name:     "t",
-					Usage:    "delete snapshots with the specifed tags",
+					Usage:    "delete snapshots with the specified tags",
 					Argument: "<tag>",
 				},
 				cli.StringSliceFlag{
@@ -1596,7 +1596,7 @@ func main() {
 				},
 				cli.BoolFlag{
 					Name:  "exclusive",
-					Usage: "assume exclusive acess to the storage (disable two-step fossil collection)",
+					Usage: "assume exclusive access to the storage (disable two-step fossil collection)",
 				},
 				cli.BoolFlag{
 					Name:  "dry-run, d",
@@ -1636,7 +1636,7 @@ func main() {
 				},
 				cli.IntFlag{
 					Name:     "iterations",
-					Usage:    "the number of iterations used in storage key deriviation (default is 16384)",
+					Usage:    "the number of iterations used in storage key derivation (default is 16384)",
 					Argument: "<i>",
 				},
 			},
@@ -1670,7 +1670,7 @@ func main() {
 				},
 				cli.IntFlag{
 					Name:     "iterations",
-					Usage:    "the number of iterations used in storage key deriviation (default is 16384)",
+					Usage:    "the number of iterations used in storage key derivation (default is 16384)",
 					Argument: "<i>",
 				},
 				cli.StringFlag{
