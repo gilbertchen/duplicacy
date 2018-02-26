@@ -2309,11 +2309,20 @@ func (manager *SnapshotManager) CheckSnapshot(snapshot *Snapshot) (err error) {
 		lastEntry = entry
 	}
 
+	lastEntry = nil
 	for _, entry := range entries {
 
 		if !entry.IsFile() || entry.Size == 0 {
 			continue
 		}
+
+		if lastEntry != nil && 
+		   lastEntry.StartChunk == entry.StartChunk && lastEntry.EndChunk == entry.EndChunk && 
+		   lastEntry.StartOffset == entry.StartOffset && lastEntry.EndOffset == entry.EndOffset {
+			// another entry sharing the same data
+		        continue
+		}
+		lastEntry = entry
 
 		if entry.StartChunk < 0 {
 			return fmt.Errorf("The file %s starts at chunk %d", entry.Path, entry.StartChunk)

@@ -288,6 +288,31 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	var modifiedEntries []*Entry  // Files that has been modified or newly created
 	var preservedEntries []*Entry // Files unchanges
 
+	// identify small files based on their hash to avoid bundled uploads during renames
+	fileHashes := make(map[string]*Entry)
+	fileBuffer := make([]byte, 64*1024)
+	minSize := int64(manager.config.MinimumChunkSize)
+
+	checkHash := func(local *Entry) {
+		if local.Size < minSize && local.Hash == "" {
+			// compute hash for small file
+			local.Hash = manager.config.ComputeFileHash(local.Path, fileBuffer)
+		}
+		remote := fileHashes[local.Hash]
+		if remote != nil {
+			// hash of file matches a previous file
+			LOG_DEBUG("FILE_HASH", "Hash of file %s matches previously known file %s", local.Path, remote.Path)
+			local.StartChunk = remote.StartChunk
+			local.StartOffset = remote.StartOffset
+			local.EndChunk = remote.EndChunk
+			local.EndOffset = remote.EndOffset
+			preservedEntries = append(preservedEntries, local)
+		} else {
+			totalModifiedFileSize += local.Size
+			modifiedEntries = append(modifiedEntries, local)
+		}
+	}
+
 	// If the quick mode is disable and there isn't an incomplete snapshot from last (failed) backup,
 	// we simply treat all files as if they were new, and break them into chunks.
 	// Otherwise, we need to find those that are new or recently modified
@@ -300,6 +325,17 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	} else {
 
 		var i, j int
+
+		// index small files by their hash
+		for i < len(remoteSnapshot.Files) {
+			remote := remoteSnapshot.Files[i]
+			if remote.Size < minSize && remote.Hash != "" && fileHashes[remote.Hash] == nil {
+				fileHashes[remote.Hash] = remote
+			}
+			i++
+		}
+		i = 0
+
 		for i < len(localSnapshot.Files) {
 
 			local := localSnapshot.Files[i]
@@ -311,8 +347,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 			var remote *Entry
 			if j >= len(remoteSnapshot.Files) {
-				totalModifiedFileSize += local.Size
-				modifiedEntries = append(modifiedEntries, local)
+				checkHash(local)
 				i++
 			} else if remote = remoteSnapshot.Files[j]; !remote.IsFile() {
 				j++
@@ -325,14 +360,12 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 					local.EndOffset = remote.EndOffset
 					preservedEntries = append(preservedEntries, local)
 				} else {
-					totalModifiedFileSize += local.Size
-					modifiedEntries = append(modifiedEntries, local)
+					checkHash(local)
 				}
 				i++
 				j++
 			} else if local.Compare(remote) < 0 {
-				totalModifiedFileSize += local.Size
-				modifiedEntries = append(modifiedEntries, local)
+				checkHash(local)
 				i++
 			} else {
 				j++
