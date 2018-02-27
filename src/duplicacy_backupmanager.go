@@ -327,14 +327,11 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 		var i, j int
 
 		// index small files by their hash
-		for i < len(remoteSnapshot.Files) {
-			remote := remoteSnapshot.Files[i]
+		for _, remote := range remoteSnapshot.Files {
 			if remote.Size < minSize && remote.Hash != "" && fileHashes[remote.Hash] == nil {
 				fileHashes[remote.Hash] = remote
 			}
-			i++
 		}
-		i = 0
 
 		for i < len(localSnapshot.Files) {
 
@@ -581,6 +578,9 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 				entry.Hash = hash
 				entry.Size = fileSize
 				uploadedEntries = append(uploadedEntries, entry)
+				if entry.Size < minSize {
+					fileHashes[entry.Hash] = entry
+				}
 
 				if !showStatistics || IsTracing() || RunInBackground {
 					LOG_INFO("PACK_END", "Packed %s (%d)", entry.Path, entry.Size)
@@ -588,7 +588,17 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 				fileReader.NextFile()
 
-				if fileReader.CurrentFile != nil {
+				for fileReader.CurrentFile != nil {
+					entry := fileReader.CurrentEntry
+					if remote := fileHashes[entry.Hash]; remote != nil {
+						// same hash has already been uploaded
+						LOG_DEBUG("FILE_HASH", "Hash of file %s matches previously packed file %s", entry.Path, remote.Path)
+						// we adjust these entries after all chunks have been formed
+						preservedEntries = append(preservedEntries, entry)
+						fileReader.NextFile()
+						continue
+					}
+
 					LOG_TRACE("PACK_START", "Packing %s", fileReader.CurrentEntry.Path)
 					return fileReader.CurrentFile, true
 				}
@@ -603,6 +613,18 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 		//
 		// Therefore, we saved uploaded entries and then do a loop here to set offsets for them.
 		setEntryContent(uploadedEntries, uploadedChunkLengths, len(preservedChunkHashes))
+
+		// identical small files that have been deduplicated must have offsets set
+		for _, entry := range preservedEntries {
+			if entry.Size < 0 {
+				remote := fileHashes[entry.Hash]
+				entry.Size = remote.Size
+				entry.StartChunk = remote.StartChunk
+				entry.StartOffset = remote.StartOffset
+				entry.EndChunk = remote.EndChunk
+				entry.EndOffset = remote.EndOffset
+			}
+		}
 	}
 
 	if len(preservedChunkHashes) > 0 {
