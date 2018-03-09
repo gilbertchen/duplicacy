@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/azure/azure-sdk-for-go/storage"
+	"github.com/gilbertchen/azure-sdk-for-go/storage"
 )
 
 type AzureStorage struct {
