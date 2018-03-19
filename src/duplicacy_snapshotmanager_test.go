@@ -107,6 +107,9 @@ func createTestSnapshotManager(testDir string) *SnapshotManager {
 	snapshotCache.CreateDirectory(0, "snapshots")
 
 	snapshotManager.snapshotCache = snapshotCache
+
+	SetDuplicacyPreferencePath(testDir + "/.duplicacy")
+
 	return snapshotManager
 }
 
@@ -140,7 +143,7 @@ func uploadRandomChunk(manager *SnapshotManager, chunkSize int) string {
 	return uploadTestChunk(manager, content)
 }
 
-func createTestSnapshot(manager *SnapshotManager, snapshotID string, revision int, startTime int64, endTime int64, chunkHashes []string) {
+func createTestSnapshot(manager *SnapshotManager, snapshotID string, revision int, startTime int64, endTime int64, chunkHashes []string, tag string) {
 
 	snapshot := &Snapshot{
 		ID:          snapshotID,
@@ -148,6 +151,7 @@ func createTestSnapshot(manager *SnapshotManager, snapshotID string, revision in
 		StartTime:   startTime,
 		EndTime:     endTime,
 		ChunkHashes: chunkHashes,
+		Tag:         tag,
 	}
 
 	var chunkHashesInHex []string
@@ -239,12 +243,12 @@ func TestSingleRepositoryPrune(t *testing.T) {
 	now := time.Now().Unix()
 	day := int64(24 * 3600)
 	t.Logf("Creating 1 snapshot")
-	createTestSnapshot(snapshotManager, "repository1", 1, now-3*day-3600, now-3*day-60, []string{chunkHash1, chunkHash2})
+	createTestSnapshot(snapshotManager, "repository1", 1, now-3*day-3600, now-3*day-60, []string{chunkHash1, chunkHash2}, "tag")
 	checkTestSnapshots(snapshotManager, 1, 2)
 
 	t.Logf("Creating 2 snapshots")
-	createTestSnapshot(snapshotManager, "repository1", 2, now-2*day-3600, now-2*day-60, []string{chunkHash2, chunkHash3})
-	createTestSnapshot(snapshotManager, "repository1", 3, now-1*day-3600, now-1*day-60, []string{chunkHash3, chunkHash4})
+	createTestSnapshot(snapshotManager, "repository1", 2, now-2*day-3600, now-2*day-60, []string{chunkHash2, chunkHash3}, "tag")
+	createTestSnapshot(snapshotManager, "repository1", 3, now-1*day-3600, now-1*day-60, []string{chunkHash3, chunkHash4}, "tag")
 	checkTestSnapshots(snapshotManager, 3, 0)
 
 	t.Logf("Removing snapshot repository1 revision 1 with --exclusive")
@@ -257,7 +261,7 @@ func TestSingleRepositoryPrune(t *testing.T) {
 
 	t.Logf("Creating 1 snapshot")
 	chunkHash5 := uploadRandomChunk(snapshotManager, chunkSize)
-	createTestSnapshot(snapshotManager, "repository1", 4, now+1*day-3600, now+1*day, []string{chunkHash4, chunkHash5})
+	createTestSnapshot(snapshotManager, "repository1", 4, now+1*day-3600, now+1*day, []string{chunkHash4, chunkHash5}, "tag")
 	checkTestSnapshots(snapshotManager, 2, 2)
 
 	t.Logf("Prune without removing any snapshots -- fossils will be deleted")
@@ -282,9 +286,9 @@ func TestSingleHostPrune(t *testing.T) {
 	now := time.Now().Unix()
 	day := int64(24 * 3600)
 	t.Logf("Creating 3 snapshots")
-	createTestSnapshot(snapshotManager, "vm1@host1", 1, now-3*day-3600, now-3*day-60, []string{chunkHash1, chunkHash2})
-	createTestSnapshot(snapshotManager, "vm1@host1", 2, now-2*day-3600, now-2*day-60, []string{chunkHash2, chunkHash3})
-	createTestSnapshot(snapshotManager, "vm2@host1", 1, now-3*day-3600, now-3*day-60, []string{chunkHash3, chunkHash4})
+	createTestSnapshot(snapshotManager, "vm1@host1", 1, now-3*day-3600, now-3*day-60, []string{chunkHash1, chunkHash2}, "tag")
+	createTestSnapshot(snapshotManager, "vm1@host1", 2, now-2*day-3600, now-2*day-60, []string{chunkHash2, chunkHash3}, "tag")
+	createTestSnapshot(snapshotManager, "vm2@host1", 1, now-3*day-3600, now-3*day-60, []string{chunkHash3, chunkHash4}, "tag")
 	checkTestSnapshots(snapshotManager, 3, 0)
 
 	t.Logf("Removing snapshot vm1@host1 revision 1 without --exclusive")
@@ -297,7 +301,7 @@ func TestSingleHostPrune(t *testing.T) {
 
 	t.Logf("Creating 1 snapshot")
 	chunkHash5 := uploadRandomChunk(snapshotManager, chunkSize)
-	createTestSnapshot(snapshotManager, "vm2@host1", 2, now+1*day-3600, now+1*day, []string{chunkHash4, chunkHash5})
+	createTestSnapshot(snapshotManager, "vm2@host1", 2, now+1*day-3600, now+1*day, []string{chunkHash4, chunkHash5}, "tag")
 	checkTestSnapshots(snapshotManager, 3, 2)
 
 	t.Logf("Prune without removing any snapshots -- fossils will be deleted")
@@ -323,9 +327,9 @@ func TestMultipleHostPrune(t *testing.T) {
 	now := time.Now().Unix()
 	day := int64(24 * 3600)
 	t.Logf("Creating 3 snapshot")
-	createTestSnapshot(snapshotManager, "vm1@host1", 1, now-3*day-3600, now-3*day-60, []string{chunkHash1, chunkHash2})
-	createTestSnapshot(snapshotManager, "vm1@host1", 2, now-2*day-3600, now-2*day-60, []string{chunkHash2, chunkHash3})
-	createTestSnapshot(snapshotManager, "vm2@host2", 1, now-3*day-3600, now-3*day-60, []string{chunkHash3, chunkHash4})
+	createTestSnapshot(snapshotManager, "vm1@host1", 1, now-3*day-3600, now-3*day-60, []string{chunkHash1, chunkHash2}, "tag")
+	createTestSnapshot(snapshotManager, "vm1@host1", 2, now-2*day-3600, now-2*day-60, []string{chunkHash2, chunkHash3}, "tag")
+	createTestSnapshot(snapshotManager, "vm2@host2", 1, now-3*day-3600, now-3*day-60, []string{chunkHash3, chunkHash4}, "tag")
 	checkTestSnapshots(snapshotManager, 3, 0)
 
 	t.Logf("Removing snapshot vm1@host1 revision 1 without --exclusive")
@@ -338,7 +342,7 @@ func TestMultipleHostPrune(t *testing.T) {
 
 	t.Logf("Creating 1 snapshot")
 	chunkHash5 := uploadRandomChunk(snapshotManager, chunkSize)
-	createTestSnapshot(snapshotManager, "vm2@host2", 2, now+1*day-3600, now+1*day, []string{chunkHash4, chunkHash5})
+	createTestSnapshot(snapshotManager, "vm2@host2", 2, now+1*day-3600, now+1*day, []string{chunkHash4, chunkHash5}, "tag")
 	checkTestSnapshots(snapshotManager, 3, 2)
 
 	t.Logf("Prune without removing any snapshots -- no fossils will be deleted")
@@ -347,7 +351,7 @@ func TestMultipleHostPrune(t *testing.T) {
 
 	t.Logf("Creating 1 snapshot")
 	chunkHash6 := uploadRandomChunk(snapshotManager, chunkSize)
-	createTestSnapshot(snapshotManager, "vm1@host1", 3, now+1*day-3600, now+1*day, []string{chunkHash5, chunkHash6})
+	createTestSnapshot(snapshotManager, "vm1@host1", 3, now+1*day-3600, now+1*day, []string{chunkHash5, chunkHash6}, "tag")
 	checkTestSnapshots(snapshotManager, 4, 2)
 
 	t.Logf("Prune without removing any snapshots -- fossils will be deleted")
@@ -371,8 +375,8 @@ func TestPruneAndResurrect(t *testing.T) {
 	now := time.Now().Unix()
 	day := int64(24 * 3600)
 	t.Logf("Creating 2 snapshots")
-	createTestSnapshot(snapshotManager, "vm1@host1", 1, now-3*day-3600, now-3*day-60, []string{chunkHash1, chunkHash2})
-	createTestSnapshot(snapshotManager, "vm1@host1", 2, now-2*day-3600, now-2*day-60, []string{chunkHash2, chunkHash3})
+	createTestSnapshot(snapshotManager, "vm1@host1", 1, now-3*day-3600, now-3*day-60, []string{chunkHash1, chunkHash2}, "tag")
+	createTestSnapshot(snapshotManager, "vm1@host1", 2, now-2*day-3600, now-2*day-60, []string{chunkHash2, chunkHash3}, "tag")
 	checkTestSnapshots(snapshotManager, 2, 0)
 
 	t.Logf("Removing snapshot vm1@host1 revision 1 without --exclusive")
@@ -381,7 +385,7 @@ func TestPruneAndResurrect(t *testing.T) {
 
 	t.Logf("Creating 1 snapshot")
 	chunkHash4 := uploadRandomChunk(snapshotManager, chunkSize)
-	createTestSnapshot(snapshotManager, "vm1@host1", 4, now+1*day-3600, now+1*day, []string{chunkHash4, chunkHash1})
+	createTestSnapshot(snapshotManager, "vm1@host1", 4, now+1*day-3600, now+1*day, []string{chunkHash4, chunkHash1}, "tag")
 	checkTestSnapshots(snapshotManager, 2, 2)
 
 	t.Logf("Prune without removing any snapshots -- one fossil will be resurrected")
@@ -406,10 +410,10 @@ func TestInactiveHostPrune(t *testing.T) {
 	now := time.Now().Unix()
 	day := int64(24 * 3600)
 	t.Logf("Creating 3 snapshot")
-	createTestSnapshot(snapshotManager, "vm1@host1", 1, now-3*day-3600, now-3*day-60, []string{chunkHash1, chunkHash2})
-	createTestSnapshot(snapshotManager, "vm1@host1", 2, now-2*day-3600, now-2*day-60, []string{chunkHash2, chunkHash3})
+	createTestSnapshot(snapshotManager, "vm1@host1", 1, now-3*day-3600, now-3*day-60, []string{chunkHash1, chunkHash2}, "tag")
+	createTestSnapshot(snapshotManager, "vm1@host1", 2, now-2*day-3600, now-2*day-60, []string{chunkHash2, chunkHash3}, "tag")
 	// Host2 is inactive
-	createTestSnapshot(snapshotManager, "vm2@host2", 1, now-7*day-3600, now-7*day-60, []string{chunkHash3, chunkHash4})
+	createTestSnapshot(snapshotManager, "vm2@host2", 1, now-7*day-3600, now-7*day-60, []string{chunkHash3, chunkHash4}, "tag")
 	checkTestSnapshots(snapshotManager, 3, 0)
 
 	t.Logf("Removing snapshot vm1@host1 revision 1")
@@ -422,7 +426,7 @@ func TestInactiveHostPrune(t *testing.T) {
 
 	t.Logf("Creating 1 snapshot")
 	chunkHash5 := uploadRandomChunk(snapshotManager, chunkSize)
-	createTestSnapshot(snapshotManager, "vm1@host1", 3, now+1*day-3600, now+1*day, []string{chunkHash4, chunkHash5})
+	createTestSnapshot(snapshotManager, "vm1@host1", 3, now+1*day-3600, now+1*day, []string{chunkHash4, chunkHash5}, "tag")
 	checkTestSnapshots(snapshotManager, 3, 2)
 
 	t.Logf("Prune without removing any snapshots -- fossils will be deleted")
@@ -448,7 +452,7 @@ func TestRetentionPolicy(t *testing.T) {
 	day := int64(24 * 3600)
 	t.Logf("Creating 30 snapshots")
 	for i := 0; i < 30; i++ {
-		createTestSnapshot(snapshotManager, "vm1@host1", i+1, now-int64(30-i)*day-3600, now-int64(30-i)*day-60, []string{chunkHashes[i]})
+		createTestSnapshot(snapshotManager, "vm1@host1", i+1, now-int64(30-i)*day-3600, now-int64(30-i)*day-60, []string{chunkHashes[i]}, "tag")
 	}
 
 	checkTestSnapshots(snapshotManager, 30, 0)
@@ -464,4 +468,36 @@ func TestRetentionPolicy(t *testing.T) {
 	t.Logf("Removing snapshot vm1@host1 -k 3:14 -k 2:7 with --exclusive")
 	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{"3:14", "2:7"}, false, true, []string{}, false, false, false)
 	checkTestSnapshots(snapshotManager, 12, 0)
+}
+
+func TestRetentionPolicyAndTag(t *testing.T) {
+
+	setTestingT(t)
+
+	testDir := path.Join(os.TempDir(), "duplicacy_test", "snapshot_test")
+
+	snapshotManager := createTestSnapshotManager(testDir)
+
+	chunkSize := 1024
+	var chunkHashes []string
+	for i := 0; i < 30; i++ {
+		chunkHashes = append(chunkHashes, uploadRandomChunk(snapshotManager, chunkSize))
+	}
+
+	now := time.Now().Unix()
+	day := int64(24 * 3600)
+	t.Logf("Creating 30 snapshots")
+	for i := 0; i < 30; i++ {
+		tag := "auto"
+		if i % 3 == 0 {
+			tag = "manual"
+		}
+		createTestSnapshot(snapshotManager, "vm1@host1", i+1, now-int64(30-i)*day-3600, now-int64(30-i)*day-60, []string{chunkHashes[i]}, tag)
+	}
+
+	checkTestSnapshots(snapshotManager, 30, 0)
+
+	t.Logf("Removing snapshot vm1@host1 0:20 with --exclusive and --tag manual")
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{"manual"}, []string{"0:7"}, false, true, []string{}, false, false, false)
+	checkTestSnapshots(snapshotManager, 22, 0)
 }

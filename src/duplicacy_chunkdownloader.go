@@ -298,38 +298,57 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 	// will be set up before the encryption
 	chunk.Reset(false)
 
-	// Find the chunk by ID first.
-	chunkPath, exist, _, err := downloader.storage.FindChunk(threadIndex, chunkID, false)
-	if err != nil {
-		LOG_ERROR("DOWNLOAD_CHUNK", "Failed to find the chunk %s: %v", chunkID, err)
-		return false
-	}
+	const MaxDownloadAttempts = 3
+	for downloadAttempt := 0; ; downloadAttempt++ {
 
-	if !exist {
-		// No chunk is found.  Have to find it in the fossil pool again.
-		chunkPath, exist, _, err = downloader.storage.FindChunk(threadIndex, chunkID, true)
+		// Find the chunk by ID first.
+		chunkPath, exist, _, err := downloader.storage.FindChunk(threadIndex, chunkID, false)
 		if err != nil {
 			LOG_ERROR("DOWNLOAD_CHUNK", "Failed to find the chunk %s: %v", chunkID, err)
 			return false
 		}
 
 		if !exist {
-			// A chunk is not found.  This is a serious error and hopefully it will never happen.
+			// No chunk is found.  Have to find it in the fossil pool again.
+			fossilPath, exist, _, err := downloader.storage.FindChunk(threadIndex, chunkID, true)
 			if err != nil {
-				LOG_FATAL("DOWNLOAD_CHUNK", "Chunk %s can't be found: %v", chunkID, err)
-			} else {
-				LOG_FATAL("DOWNLOAD_CHUNK", "Chunk %s can't be found", chunkID)
+				LOG_ERROR("DOWNLOAD_CHUNK", "Failed to find the chunk %s: %v", chunkID, err)
+				return false
 			}
-			return false
-		}
-		LOG_DEBUG("CHUNK_FOSSIL", "Chunk %s has been marked as a fossil", chunkID)
-	}
 
-	const MaxDownloadAttempts = 3
-	for downloadAttempt := 0; ; downloadAttempt++ {
+			if !exist {
+				// Retry for the Hubic backend as it may return 404 even when the chunk exists
+				if _, ok := downloader.storage.(*HubicStorage); ok && downloadAttempt < MaxDownloadAttempts {
+					LOG_WARN("DOWNLOAD_RETRY", "Failed to find the chunk %s; retrying", chunkID)
+					continue
+				}
+
+				// A chunk is not found.  This is a serious error and hopefully it will never happen.
+				if err != nil {
+					LOG_FATAL("DOWNLOAD_CHUNK", "Chunk %s can't be found: %v", chunkID, err)
+				} else {
+					LOG_FATAL("DOWNLOAD_CHUNK", "Chunk %s can't be found", chunkID)
+				}
+				return false
+			}
+
+			// We can't download the fossil directly.  We have to turn it back into a regular chunk and try
+			// downloading again.
+			err = downloader.storage.MoveFile(threadIndex, fossilPath, chunkPath)
+			if err != nil {
+				LOG_FATAL("DOWNLOAD_CHUNK", "Failed to resurrect chunk %s: %v", chunkID, err)
+				return false
+			}
+
+			LOG_WARN("DOWNLOAD_RESURRECT", "Fossil %s has been resurrected", chunkID)
+			continue
+		}
+
 		err = downloader.storage.DownloadFile(threadIndex, chunkPath, chunk)
 		if err != nil {
-			if err == io.ErrUnexpectedEOF && downloadAttempt < MaxDownloadAttempts {
+			_, isHubic := downloader.storage.(*HubicStorage)
+			// Retry on EOF or if it is a Hubic backend as it may return 404 even when the chunk exists
+			if (err == io.ErrUnexpectedEOF || isHubic) && downloadAttempt < MaxDownloadAttempts {
 				LOG_WARN("DOWNLOAD_RETRY", "Failed to download the chunk %s: %v; retrying", chunkID, err)
 				chunk.Reset(false)
 				continue
@@ -368,7 +387,7 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 
 	if len(cachedPath) > 0 {
 		// Save a copy to the local snapshot cache
-		err = downloader.snapshotCache.UploadFile(threadIndex, cachedPath, chunk.GetBytes())
+		err := downloader.snapshotCache.UploadFile(threadIndex, cachedPath, chunk.GetBytes())
 		if err != nil {
 			LOG_WARN("DOWNLOAD_CACHE", "Failed to add the chunk %s to the snapshot cache: %v", chunkID, err)
 		}

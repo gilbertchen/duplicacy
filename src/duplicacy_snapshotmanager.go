@@ -269,7 +269,7 @@ func (manager *SnapshotManager) DownloadSequence(sequence []string) (content []b
 	return content
 }
 
-func (manager *SnapshotManager) DownloadSnapshotFileSequence(snapshot *Snapshot, patterns []string) bool {
+func (manager *SnapshotManager) DownloadSnapshotFileSequence(snapshot *Snapshot, patterns []string, attributesNeeded bool) bool {
 
 	manager.CreateChunkDownloader()
 
@@ -304,7 +304,8 @@ func (manager *SnapshotManager) DownloadSnapshotFileSequence(snapshot *Snapshot,
 			return false
 		}
 
-		if len(patterns) != 0 && !MatchPath(entry.Path, patterns) {
+		// If we don't need the attributes or the file isn't included we clear the attributes to save memory
+		if !attributesNeeded || (len(patterns) != 0 && !MatchPath(entry.Path, patterns)) {
 			entry.Attributes = nil
 		}
 
@@ -347,9 +348,9 @@ func (manager *SnapshotManager) DownloadSnapshotSequence(snapshot *Snapshot, seq
 // DownloadSnapshotContents loads all chunk sequences in a snapshot.  A snapshot, when just created, only contains
 // some metadata and theree sequence representing files, chunk hashes, and chunk lengths.  This function must be called
 // for the actual content of the snapshot to be usable.
-func (manager *SnapshotManager) DownloadSnapshotContents(snapshot *Snapshot, patterns []string) bool {
+func (manager *SnapshotManager) DownloadSnapshotContents(snapshot *Snapshot, patterns []string, attributesNeeded bool) bool {
 
-	manager.DownloadSnapshotFileSequence(snapshot, patterns)
+	manager.DownloadSnapshotFileSequence(snapshot, patterns, attributesNeeded)
 	manager.DownloadSnapshotSequence(snapshot, "chunks")
 	manager.DownloadSnapshotSequence(snapshot, "lengths")
 
@@ -553,7 +554,7 @@ func (manager *SnapshotManager) downloadLatestSnapshot(snapshotID string) (remot
 	}
 
 	if remote != nil {
-		manager.DownloadSnapshotContents(remote, nil)
+		manager.DownloadSnapshotContents(remote, nil, false)
 	}
 
 	return remote
@@ -679,7 +680,7 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 			}
 
 			if showFiles {
-				manager.DownloadSnapshotFileSequence(snapshot, nil)
+				manager.DownloadSnapshotFileSequence(snapshot, nil, false)
 			}
 
 			if showFiles {
@@ -799,7 +800,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 			}
 
 			if checkFiles {
-				manager.DownloadSnapshotContents(snapshot, nil)
+				manager.DownloadSnapshotContents(snapshot, nil, false)
 				manager.VerifySnapshot(snapshot)
 				continue
 			}
@@ -1208,7 +1209,8 @@ func (manager *SnapshotManager) PrintFile(snapshotID string, revision int, path 
 		patterns = []string{path}
 	}
 
-	if !manager.DownloadSnapshotContents(snapshot, patterns) {
+	// If no path is specified, we're printing the snapshot so we need all attributes
+	if !manager.DownloadSnapshotContents(snapshot, patterns, path == "") {
 		return false
 	}
 
@@ -1268,9 +1270,9 @@ func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []
 
 	if len(filePath) > 0 {
 
-		manager.DownloadSnapshotContents(leftSnapshot, nil)
+		manager.DownloadSnapshotContents(leftSnapshot, nil, false)
 		if rightSnapshot != nil && rightSnapshot.Revision != 0 {
-			manager.DownloadSnapshotContents(rightSnapshot, nil)
+			manager.DownloadSnapshotContents(rightSnapshot, nil, false)
 		}
 
 		var leftFile []byte
@@ -1346,9 +1348,9 @@ func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []
 	}
 
 	// We only need to decode the 'files' sequence, not 'chunkhashes' or 'chunklengthes'
-	manager.DownloadSnapshotFileSequence(leftSnapshot, nil)
+	manager.DownloadSnapshotFileSequence(leftSnapshot, nil, false)
 	if rightSnapshot != nil && rightSnapshot.Revision != 0 {
-		manager.DownloadSnapshotFileSequence(rightSnapshot, nil)
+		manager.DownloadSnapshotFileSequence(rightSnapshot, nil, false)
 	}
 
 	maxSize := int64(9)
@@ -1452,7 +1454,7 @@ func (manager *SnapshotManager) ShowHistory(top string, snapshotID string, revis
 	sort.Ints(revisions)
 	for _, revision := range revisions {
 		snapshot := manager.DownloadSnapshot(snapshotID, revision)
-		manager.DownloadSnapshotFileSequence(snapshot, nil)
+		manager.DownloadSnapshotFileSequence(snapshot, nil, false)
 		file := manager.FindFile(snapshot, filePath, true)
 
 		if file != nil {
@@ -1863,7 +1865,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 				}
 
 				if len(tagMap) > 0 {
-					if _, found := tagMap[snapshot.Tag]; found {
+					if _, found := tagMap[snapshot.Tag]; !found {
 						continue
 					}
 				}
@@ -2292,6 +2294,10 @@ func (manager *SnapshotManager) DownloadFile(path string, derivationKey string) 
 		return nil
 	}
 
+	if len(derivationKey) > 64 {
+		derivationKey = derivationKey[len(derivationKey) - 64:]
+	}
+
 	err = manager.fileChunk.Decrypt(manager.config.FileKey, derivationKey)
 	if err != nil {
 		LOG_ERROR("DOWNLOAD_DECRYPT", "Failed to decrypt the file %s: %v", path, err)
@@ -2320,6 +2326,10 @@ func (manager *SnapshotManager) UploadFile(path string, derivationKey string, co
 		} else {
 			LOG_DEBUG("UPLOAD_FILE_CACHE", "Saved file %s to the snapshot cache", path)
 		}
+	}
+
+	if len(derivationKey) > 64 {
+		derivationKey = derivationKey[len(derivationKey) - 64:]
 	}
 
 	err := manager.fileChunk.Encrypt(manager.config.FileKey, derivationKey)

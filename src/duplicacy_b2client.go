@@ -153,7 +153,7 @@ func (client *B2Client) call(url string, method string, requestHeaders map[strin
 			return response.Body, response.Header, response.ContentLength, nil
 		}
 
-		LOG_DEBUG("BACKBLAZE_CALL", "URL request '%s' returned status code %d", url, response.StatusCode)
+		LOG_DEBUG("BACKBLAZE_CALL", "URL request '%s %s' returned status code %d", method, url, response.StatusCode)
 
 		io.Copy(ioutil.Discard, response.Body)
 		response.Body.Close()
@@ -170,7 +170,6 @@ func (client *B2Client) call(url string, method string, requestHeaders map[strin
 			continue
 		} else if response.StatusCode == 404 {
 			if http.MethodHead == method {
-				LOG_DEBUG("BACKBLAZE_CALL", "URL request '%s' returned status code %d", url, response.StatusCode)
 				return nil, nil, 0, nil
 			}
 		} else if response.StatusCode == 416 {
@@ -580,7 +579,7 @@ func (client *B2Client) UploadFile(filePath string, content []byte, rateLimit in
 		LOG_DEBUG("BACKBLAZE_UPLOAD", "URL request '%s' returned status code %d", client.UploadURL, response.StatusCode)
 
 		if response.StatusCode == 401 {
-			LOG_INFO("BACKBLAZE_UPLOAD", "Re-authorizatoin required")
+			LOG_INFO("BACKBLAZE_UPLOAD", "Re-authorization required")
 			client.UploadURL = ""
 			client.UploadToken = ""
 			continue

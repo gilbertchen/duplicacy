@@ -284,7 +284,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	// we simply treat all files as if they were new, and break them into chunks.
 	// Otherwise, we need to find those that are new or recently modified
 
-	if remoteSnapshot.Revision == 0 && incompleteSnapshot == nil {
+	if (remoteSnapshot.Revision == 0 || !quickMode) && incompleteSnapshot == nil {
 		modifiedEntries = localSnapshot.Files
 		for _, entry := range modifiedEntries {
 			totalModifiedFileSize += entry.Size
@@ -750,7 +750,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 	}
 
 	remoteSnapshot := manager.SnapshotManager.DownloadSnapshot(manager.snapshotID, revision)
-	manager.SnapshotManager.DownloadSnapshotContents(remoteSnapshot, patterns)
+	manager.SnapshotManager.DownloadSnapshotContents(remoteSnapshot, patterns, true)
 
 	localSnapshot, _, _, err := CreateSnapshotFromDirectory(manager.snapshotID, top)
 	if err != nil {
@@ -918,9 +918,8 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 			totalFileSize, downloadedFileSize, startDownloadingTime) {
 			downloadedFileSize += file.Size
 			downloadedFiles = append(downloadedFiles, file)
-			file.RestoreMetadata(fullPath, nil, setOwner)
 		}
-
+		file.RestoreMetadata(fullPath, nil, setOwner)
 	}
 
 	if deleteMode && len(patterns) == 0 {

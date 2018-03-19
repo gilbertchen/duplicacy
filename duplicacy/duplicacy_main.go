@@ -1196,6 +1196,11 @@ func infoStorage(context *cli.Context) {
 		DoNotSavePassword: true,
 	}
 
+	storageName := context.String("storage-name")
+	if storageName != "" {
+		preference.Name = storageName
+	}
+
 	if resetPasswords {
 		// We don't want password entered for the info command to overwrite the saved password for the default storage,
 		// so we simply assign an empty name.
@@ -1222,7 +1227,7 @@ func infoStorage(context *cli.Context) {
 
 	dirs, _, err := storage.ListFiles(0, "snapshots/")
 	if err != nil {
-		duplicacy.LOG_ERROR("STORAGE_LIST", "Failed to list repository ids: %v", err)
+		duplicacy.LOG_WARN("STORAGE_LIST", "Failed to list repository ids: %v", err)
 		return
 	}
 
@@ -1266,7 +1271,7 @@ func main() {
 				},
 				cli.IntFlag{
 					Name:     "iterations",
-					Usage:    "the number of iterations used in storage key deriviation (default is 16384)",
+					Usage:    "the number of iterations used in storage key derivation (default is 16384)",
 					Argument: "<i>",
 				},
 				cli.StringFlag{
@@ -1577,7 +1582,7 @@ func main() {
 				},
 				cli.StringSliceFlag{
 					Name:     "t",
-					Usage:    "delete snapshots with the specifed tags",
+					Usage:    "delete snapshots with the specified tags",
 					Argument: "<tag>",
 				},
 				cli.StringSliceFlag{
@@ -1591,7 +1596,7 @@ func main() {
 				},
 				cli.BoolFlag{
 					Name:  "exclusive",
-					Usage: "assume exclusive acess to the storage (disable two-step fossil collection)",
+					Usage: "assume exclusive access to the storage (disable two-step fossil collection)",
 				},
 				cli.BoolFlag{
 					Name:  "dry-run, d",
@@ -1631,7 +1636,7 @@ func main() {
 				},
 				cli.IntFlag{
 					Name:     "iterations",
-					Usage:    "the number of iterations used in storage key deriviation (default is 16384)",
+					Usage:    "the number of iterations used in storage key derivation (default is 16384)",
 					Argument: "<i>",
 				},
 			},
@@ -1665,7 +1670,7 @@ func main() {
 				},
 				cli.IntFlag{
 					Name:     "iterations",
-					Usage:    "the number of iterations used in storage key deriviation (default is 16384)",
+					Usage:    "the number of iterations used in storage key derivation (default is 16384)",
 					Argument: "<i>",
 				},
 				cli.StringFlag{
@@ -1787,6 +1792,11 @@ func main() {
 					Usage:    "retrieve saved passwords from the specified repository",
 					Argument: "<repository directory>",
 				},
+				cli.StringFlag{
+					Name:     "storage-name",
+					Usage:    "the storage name to be assigned to the storage url",
+					Argument: "<name>",
+				},
 				cli.BoolFlag{
 					Name:  "reset-passwords",
 					Usage: "take passwords from input rather than keychain/keyring",
@@ -1835,7 +1845,7 @@ func main() {
 	app.Name = "duplicacy"
 	app.HelpName = "duplicacy"
 	app.Usage = "A new generation cloud backup tool based on lock-free deduplication"
-	app.Version = "2.0.10"
+	app.Version = "2.1.0"
 
 	// If the program is interrupted, call the RunAtError function.
 	c := make(chan os.Signal, 1)

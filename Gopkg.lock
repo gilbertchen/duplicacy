@@ -8,10 +8,16 @@
   version = "v0.16.0"
 
 [[projects]]
+  name = "github.com/Azure/azure-sdk-for-go"
+  packages = ["version"]
+  revision = "b7fadebe0e7f5c5720986080a01495bd8d27be37"
+  version = "v14.2.0"
+
+[[projects]]
   name = "github.com/Azure/go-autorest"
   packages = ["autorest","autorest/adal","autorest/azure","autorest/date"]
-  revision = "c67b24a8e30d876542a85022ebbdecf0e5a935e8"
-  version = "v9.4.1"
+  revision = "0ae36a9e544696de46fdadb7b0d5fb38af48c063"
+  version = "v10.2.0"
 
 [[projects]]
   branch = "master"
@@ -38,10 +44,10 @@
   version = "v3.1.0"
 
 [[projects]]
+  branch = "master"
   name = "github.com/gilbertchen/azure-sdk-for-go"
   packages = ["storage"]
-  revision = "2d49bb8f2cee530cc16f1f1a9f0aae763dee257d"
-  version = "v10.2.1-beta"
+  revision = "bbf89bd4d716c184f158d1e1428c2dbef4a18307"
 
 [[projects]]
   branch = "master"
@@ -121,10 +127,22 @@
   revision = "2788f0dbd16903de03cb8186e5c7d97b69ad387b"
 
 [[projects]]
+  name = "github.com/marstr/guid"
+  packages = ["."]
+  revision = "8bd9a64bf37eb297b492a4101fb28e80ac0b290f"
+  version = "v1.1.0"
+
+[[projects]]
   branch = "master"
   name = "github.com/minio/blake2b-simd"
   packages = ["."]
   revision = "3f5f724cb5b182a5c278d6d3d55b40e7f8c2efb4"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/ncw/swift"
+  packages = ["."]
+  revision = "ae9f0ea1605b9aa6434ed5c731ca35d83ba67c55"
 
 [[projects]]
   name = "github.com/pkg/errors"
@@ -139,10 +157,10 @@
   version = "1.0.0"
 
 [[projects]]
-  name = "github.com/satori/uuid"
+  name = "github.com/satori/go.uuid"
   packages = ["."]
-  revision = "879c5887cd475cd7864858769793b2ceb0d44feb"
-  version = "v1.1.0"
+  revision = "f58768cc1a7a7e77a3bd49e98cdd21419399b6a3"
+  version = "v1.2.0"
 
 [[projects]]
   branch = "master"
@@ -207,6 +225,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "a84af96e0c7019aa041120828de9995efb9cca3fde6e56a8ad5b80962f23806d"
+  inputs-digest = "eff5ae2d9507f0d62cd2e5bdedebb5c59d64f70f476b087c01c35d4a5e1be72d"
   solver-name = "gps-cdcl"
   solver-version = 1
