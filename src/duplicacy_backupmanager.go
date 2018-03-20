@@ -199,7 +199,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	// A revision number of 0 means this is the initial backup
 	if remoteSnapshot.Revision > 0 {
 		// Add all chunks in the last snapshot to the cache
-		for _, chunkID := range manager.SnapshotManager.GetSnapshotChunks(remoteSnapshot) {
+		for _, chunkID := range manager.SnapshotManager.GetSnapshotChunks(remoteSnapshot, true) {
 			chunkCache[chunkID] = true
 		}
 	} else {

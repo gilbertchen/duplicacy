@@ -203,7 +203,7 @@ func checkTestSnapshots(manager *SnapshotManager, expectedSnapshots int, expecte
 			snapshot := manager.DownloadSnapshot(snapshotID, revision)
 			numberOfSnapshots++
 
-			for _, chunk := range manager.GetSnapshotChunks(snapshot) {
+			for _, chunk := range manager.GetSnapshotChunks(snapshot, false) {
 				chunks[chunk] = true
 			}
 		}
