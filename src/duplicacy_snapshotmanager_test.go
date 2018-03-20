@@ -226,7 +226,7 @@ func checkTestSnapshots(manager *SnapshotManager, expectedSnapshots int, expecte
 	}
 }
 
-func TestSingleRepositoryPrune(t *testing.T) {
+func TestPruneSingleRepository(t *testing.T) {
 
 	setTestingT(t)
 
@@ -270,7 +270,7 @@ func TestSingleRepositoryPrune(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 2, 0)
 }
 
-func TestSingleHostPrune(t *testing.T) {
+func TestPruneSingleHost(t *testing.T) {
 
 	setTestingT(t)
 
@@ -311,7 +311,7 @@ func TestSingleHostPrune(t *testing.T) {
 
 }
 
-func TestMultipleHostPrune(t *testing.T) {
+func TestPruneMultipleHost(t *testing.T) {
 
 	setTestingT(t)
 
@@ -394,7 +394,7 @@ func TestPruneAndResurrect(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 2, 0)
 }
 
-func TestInactiveHostPrune(t *testing.T) {
+func TestPruneWithInactiveHost(t *testing.T) {
 
 	setTestingT(t)
 
@@ -435,7 +435,7 @@ func TestInactiveHostPrune(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 3, 0)
 }
 
-func TestRetentionPolicy(t *testing.T) {
+func TestPruneWithRetentionPolicy(t *testing.T) {
 
 	setTestingT(t)
 
@@ -471,7 +471,7 @@ func TestRetentionPolicy(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 12, 0)
 }
 
-func TestRetentionPolicyAndTag(t *testing.T) {
+func TestPruneWithRetentionPolicyAndTag(t *testing.T) {
 
 	setTestingT(t)
 
