@@ -24,7 +24,7 @@ import (
 
 	"io/ioutil"
 
-	"github.com/gilbertchen/duplicacy/src"
+	"github.com/kairisku/duplicacy/src"
 )
 
 const (
