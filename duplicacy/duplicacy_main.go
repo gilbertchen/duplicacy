@@ -689,6 +689,7 @@ func backupRepository(context *cli.Context) {
 	showStatistics := context.Bool("stats")
 
 	enableVSS := context.Bool("vss")
+	vssTimeout := context.Int("vss-timeout")
 
 	dryRun := context.Bool("dry-run")
 	uploadRateLimit := context.Int("limit-rate")
@@ -698,7 +699,7 @@ func backupRepository(context *cli.Context) {
 
 	backupManager.SetupSnapshotCache(preference.Name)
 	backupManager.SetDryRun(dryRun)
-	backupManager.Backup(repository, quickMode, threads, context.String("t"), showStatistics, enableVSS)
+	backupManager.Backup(repository, quickMode, threads, context.String("t"), showStatistics, enableVSS, vssTimeout)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1324,6 +1325,12 @@ func main() {
 				cli.BoolFlag{
 					Name:  "vss",
 					Usage: "enable the Volume Shadow Copy service (Windows only)",
+				},
+				cli.IntFlag{
+					Name:     "vss-timeout",
+					Value:    0,
+					Usage:    "the timeout in seconds to wait for the Volume Shadow Copy operation to complete",
+					Argument: "<timeout>",
 				},
 				cli.StringFlag{
 					Name:     "storage",

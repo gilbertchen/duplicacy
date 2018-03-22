@@ -353,12 +353,15 @@ func DeleteShadowCopy() {
 	ole.CoUninitialize()
 }
 
-func CreateShadowCopy(top string, shadowCopy bool) (shadowTop string) {
+func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadowTop string) {
 
 	if !shadowCopy {
 		return top
 	}
 
+	if timeoutInSeconds <= 60 {
+		timeoutInSeconds = 60
+	}
 	ole.CoInitialize(0)
 	defer ole.CoUninitialize()
 
@@ -416,7 +419,7 @@ func CreateShadowCopy(top string, shadowCopy bool) (shadowTop string) {
 		return top
 	}
 
-	if !async.Wait(60) {
+	if !async.Wait(timeoutInSeconds) {
 		LOG_ERROR("VSS_GATHER", "Shadow copy creation failed: GatherWriterMetadata didn't finish properly")
 		return top
 	}
@@ -456,7 +459,7 @@ func CreateShadowCopy(top string, shadowCopy bool) (shadowTop string) {
 		return top
 	}
 
-	if !async.Wait(60) {
+	if !async.Wait(timeoutInSeconds) {
 		LOG_ERROR("VSS_PREPARE", "Shadow copy creation failed: PrepareForBackup didn't finish properly")
 		return top
 	}
@@ -473,7 +476,7 @@ func CreateShadowCopy(top string, shadowCopy bool) (shadowTop string) {
 		return top
 	}
 
-	if !async.Wait(180) {
+	if !async.Wait(timeoutInSeconds) {
 		LOG_ERROR("VSS_SNAPSHOT", "Shadow copy creation failed: DoSnapshotSet didn't finish properly")
 		return top
 	}

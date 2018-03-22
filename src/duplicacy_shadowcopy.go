@@ -6,7 +6,7 @@
 
 package duplicacy
 
-func CreateShadowCopy(top string, shadowCopy bool) (shadowTop string) {
+func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadowTop string) {
 	return top
 }
 
