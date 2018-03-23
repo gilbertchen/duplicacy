@@ -483,7 +483,7 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 
 			if isRegular {
 				entry.Mode ^= uint32(os.ModeSymlink)
-			} else if path == "" && filepath.IsAbs(entry.Link) && !strings.HasPrefix(entry.Link, normalizedTop) {
+			} else if path == "" && (filepath.IsAbs(entry.Link) || filepath.HasPrefix(entry.Link, `\\`)) && !strings.HasPrefix(entry.Link, normalizedTop) {
 				stat, err := os.Stat(filepath.Join(top, entry.Path))
 				if err != nil {
 					LOG_WARN("LIST_LINK", "Failed to read the symlink: %v", err)
