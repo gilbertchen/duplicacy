@@ -389,7 +389,7 @@ func (manager *SnapshotManager) CleanSnapshotCache(latestSnapshot *Snapshot, all
 	chunks := make(map[string]bool)
 
 	if latestSnapshot != nil {
-		for _, chunkID := range manager.GetSnapshotChunks(latestSnapshot, false) {
+		for _, chunkID := range manager.GetSnapshotChunks(latestSnapshot, true) {
 			chunks[chunkID] = true
 		}
 	}
