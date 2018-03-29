@@ -1846,7 +1846,11 @@ func main() {
 			Usage:    "enable the profiling tool and listen on the specified address:port",
 			Argument: "<address:port>",
 		},
-}
+		cli.StringFlag{
+			Name:	"comment",
+			Usage:	"value that is ignored by duplicity (useful for identifying process)",
+		},
+	}
 
 	app.HideVersion = true
 	app.Name = "duplicacy"

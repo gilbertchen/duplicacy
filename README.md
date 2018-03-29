@@ -28,6 +28,7 @@ The key idea of **[Lock-Free Deduplication](https://github.com/gilbertchen/dupli
 
 * [A brief introduction](https://github.com/gilbertchen/duplicacy/wiki/Quick-Start)
 * [Command references](https://github.com/gilbertchen/duplicacy/wiki)
+* [Building from source](https://github.com/gilbertchen/duplicacy/wiki/Installation)
 
 ## Storages
 
