@@ -1848,7 +1848,7 @@ func main() {
 		},
 		cli.StringFlag{
 			Name:	"comment",
-			Usage:	"value that is ignored by duplicity (useful for identifying process)",
+			Usage:	"add a comment to identify the process",
 		},
 	}
 
