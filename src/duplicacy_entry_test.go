@@ -173,7 +173,7 @@ func TestEntryList(t *testing.T) {
 		directory := directories[len(directories)-1]
 		directories = directories[:len(directories)-1]
 		entries = append(entries, directory)
-		subdirectories, _, err := ListEntries(testDir, directory.Path, &entries, nil, false)
+		subdirectories, _, err := ListEntries(testDir, directory.Path, &entries, nil, "", false)
 		if err != nil {
 			t.Errorf("ListEntries(%s, %s) returned an error: %s", testDir, directory.Path, err)
 		}

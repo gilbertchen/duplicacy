@@ -22,6 +22,7 @@ type Preference struct {
 	BackupProhibited  bool              `json:"no_backup"`
 	RestoreProhibited bool              `json:"no_restore"`
 	DoNotSavePassword bool              `json:"no_save_password"`
+	NobackupFile      string            `json:"nobackup_file"`
 	Keys              map[string]string `json:"keys"`
 }
 
