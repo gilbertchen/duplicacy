@@ -146,6 +146,13 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		storage, err := CreateSwiftStorage(config["storage_url"], config["key"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
+	} else if testStorageName == "pcloud" {
+		storage, err := CreateWebDAVStorage(config["host"], 0, config["username"], config["password"], config["storage_path"], threads)
+		if err != nil {
+			return nil, err
+		}
+		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
+		return storage, err
 	} else {
 		return nil, fmt.Errorf("Invalid storage named: %s", testStorageName)
 	}

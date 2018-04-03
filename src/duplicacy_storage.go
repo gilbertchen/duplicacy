@@ -261,7 +261,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		return fileStorage
 	}
 
-	urlRegex := regexp.MustCompile(`^(\w+)://([\w\-]+@)?([^/]+)(/(.+))?`)
+	urlRegex := regexp.MustCompile(`^(\w+)://([\w\-@\.]+@)?([^/]+)(/(.+))?`)
 
 	matched := urlRegex.FindStringSubmatch(storageURL)
 
@@ -606,6 +606,28 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		}
 		SavePassword(preference, "swift_key", key)
 		return swiftStorage
+	} else if matched[1] == "webdav" {
+		server := matched[3]
+		username := matched[2]
+		username = username[:len(username) - 1]
+		storageDir := matched[5]
+		port := 0
+
+		if strings.Contains(server, ":") {
+			index := strings.Index(server, ":")
+			port, _ = strconv.Atoi(server[index+1:])
+			server = server[:index]
+		}
+
+		prompt := fmt.Sprintf("Enter the WebDAV password:")
+		password := GetPassword(preference, "webdav_password", prompt, true, resetPassword)
+		webDAVStorage, err := CreateWebDAVStorage(server, port, username, password, storageDir, threads)
+		if err != nil {
+			LOG_ERROR("STORAGE_CREATE", "Failed to load the OpenStack Swift storage at %s: %v", storageURL, err)
+			return nil
+		}
+		SavePassword(preference, "webdav_password", password)
+		return webDAVStorage
 	} else {
 		LOG_ERROR("STORAGE_CREATE", "The storage type '%s' is not supported", matched[1])
 		return nil
