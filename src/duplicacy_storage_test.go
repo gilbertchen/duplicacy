@@ -146,8 +146,8 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		storage, err := CreateSwiftStorage(config["storage_url"], config["key"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "pcloud" {
-		storage, err := CreateWebDAVStorage(config["host"], 0, config["username"], config["password"], config["storage_path"], threads)
+	} else if testStorageName == "pcloud" || testStorageName == "box" {
+		storage, err := CreateWebDAVStorage(config["host"], 0, config["username"], config["password"], config["storage_path"], false, threads)
 		if err != nil {
 			return nil, err
 		}
@@ -387,6 +387,7 @@ func TestStorage(t *testing.T) {
 
 	snapshotIDs := []string{}
 	for _, snapshotDir := range snapshotDirs {
+		LOG_INFO("debug", "snapshot dir: %s", snapshotDir)
 		if len(snapshotDir) > 0 && snapshotDir[len(snapshotDir)-1] == '/' {
 			snapshotIDs = append(snapshotIDs, snapshotDir[:len(snapshotDir)-1])
 		}

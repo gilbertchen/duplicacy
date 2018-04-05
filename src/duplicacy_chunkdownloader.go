@@ -317,8 +317,19 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 			}
 
 			if !exist {
-				// Retry for the Hubic backend as it may return 404 even when the chunk exists
-				if _, ok := downloader.storage.(*HubicStorage); ok && downloadAttempt < MaxDownloadAttempts {
+
+				retry := false
+
+				// Retry for Hubic or WebDAV as it may return 404 even when the chunk exists
+				if _, ok := downloader.storage.(*HubicStorage); ok {
+					retry = true
+				}
+
+				if _, ok := downloader.storage.(*WebDAVStorage); ok {
+					retry = true
+				}
+
+				if retry && downloadAttempt < MaxDownloadAttempts {
 					LOG_WARN("DOWNLOAD_RETRY", "Failed to find the chunk %s; retrying", chunkID)
 					continue
 				}
