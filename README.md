@@ -14,7 +14,7 @@ There are 3 core advantages of Duplicacy over any other open-source or commercia
 
 * Unlike other chunk-based backup tools where chunks are grouped into pack files and a chunk database is used to track which chunks are stored inside each pack file, Duplicacy takes a database-less approach where every chunk is saved independently using its hash as the file name to facilitate quick lookups.  The lack of a centralized chunk database not only makes the implementation less error-prone, but also produces a highly maintainable piece of software with plenty of room for development of new features and usability enhancements.
 
-* Duplicacy is fast.  While the performance wasn't the top-priority design goal, Duplicacy has been shown to outperform other backup tools by significant margins, as indicated by the following results obtained from a [benchmarking experiment](https://github.com/gilbertchen/benchmarking) backing up the [Linux code base](https://github.com/torvalds/linux) using Duplicacy and 3 other open-source backup tools.
+* Duplicacy is fast.  While the performance wasn't the top-priority design goal, Duplicacy has been shown to outperform other backup tools by a considerable margin, as indicated by the following results obtained from a [benchmarking experiment](https://github.com/gilbertchen/benchmarking) backing up the [Linux code base](https://github.com/torvalds/linux) using Duplicacy and 3 other open-source backup tools.
 
 [![Comparison of Duplicacy, restic, Attic, duplicity](https://github.com/gilbertchen/duplicacy/blob/master/images/duplicacy_benchmark_speed.png "Comparison of Duplicacy, restic, Attic, duplicity")](https://github.com/gilbertchen/benchmarking)
 
@@ -62,32 +62,29 @@ to find the differences from previous backups and only then uploading the differ
 
 [bup](https://github.com/bup/bup) also uses librsync to split files into chunks but save chunks in the git packfile format.  It doesn't support any cloud storage, or deletion of old backups.
 
-[Obnam](http://obnam.org) got the incremental backup model right in the sense that every incremental backup is actually a full snapshot.  Although Obnam also splits files into chunks, it does not adopt either the rsync algorithm or the variable-size chunking algorithm.  As a result, deletions or insertions of a few bytes will foil the
-[deduplication](http://obnam.org/faq/dedup).
-Deletion of old backups is possible, but no cloud storages are supported.
-Multiple clients can back up to the same storage, but only sequential access is granted by the [locking on-disk data structures](http://obnam.org/locking/).
-It is unclear if the lack of cloud backends is due to difficulties in porting the locking data structures to cloud storage APIs.
+[Duplicati](https://duplicati.com) is one of the first backup tools that adopt the chunk-based approach to split files into chunks which are then uploaded to the storage.  The chunk-based approach got the incremental backup model right in the sense that every incremental backup is actually a full snapshot.  As Duplicati splits files into fixed-size chunks,  deletions or insertions of a few bytes will foil the deduplication.  Cloud support is extensive, but multiple clients can't back up to the same storage location.
 
-[Attic](https://attic-backup.org) has been acclaimed by some as the [Holy Grail of backups](https://www.stavros.io/posts/holy-grail-backups).  It follows the same incremental backup model as Obnam, but embraces the variable-size chunk algorithm for better performance and better deduplication.  Deletions of old backup is also supported.  However, no cloud backends are implemented, as in Obnam.  Although concurrent backups from multiple clients to the same storage is in theory possible by the use of locking, it is
+[Attic](https://attic-backup.org) has been acclaimed by some as the [Holy Grail of backups](https://www.stavros.io/posts/holy-grail-backups).  It follows the same incremental backup model like Duplicati, but embraces the variable-size chunk algorithm for better performance and higher deduplication efficiency (not susceptible to byte insertion and deletion any more).  Deletions of old backup is also supported.  However, no cloud backends are implemented.  Although concurrent backups from multiple clients to the same storage is in theory possible by the use of locking, it is
 [not recommended](http://librelist.com/browser//attic/2014/11/11/backing-up-multiple-servers-into-a-single-repository/#e96345aa5a3469a87786675d65da492b) by the developer due to chunk indices being kept in a local cache.
-Concurrent access is not only a convenience; it is a necessity for better deduplication.  For instance, if multiple machines with the same OS installed can back up their entire drives to the same storage, only one copy of the system files needs to be stored, greatly reducing the storage space regardless of the number of machines.  Attic still adopts the traditional approach of using a centralized indexing database to manage chunks, and relies heavily on caching to improve performance.  The presence of exclusive locking makes it hard to be adapted for cloud storage APIs and reduces the level of deduplication.
+Concurrent access is not only a convenience; it is a necessity for better deduplication.  For instance, if multiple machines with the same OS installed can back up their entire drives to the same storage, only one copy of the system files needs to be stored, greatly reducing the storage space regardless of the number of machines.  Attic still adopts the traditional approach of using a centralized indexing database to manage chunks, and relies heavily on caching to improve performance.  The presence of exclusive locking makes it hard to be extended to cloud storages.
 
-[restic](https://restic.github.io) is a more recent addition.  It is worth mentioning here because, like Duplicacy, it is written in Go.  It uses a format similar to the git packfile format.  Multiple clients backing up to the same storage are still guarded by
-[locks](https://github.com/restic/restic/blob/master/doc/Design.md#locks).  A prune operation will therefore completely block all other clients connected to the storage from doing their regular backups.  Moreover, since most cloud storage services do not provide a locking service, the best effort is to use some basic file operations to simulate a lock, but distributed locking is known to be a hard problem and it is unclear how reliable restic's lock implementation is.  A faulty implementation may cause a prune operation to accidentally delete data still in use, resulting in unrecoverable data loss.  This is the exact problem that we avoided by taking the lock-free approach.
+[restic](https://restic.github.io) is a more recent addition. It uses a format similar to the git packfile format.  Multiple clients backing up to the same storage are still guarded by
+[locks](https://github.com/restic/restic/blob/master/doc/Design.md#locks), and because a chunk database is used, deduplication isn't real-time (different clients sharing the same files will upload different copies of the same chunks).  A prune operation will completely block all other clients connected to the storage from doing their regular backups.  Moreover, since most cloud storage services do not provide a locking service, the best effort is to use some basic file operations to simulate a lock, but distributed locking is known to be a hard problem and it is unclear how reliable restic's lock implementation is.  A faulty implementation may cause a prune operation to accidentally delete data still in use, resulting in unrecoverable data loss.  This is the exact problem that we avoided by taking the lock-free approach.
 
 
 The following table compares the feature lists of all these backup tools:
 
 
-| Feature/Tool       | duplicity | bup | Obnam             | Attic           | restic            | **Duplicacy** |
+| Feature/Tool       | duplicity | bup | Duplicati         | Attic           | restic            | **Duplicacy** |
 |:------------------:|:---------:|:---:|:-----------------:|:---------------:|:-----------------:|:-------------:|
 | Incremental Backup | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
 | Full Snapshot      | No        | Yes | Yes               | Yes             | Yes               | **Yes**       |
+| Compression        | Yes       | Yes | Yes               | Yes             | No                | **Yes**       |
 | Deduplication      | Weak      | Yes | Weak              | Yes             | Yes               | **Yes**       |
 | Encryption         | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
 | Deletion           | No        | No  | Yes               | Yes             | No                | **Yes**       |
-| Concurrent Access  | No        | No  | Exclusive locking | Not recommended | Exclusive locking | **Lock-free** |
-| Cloud Support      | Extensive | No  | No                | No              | S3, B2, OpenStack | **S3, GCS, Azure, Dropbox, Backblaze B2, Google Drive, OneDrive, and Hubic**|
+| Concurrent Access  | No        | No  | No                | Not recommended | Exclusive locking | **Lock-free** |
+| Cloud Support      | Extensive | No  | Extensive         | No              | Limited and problematic | **Extensive**|
 | Snapshot Migration | No        | No  | No                | No              | No                | **Yes**       |
 
 ## License
