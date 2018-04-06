@@ -294,10 +294,11 @@ func configRepository(context *cli.Context, init bool) {
 	}
 
 	preference := duplicacy.Preference{
-		Name:       storageName,
-		SnapshotID: snapshotID,
-		StorageURL: storageURL,
-		Encrypted:  context.Bool("encrypt"),
+		Name:           storageName,
+		SnapshotID:     snapshotID,
+		StorageURL:     storageURL,
+		RepositoryPath: repository,
+		Encrypted:      context.Bool("encrypt"),
 	}
 
 	storage := duplicacy.CreateStorage(preference, true, 1)
