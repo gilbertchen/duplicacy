@@ -53,7 +53,7 @@ For reference, the following chart shows the running times (in seconds) of backi
 [![Comparison of Cloud Storages](https://github.com/gilbertchen/duplicacy/blob/master/images/duplicacy_benchmark_cloud.png "Comparison of Cloud Storages")](https://github.com/gilbertchen/cloud-storage-comparison)
 
 
-For complete bencmarh results please visit https://github.com/gilbertchen/cloud-storage-comparison.
+For complete benchmark results please visit https://github.com/gilbertchen/cloud-storage-comparison.
 
 ## Comparison with Other Backup Tools
 
