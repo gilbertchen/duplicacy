@@ -10,7 +10,7 @@ There is a special edition of Duplicacy developed for VMware vSphere (ESXi) name
 
 There are 3 core advantages of Duplicacy over any other open-source or commercial backup tools:
 
-* Duplicacy is the *only* cloud backup tool that allows multiple computers to back up to the same cloud storage, taking advantage of cross-computer deduplication whenever possible, without direct communication among them.  This feature basically turns any cloud storage server supporting only a basic set of file operations into a sophisticated deduplication-aware server.  
+* Duplicacy is the *only* cloud backup tool that allows multiple computers to back up to the same cloud storage, taking advantage of cross-computer deduplication whenever possible, without direct communication among them.  This feature literally turns any cloud storage server supporting only a basic set of file operations into a sophisticated deduplication-aware server.  
 
 * Unlike other chunk-based backup tools where chunks are grouped into pack files and a chunk database is used to track which chunks are stored inside each pack file, Duplicacy takes a database-less approach where every chunk is saved independently using its hash as the file name to facilitate quick lookups.  The lack of a centralized chunk database not only makes the implementation less error-prone, but also produces a highly maintainable piece of software with plenty of room for development of new features and usability enhancements.
 
@@ -84,7 +84,7 @@ The following table compares the feature lists of all these backup tools:
 | Encryption         | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
 | Deletion           | No        | No  | Yes               | Yes             | No                | **Yes**       |
 | Concurrent Access  | No        | No  | No                | Not recommended | Exclusive locking | **Lock-free** |
-| Cloud Support      | Extensive | No  | Extensive         | No              | Limited and problematic | **Extensive**|
+| Cloud Support      | Extensive | No  | Extensive         | No              | Limited           | **Extensive** |
 | Snapshot Migration | No        | No  | No                | No              | No                | **Yes**       |
 
 ## License
