@@ -7,6 +7,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -16,7 +17,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"net/http"
 
 	_ "net/http/pprof"
 
@@ -36,39 +36,39 @@ var ScriptEnabled bool
 func getRepositoryPreference(context *cli.Context, storageName string) (repository string,
 	preference *duplicacy.Preference) {
 
-    var pref_dir string = context.GlobalString("pref-dir")
-    if pref_dir == "" {
-        repository = context.String("repository-dir")
-	    if repository == "" {
-	        var err error = nil // golang complains err is undefined if it isn't defined here
-		    repository, err = os.Getwd()
-            if err != nil {
-                duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
-                return "", nil
-            }
-        }
+	var pref_dir string = context.GlobalString("pref-dir")
+	if pref_dir == "" {
+		repository = context.String("repository-dir")
+		if repository == "" {
+			var err error = nil // golang complains err is undefined if it isn't defined here
+			repository, err = os.Getwd()
+			if err != nil {
+				duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
+				return "", nil
+			}
+		}
 
-        for {
-            pref_dir = path.Join(repository, duplicacy.DUPLICACY_DIRECTORY)
-            stat, err := os.Stat(pref_dir) //TOKEEP
-            if err != nil && !os.IsNotExist(err) {
-                duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the information about the directory %s: %v",
-                    repository, err)
-                return "", nil
-            }
+		for {
+			pref_dir = path.Join(repository, duplicacy.DUPLICACY_DIRECTORY)
+			stat, err := os.Stat(pref_dir) //TOKEEP
+			if err != nil && !os.IsNotExist(err) {
+				duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the information about the directory %s: %v",
+					repository, err)
+				return "", nil
+			}
 
-            if stat != nil && (stat.IsDir() || stat.Mode().IsRegular()) {
-                break
-            }
+			if stat != nil && (stat.IsDir() || stat.Mode().IsRegular()) {
+				break
+			}
 
-            parent := path.Dir(repository)
-            if parent == repository || parent == "" {
-                duplicacy.LOG_ERROR("REPOSITORY_PATH", "Repository has not been initialized")
-                return "", nil
-            }
-            repository = parent
-        }
-    }
+			parent := path.Dir(repository)
+			if parent == repository || parent == "" {
+				duplicacy.LOG_ERROR("REPOSITORY_PATH", "Repository has not been initialized")
+				return "", nil
+			}
+			repository = parent
+		}
+	}
 	duplicacy.LoadPreferences(repository, pref_dir)
 
 	preferencePath := duplicacy.GetDuplicacyPreferencePath()
@@ -164,8 +164,6 @@ func setGlobalOptions(context *cli.Context) {
 			http.ListenAndServe(address, nil)
 		}()
 	}
-
-
 
 	duplicacy.RunInBackground = context.GlobalBool("background")
 }
@@ -266,18 +264,18 @@ func configRepository(context *cli.Context, init bool) {
 	var err error
 
 	if init {
-	    repository = context.String("repository-dir")
-	    if repository == "" {
-		    repository, err = os.Getwd()
-		    if err != nil {
-                duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
-                return
-            }
-        }
-        if repository == "" {
-            duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to locate a repository")
-            return
-        }
+		repository = context.String("repository-dir")
+		if repository == "" {
+			repository, err = os.Getwd()
+			if err != nil {
+				duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
+				return
+			}
+		}
+		if repository == "" {
+			duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to locate a repository")
+			return
+		}
 
 		preferencePath := context.GlobalString("pref-dir")
 		if preferencePath == "" {
@@ -295,7 +293,7 @@ func configRepository(context *cli.Context, init bool) {
 				preferencePath, err)
 			return
 		}
-		if context.GlobalString("pref-dir") != "" && ! context.Bool("no-pref-link") {
+		if context.GlobalString("pref-dir") != "" && !context.Bool("no-pref-link") {
 			// out of tree preference file
 			// write real path into .duplicacy file inside repository
 			duplicacyFileName := path.Join(repository, duplicacy.DUPLICACY_FILE)
@@ -653,7 +651,7 @@ func changePassword(context *cli.Context) {
 				duplicacy.LOG_INFO("CONFIG_CLEAN", "The local copy of the old config has been removed")
 			}
 		}
-	} ()
+	}()
 
 	err = storage.DeleteFile(0, "config")
 	if err != nil {
@@ -1259,7 +1257,7 @@ func infoStorage(context *cli.Context) {
 
 	for _, dir := range dirs {
 		if len(dir) > 0 && dir[len(dir)-1] == '/' {
-			duplicacy.LOG_INFO("STORAGE_SNAPSHOT", "%s", dir[0:len(dir) - 1])
+			duplicacy.LOG_INFO("STORAGE_SNAPSHOT", "%s", dir[0:len(dir)-1])
 		}
 	}
 
@@ -1302,13 +1300,13 @@ func main() {
 				},
 				cli.StringFlag{
 					Name:     "repository-dir",
-        			Value:    "",
+					Value:    "",
 					Usage:    "Manually specify the path to the root of the new repository",
 					Argument: "<path>",
 				},
 				cli.BoolFlag{
-					Name:     "no-pref-link",
-					Usage:    "disable creating the .duplicacy link to the preference directory. All commands will need to include the 'pref-dir' argument",
+					Name:  "no-pref-link",
+					Usage: "disable creating the .duplicacy link to the preference directory. All commands will need to include the 'pref-dir' argument",
 				},
 				cli.StringFlag{
 					Name:     "storage-name",
@@ -1716,8 +1714,8 @@ func main() {
 					Argument: "<storage name>",
 				},
 				cli.BoolFlag{
-					Name:     "bit-identical",
-					Usage:    "(when using -copy) make the new storage bit-identical to also allow rsync etc.",
+					Name:  "bit-identical",
+					Usage: "(when using -copy) make the new storage bit-identical to also allow rsync etc.",
 				},
 			},
 			Usage:     "Add an additional storage to be used for the existing repository",
@@ -1876,15 +1874,15 @@ func main() {
 			Usage:    "enable the profiling tool and listen on the specified address:port",
 			Argument: "<address:port>",
 		},
-        cli.StringFlag{
-            Name:     "pref-dir",
-			Value:    "",
-            Usage:    "alternate location for the .duplicacy directory (absolute or relative to current directory)",
-            Argument: "<path>",
-        },
 		cli.StringFlag{
-			Name:	"comment",
-			Usage:	"add a comment to identify the process",
+			Name:     "pref-dir",
+			Value:    "",
+			Usage:    "alternate location for the .duplicacy directory (absolute or relative to current directory)",
+			Argument: "<path>",
+		},
+		cli.StringFlag{
+			Name:  "comment",
+			Usage: "add a comment to identify the process",
 		},
 	}
 

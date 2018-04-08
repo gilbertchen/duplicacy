@@ -31,11 +31,11 @@ var Preferences []Preference
 
 func LoadPreferences(repository string, pref_dir string) bool {
 
-    if pref_dir == "" {
-    	preferencePath = path.Join(repository, DUPLICACY_DIRECTORY)
-    } else {
-        preferencePath = pref_dir
-    }
+	if pref_dir == "" {
+		preferencePath = path.Join(repository, DUPLICACY_DIRECTORY)
+	} else {
+		preferencePath = pref_dir
+	}
 
 	stat, err := os.Stat(preferencePath)
 	if err != nil {
