@@ -38,10 +38,14 @@ func getRepositoryPreference(context *cli.Context, storageName string) (reposito
 
     var pref_dir string = context.GlobalString("pref-dir")
     if pref_dir == "" {
-        repository, err := os.Getwd()
-        if err != nil {
-            duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
-            return "", nil
+        repository = context.String("repository-dir")
+	    if repository == "" {
+	        var err error = nil // golang complains err is undefined if it isn't defined here
+		    repository, err = os.Getwd()
+            if err != nil {
+                duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
+                return "", nil
+            }
         }
 
         for {
@@ -70,6 +74,10 @@ func getRepositoryPreference(context *cli.Context, storageName string) (reposito
 	preferencePath := duplicacy.GetDuplicacyPreferencePath()
 	duplicacy.SetKeyringFile(path.Join(preferencePath, "keyring"))
 
+	if repository == "" && duplicacy.Preferences[0].RepositoryPath != "" {
+		repository = duplicacy.Preferences[0].RepositoryPath
+	}
+
 	if storageName == "" {
 		storageName = context.String("storage")
 	}
@@ -84,6 +92,11 @@ func getRepositoryPreference(context *cli.Context, storageName string) (reposito
 		duplicacy.LOG_ERROR("STORAGE_NONE", "No storage named '%s' is found", storageName)
 		return "", nil
 	}
+
+	if repository == "" && preference.RepositoryPath != "" {
+		repository = preference.RepositoryPath
+	}
+
 	return repository, preference
 }
 
@@ -256,11 +269,15 @@ func configRepository(context *cli.Context, init bool) {
 	    repository = context.String("repository-dir")
 	    if repository == "" {
 		    repository, err = os.Getwd()
+		    if err != nil {
+                duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
+                return
+            }
         }
-		if err != nil {
-			duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
-			return
-		}
+        if repository == "" {
+            duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to locate a repository")
+            return
+        }
 
 		preferencePath := context.GlobalString("pref-dir")
 		if preferencePath == "" {
@@ -664,6 +681,7 @@ func backupRepository(context *cli.Context) {
 	}
 
 	repository, preference := getRepositoryPreference(context, "")
+    duplicacy.LOG_INFO("REPOSITORY_PATH", "backup repo: %s", repository)
 
 	if preference.BackupProhibited {
 		duplicacy.LOG_ERROR("BACKUP_DISABLED", "Backup from this repository to %s was disabled by the preference",
@@ -1282,6 +1300,12 @@ func main() {
 					Name:     "iterations",
 					Usage:    "the number of iterations used in storage key derivation (default is 16384)",
 					Argument: "<i>",
+				},
+				cli.StringFlag{
+					Name:     "repository-dir",
+        			Value:    "",
+					Usage:    "Manually specify the path to the root of the new repository",
+					Argument: "<path>",
 				},
 				cli.BoolFlag{
 					Name:     "no-pref-link",
