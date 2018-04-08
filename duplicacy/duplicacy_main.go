@@ -681,7 +681,6 @@ func backupRepository(context *cli.Context) {
 	}
 
 	repository, preference := getRepositoryPreference(context, "")
-    duplicacy.LOG_INFO("REPOSITORY_PATH", "backup repo: %s", repository)
 
 	if preference.BackupProhibited {
 		duplicacy.LOG_ERROR("BACKUP_DISABLED", "Backup from this repository to %s was disabled by the preference",
