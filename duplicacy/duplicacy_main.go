@@ -40,8 +40,7 @@ func getRepositoryPreference(context *cli.Context, storageName string) (reposito
 	if pref_dir == "" {
 		repository = context.String("repository-dir")
 		if repository == "" {
-			var err error = nil // golang complains err is undefined if it isn't defined here
-			repository, err = os.Getwd()
+			repository, err := os.Getwd()
 			if err != nil {
 				duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
 				return "", nil
