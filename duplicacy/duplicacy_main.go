@@ -1778,7 +1778,7 @@ func main() {
 				cli.IntFlag{
 					Name:     "threads",
 					Value:    1,
-					Usage:    "number of downloading threads",
+					Usage:    "number of uploading threads",
 					Argument: "<n>",
 				},
 			},
