@@ -885,7 +885,7 @@ func listFiles(context *cli.Context) {
 		return
 	}
     
-    _, _, _, err = duplicacy.CreateSnapshotFromDirectoryFiterDebug("", top, filterDebugOptions)
+    _, _, _, err = duplicacy.CreateSnapshotFromDirectoryFilterDebug("", top, filterDebugOptions)
     
 	if err != nil {
         duplicacy.LOG_ERROR("SNAPSHOT_LIST", "Failed to list the directory %s: %v", top, err)

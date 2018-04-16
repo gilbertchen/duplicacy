@@ -58,7 +58,7 @@ func CreateEmptySnapshot(id string) (snapshto *Snapshot) {
 // CreateSnapshotFromDirectoryFilterDebug creates a snapshot from the local directory 'top', optionally
 // logging information useful for debugging filter patterns.  Only 'Files' will be constructed, while
 // 'ChunkHashes' and 'ChunkLengths' can only be populated after uploading.
-func CreateSnapshotFromDirectoryFiterDebug(id string, top string, filterDebugOptions *FilterDebugOptions) (snapshot *Snapshot, skippedDirectories []string,
+func CreateSnapshotFromDirectoryFilterDebug(id string, top string, filterDebugOptions *FilterDebugOptions) (snapshot *Snapshot, skippedDirectories []string,
 	skippedFiles []string, err error) {
 
 	snapshot = &Snapshot{
@@ -155,7 +155,7 @@ func CreateSnapshotFromDirectoryFiterDebug(id string, top string, filterDebugOpt
 // will be constructed, while 'ChunkHashes' and 'ChunkLengths' can only be populated after uploading.
 func CreateSnapshotFromDirectory(id string, top string) (snapshot *Snapshot, skippedDirectories []string,
 	skippedFiles []string, err error) {
-    return CreateSnapshotFromDirectoryFiterDebug(id, top, nil)
+    return CreateSnapshotFromDirectoryFilterDebug(id, top, nil)
 }
 
 // This is the struct used to save/load incomplete snapshots
