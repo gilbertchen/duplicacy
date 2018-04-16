@@ -792,6 +792,109 @@ func restoreRepository(context *cli.Context) {
 	runScript(context, preference.Name, "post")
 }
 
+func listFiles(context *cli.Context) {
+	setGlobalOptions(context)
+	defer duplicacy.CatchLogException()
+
+	if len(context.Args()) != 0 {
+		fmt.Fprintf(context.App.Writer, "The %s command requires no arguments.\n\n", context.Command.Name)
+		cli.ShowCommandHelp(context, context.Command.Name)
+		os.Exit(ArgumentExitCode)
+	}
+
+    filterDebugOptions := &duplicacy.FilterDebugOptions {
+         ListFilteredEntries     : false,
+         ListUnfilteredEntries   : false,
+         ListIncludedFiles       : false,
+         ListIncludedDirectories : false,
+         ListExcludedFiles       : false,
+         ListExcludedDirectories : false,
+    }
+    
+    if context.Bool("explicit") {
+        filterDebugOptions.ListFilteredEntries     = true;
+    }
+    
+    if context.Bool("implicit") {
+        filterDebugOptions.ListUnfilteredEntries   = true;
+    }
+    
+    if context.Bool("all") || (!filterDebugOptions.ListFilteredEntries && !filterDebugOptions.ListUnfilteredEntries) {
+        filterDebugOptions.ListFilteredEntries     = true;
+        filterDebugOptions.ListUnfilteredEntries   = true;
+    }
+    
+    if context.Bool("ifiles") {
+        filterDebugOptions.ListIncludedFiles       = true;
+    }
+    
+    if context.Bool("xfiles") {
+        filterDebugOptions.ListExcludedFiles       = true;
+    }
+    
+    if context.Bool("files") {
+        filterDebugOptions.ListIncludedFiles       = true;
+        filterDebugOptions.ListExcludedFiles       = true;
+    }
+    
+    if context.Bool("idirs") {
+        filterDebugOptions.ListIncludedDirectories = true;
+    }
+    
+    if context.Bool("xdirs") {
+        filterDebugOptions.ListExcludedDirectories = true;
+    }
+    
+    if context.Bool("dirs") {
+        filterDebugOptions.ListIncludedDirectories = true;
+        filterDebugOptions.ListExcludedDirectories = true;
+    }
+    
+    if context.Bool("ientries") {
+        filterDebugOptions.ListIncludedFiles       = true;
+        filterDebugOptions.ListIncludedDirectories = true;
+    }
+    
+    if context.Bool("xentries") {
+        filterDebugOptions.ListExcludedFiles       = true;
+        filterDebugOptions.ListExcludedDirectories = true;
+    }
+    
+    if context.Bool("entries") || (!filterDebugOptions.ListIncludedFiles && !filterDebugOptions.ListIncludedDirectories && !filterDebugOptions.ListExcludedFiles && !filterDebugOptions.ListExcludedDirectories) {
+        filterDebugOptions.ListIncludedFiles       = true;
+        filterDebugOptions.ListIncludedDirectories = true;
+        filterDebugOptions.ListExcludedFiles       = true;
+        filterDebugOptions.ListExcludedDirectories = true;
+    }
+    
+    duplicacy.LOG_DEBUG("ENUM_OPTIONS", "ListFilteredEntries:     %v", filterDebugOptions.ListFilteredEntries    )
+    duplicacy.LOG_DEBUG("ENUM_OPTIONS", "ListUnfilteredEntries:   %v", filterDebugOptions.ListUnfilteredEntries  )
+    duplicacy.LOG_DEBUG("ENUM_OPTIONS", "ListIncludedFiles:       %v", filterDebugOptions.ListIncludedFiles      )
+    duplicacy.LOG_DEBUG("ENUM_OPTIONS", "ListIncludedDirectories: %v", filterDebugOptions.ListIncludedDirectories)
+    duplicacy.LOG_DEBUG("ENUM_OPTIONS", "ListExcludedFiles:       %v", filterDebugOptions.ListExcludedFiles      )
+    duplicacy.LOG_DEBUG("ENUM_OPTIONS", "ListExcludedDirectories: %v", filterDebugOptions.ListExcludedDirectories)
+    
+	repository, preference := getRepositoryPreference(context, "")
+
+	runScript(context, preference.Name, "pre")
+
+	top, err := filepath.Abs(repository)
+    
+	if err != nil {
+		duplicacy.LOG_ERROR("REPOSITORY_ERR", "Failed to obtain the absolute path of the repository: %v", err)
+		return
+	}
+    
+    _, _, _, err = duplicacy.CreateSnapshotFromDirectoryFiterDebug("", top, filterDebugOptions)
+    
+	if err != nil {
+        duplicacy.LOG_ERROR("SNAPSHOT_LIST", "Failed to list the directory %s: %v", top, err)
+		return
+	}
+    
+	runScript(context, preference.Name, "post")
+}
+
 func listSnapshots(context *cli.Context) {
 	setGlobalOptions(context)
 	defer duplicacy.CatchLogException()
@@ -1437,6 +1540,62 @@ func main() {
 			Usage:     "List snapshots",
 			ArgsUsage: " ",
 			Action:    listSnapshots,
+		},
+		{
+			Name: "enum",
+			Flags: []cli.Flag{
+				cli.BoolFlag{
+					Name:  "all",
+					Usage: "DEFAULT: include any file or directory (equivalent to -explicit -implicit)",
+				},
+				cli.BoolFlag{
+					Name:  "explicit",
+					Usage: "include files or directories affected by a pattern in the filters file (explicit processing)",
+				},
+				cli.BoolFlag{
+					Name:  "implicit",
+					Usage: "include files or directories not affected by any pattern in the filters file (implicit processing)",
+				},
+				cli.BoolFlag{
+					Name:  "entries, e",
+					Usage: "DEFAULT: list files and directories (equivalent to -ientries -xentries)",
+				},
+				cli.BoolFlag{
+					Name:  "ientries, ie",
+					Usage: "list included files and directories (equivalent to -ifiles -idirs)",
+				},
+				cli.BoolFlag{
+					Name:  "xentries, xe",
+					Usage: "list excluded files and directories (equivalent to -xfiles -xdirs)",
+				},
+				cli.BoolFlag{
+					Name:  "files, f",
+					Usage: "list files (equivalent to -ifiles -xfiles)",
+				},
+				cli.BoolFlag{
+					Name:  "ifiles, if",
+					Usage: "list included files",
+				},
+				cli.BoolFlag{
+					Name:  "xfiles, xf",
+					Usage: "list excluded files",
+				},
+				cli.BoolFlag{
+					Name:  "dirs, d",
+					Usage: "list directories (equivalent to -idirs -xdirs)",
+				},
+				cli.BoolFlag{
+					Name:  "idirs, id",
+					Usage: "list included directories",
+				},
+				cli.BoolFlag{
+					Name:  "xdirs, xd",
+					Usage: "list excluded directories",
+				},
+            },
+			Usage:     "enumerate the the repository",
+			ArgsUsage: " ",
+			Action:    listFiles,
 		},
 		{
 			Name: "check",

@@ -329,11 +329,13 @@ func matchPattern(text string, pattern string) bool {
 
 }
 
-// MatchPath returns 'true' if the file 'filePath' is excluded by the specified 'patterns'.  Each pattern starts with
-// either '+' or '-', whereas '-' indicates exclusion and '+' indicates inclusion.  Wildcards like '*' and '?' may
-// appear in the patterns.  In case no matching pattern is found, the file will be excluded if all patterns are
-// include patterns, and included otherwise.
-func MatchPath(filePath string, patterns []string) (included bool) {
+// MatchPathVerbose returns 'true' if the file 'filePath' is included by the specified 'patterns' or 'false'
+// if it is excluded, along with with the pattern responsible for the inclusion or exclusion.  If the file
+// was included or excluded by default (i.e. not as the result of a pattern), an empty string is returned as
+// the pattern.  Each pattern starts with either '+' or '-', whereas '-' indicates exclusion and '+' indicates
+// inclusion.  Wildcards like '*' and '?' may appear in the patterns.  In case no matching pattern is found,
+// the file will be excluded if all patterns are include patterns, and included otherwise.
+func MatchPathVerbose(filePath string, patterns []string) (included bool, pattern string) {
 
 	var re *regexp.Regexp = nil
 	var found bool
@@ -344,12 +346,12 @@ func MatchPath(filePath string, patterns []string) (included bool) {
 	for _, pattern := range patterns {
 		if pattern[0] == '+' {
 			if matchPattern(filePath, pattern[1:]) {
-				return true
+				return true, pattern
 			}
 		} else if pattern[0] == '-' {
 			allIncludes = false
 			if matchPattern(filePath, pattern[1:]) {
-				return false
+				return false, pattern
 			}
 		} else if strings.HasPrefix(pattern, "i:") || strings.HasPrefix(pattern, "e:") {
 			if re, found = RegexMap[pattern[2:]]; found {
@@ -363,7 +365,7 @@ func MatchPath(filePath string, patterns []string) (included bool) {
 				matched = re.MatchString(filePath)
 			}
 			if matched {
-				return strings.HasPrefix(pattern, "i:")
+				return strings.HasPrefix(pattern, "i:"), pattern
 			} else {
 				if strings.HasPrefix(pattern, "e:") {
 					allIncludes = false
@@ -372,7 +374,16 @@ func MatchPath(filePath string, patterns []string) (included bool) {
 		}
 	}
 
-	return !allIncludes
+	return !allIncludes, ""
+}
+
+// MatchPath returns 'true' if the file 'filePath' is included by the specified 'patterns'.  Each pattern starts with
+// either '+' or '-', whereas '-' indicates exclusion and '+' indicates inclusion.  Wildcards like '*' and '?' may
+// appear in the patterns.  In case no matching pattern is found, the file will be excluded if all patterns are
+// include patterns, and included otherwise.
+func MatchPath(filePath string, patterns []string) (included bool) {
+    included, _ = MatchPathVerbose(filePath, patterns)
+    return included
 }
 
 func joinPath(components ...string) string {

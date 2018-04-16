@@ -55,9 +55,10 @@ func CreateEmptySnapshot(id string) (snapshto *Snapshot) {
 	}
 }
 
-// CreateSnapshotFromDirectory creates a snapshot from the local directory 'top'.  Only 'Files'
-// will be constructed, while 'ChunkHashes' and 'ChunkLengths' can only be populated after uploading.
-func CreateSnapshotFromDirectory(id string, top string) (snapshot *Snapshot, skippedDirectories []string,
+// CreateSnapshotFromDirectoryFilterDebug creates a snapshot from the local directory 'top', optionally
+// logging information useful for debugging filter patterns.  Only 'Files' will be constructed, while
+// 'ChunkHashes' and 'ChunkLengths' can only be populated after uploading.
+func CreateSnapshotFromDirectoryFiterDebug(id string, top string, filterDebugOptions *FilterDebugOptions) (snapshot *Snapshot, skippedDirectories []string,
 	skippedFiles []string, err error) {
 
 	snapshot = &Snapshot{
@@ -125,7 +126,7 @@ func CreateSnapshotFromDirectory(id string, top string) (snapshot *Snapshot, ski
 		directory := directories[len(directories)-1]
 		directories = directories[:len(directories)-1]
 		snapshot.Files = append(snapshot.Files, directory)
-		subdirectories, skipped, err := ListEntries(top, directory.Path, &snapshot.Files, patterns, snapshot.discardAttributes)
+		subdirectories, skipped, err := ListEntries(top, directory.Path, &snapshot.Files, patterns, snapshot.discardAttributes, filterDebugOptions)
 		if err != nil {
 			LOG_WARN("LIST_FAILURE", "Failed to list subdirectory: %v", err)
 			skippedDirectories = append(skippedDirectories, directory.Path)
@@ -148,6 +149,13 @@ func CreateSnapshotFromDirectory(id string, top string) (snapshot *Snapshot, ski
 	snapshot.Files = snapshot.Files[1:]
 
 	return snapshot, skippedDirectories, skippedFiles, nil
+}
+
+// CreateSnapshotFromDirectory creates a snapshot from the local directory 'top'.  Only 'Files'
+// will be constructed, while 'ChunkHashes' and 'ChunkLengths' can only be populated after uploading.
+func CreateSnapshotFromDirectory(id string, top string) (snapshot *Snapshot, skippedDirectories []string,
+	skippedFiles []string, err error) {
+    return CreateSnapshotFromDirectoryFiterDebug(id, top, nil)
 }
 
 // This is the struct used to save/load incomplete snapshots
