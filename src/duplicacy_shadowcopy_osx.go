@@ -15,10 +15,31 @@ import (
 	"context"
 	"errors"
 	"time"
+	"syscall"
+	"strconv"
 )
 
 var snapshotPath string
 var snapshotDate string
+
+func GetKernelVersion() (major int, minor int, component int, err error) {
+	
+	versionString, err := syscall.Sysctl("kern.osrelease")
+	if err != nil {
+		return 0, 0, 0, err;
+	}
+	
+	versionSplit := strings.Split(versionString, ".")
+	if len(versionSplit) != 3 {
+		return 0, 0, 0, errors.New("Sysctl returned invalid kernel version string")
+	}
+	
+	major, _ = strconv.Atoi(versionSplit[0])
+	minor, _ = strconv.Atoi(versionSplit[1])
+	component, _ = strconv.Atoi(versionSplit[2])
+	
+	return major, minor, component, nil;
+}
 
 func CommandWithTimeout(timeoutInSeconds int, name string, arg ...string) (output string, err error) {
   
@@ -66,19 +87,34 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 	if !shadowCopy {
 		return top
 	}
+	
+	major, _, _, err := GetKernelVersion()
+	if err != nil {
+		LOG_ERROR("VSS_INIT", "Failed to get kernel version: " + err.Error())
+		return top
+	}
+	
+	if major < 17 {
+		LOG_WARN("VSS_INIT", "VSS requires macOS 10.13 High Sierra or higher")
+		return top
+	}
+	
+	if top == "/Volumes" || strings.HasPrefix(top, "/Volumes/") {
+		LOG_ERROR("VSS_PATH", "Invalid repository path: %s", top)
+		return top 
+	}
 
 	if timeoutInSeconds <= 60 {
         timeoutInSeconds = 60
 	}
 	
-    tmpDir, err := ioutil.TempDir("/tmp/", "snp_")
+    snapshotPath, err = ioutil.TempDir("/tmp/", "snp_")
 	if err != nil {
 	    LOG_ERROR("VSS_CREATE", "Failed to create temporary mount directory")
 		return top
 	}
-	snapshotPath = tmpDir
 	
-	tmutilOutput, err := CommandWithTimeout(timeoutInSeconds, "tmutil", "snapshot", "/")
+	tmutilOutput, err := CommandWithTimeout(timeoutInSeconds, "tmutil", "snapshot")
     if err != nil {
 	    LOG_ERROR("VSS_CREATE", "Error while calling tmutil: " + err.Error())
 		return top
@@ -86,7 +122,7 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 	
 	colonPos := strings.IndexByte(tmutilOutput, ':')
 	if colonPos < 0 {
-	    LOG_ERROR("VSS_CREATE", "Snapshot creation failed")
+	    LOG_ERROR("VSS_CREATE", "Snapshot creation failed: " + tmutilOutput)
 		return top
 	}
 	snapshotDate = strings.TrimSpace(tmutilOutput[colonPos+1:])
