@@ -3,6 +3,7 @@
 // Commercial use requires per-user licenses available from https://duplicacy.com
 
 // +build !windows
+// +build !darwin
 
 package duplicacy
 
