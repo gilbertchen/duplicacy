@@ -23,19 +23,19 @@ var snapshotDate string
 
 // Converts char array to string
 func CharsToString(ca []int8) string {
-	
+
 	len := len(ca)
 	ba := make([]byte, len) 
-    
-    for i, v := range ca {
-        ba[i] = byte(v)
+
+	for i, v := range ca {
+		ba[i] = byte(v)
 		if ba[i] == 0 {
 			len = i
 			break
 		}
 	}
-	
-    return string(ba[:len])
+
+	return string(ba[:len])
 }
 
 // Get ID of device containing path
@@ -51,43 +51,43 @@ func GetPathDeviceId(path string) (deviceId int32, err error) {
 // Executes shell command with timeout and returns stdout
 func CommandWithTimeout(timeoutInSeconds int, name string, arg ...string) (output string, err error) {
 
-    ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutInSeconds) * time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutInSeconds) * time.Second)
 	defer cancel() 
-	
+
 	cmd := exec.CommandContext(ctx, name, arg...)
 	out, err := cmd.Output()
-	
-    if ctx.Err() == context.DeadlineExceeded {
-	    err = errors.New("Command '" + name + "' timed out")
+
+	if ctx.Err() == context.DeadlineExceeded {
+		err = errors.New("Command '" + name + "' timed out")
 	}
-	
+
 	output = string(out)
-	return output, err;
+	return output, err
 }
 
 func DeleteShadowCopy() {
-  
-    if snapshotPath == "" {
-	    return
-    }
+
+	if snapshotPath == "" {
+		return
+	}
 
 	err := exec.Command("umount", "-f", snapshotPath).Run()
-    if err != nil {
-	    LOG_ERROR("VSS_DELETE", "Error while unmounting snapshot")
+	if err != nil {
+		LOG_ERROR("VSS_DELETE", "Error while unmounting snapshot")
 		return
 	}
-	
+
 	err = exec.Command("tmutil", "deletelocalsnapshots", snapshotDate).Run()
-    if err != nil {
-        LOG_ERROR("VSS_DELETE", "Error while deleting local snapshot")
+	if err != nil {
+		LOG_ERROR("VSS_DELETE", "Error while deleting local snapshot")
 		return
 	}
-  
-    os.RemoveAll(snapshotPath)
-  
-    LOG_INFO("VSS_DELETE", "Shadow copy unmounted and deleted at %s", snapshotPath)
-	
-    snapshotPath = "" 
+
+	os.RemoveAll(snapshotPath)
+
+	LOG_INFO("VSS_DELETE", "Shadow copy unmounted and deleted at %s", snapshotPath)
+
+	snapshotPath = "" 
 }
 
 func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadowTop string) {
@@ -95,7 +95,7 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 	if !shadowCopy {
 		return top
 	}
-	
+
 	// Check repository filesystem is APFS
 	stat := syscall.Statfs_t{}
 	err := syscall.Statfs(top, &stat)
@@ -107,7 +107,7 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 		LOG_WARN("VSS_INIT", "VSS requires APFS filesystem")
 		return top
 	}
-	
+
 	// Check path is local as tmutil snapshots will not support APFS formatted external drives
 	deviceIdLocal, err := GetPathDeviceId("/")
 	if err != nil {
@@ -125,26 +125,26 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 	}
 
 	if timeoutInSeconds <= 60 {
-        timeoutInSeconds = 60
+		timeoutInSeconds = 60
 	}
-	
+
 	// Create mount point
-    snapshotPath, err = ioutil.TempDir("/tmp/", "snp_")
+	snapshotPath, err = ioutil.TempDir("/tmp/", "snp_")
 	if err != nil {
-	    LOG_ERROR("VSS_CREATE", "Failed to create temporary mount directory")
+		LOG_ERROR("VSS_CREATE", "Failed to create temporary mount directory")
 		return top
 	}
-	
+
 	// Use tmutil to create snapshot
 	tmutilOutput, err := CommandWithTimeout(timeoutInSeconds, "tmutil", "snapshot")
-    if err != nil {
-	    LOG_ERROR("VSS_CREATE", "Error while calling tmutil: ", err)
+	if err != nil {
+		LOG_ERROR("VSS_CREATE", "Error while calling tmutil: ", err)
 		return top
 	}
 	
 	colonPos := strings.IndexByte(tmutilOutput, ':')
 	if colonPos < 0 {
-	    LOG_ERROR("VSS_CREATE", "Snapshot creation failed: ", tmutilOutput)
+		LOG_ERROR("VSS_CREATE", "Snapshot creation failed: ", tmutilOutput)
 		return top
 	}
 	snapshotDate = strings.TrimSpace(tmutilOutput[colonPos+1:])
@@ -153,11 +153,11 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 	_, err = CommandWithTimeout(timeoutInSeconds, 
 		"mount", "-t", "apfs", "-o", "nobrowse,-r,-s=com.apple.TimeMachine." + snapshotDate, "/", snapshotPath)
 	if err != nil {
-	    LOG_ERROR("VSS_CREATE", "Error while mounting snapshot: ", err)
-        return top
+		LOG_ERROR("VSS_CREATE", "Error while mounting snapshot: ", err)
+		return top
 	}
-	
-    LOG_INFO("VSS_DONE", "Shadow copy created and mounted at %s", snapshotPath)
-	
+
+	LOG_INFO("VSS_DONE", "Shadow copy created and mounted at %s", snapshotPath)
+
 	return snapshotPath + top
 }
