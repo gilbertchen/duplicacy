@@ -16,33 +16,41 @@ import (
 	"errors"
 	"time"
 	"syscall"
-	"strconv"
 )
 
 var snapshotPath string
 var snapshotDate string
 
-func GetKernelVersion() (major int, minor int, component int, err error) {
+// Converts char array to string
+func CharsToString(ca []int8) string {
 	
-	versionString, err := syscall.Sysctl("kern.osrelease")
-	if err != nil {
-		return 0, 0, 0, err;
+	len := len(ca)
+	ba := make([]byte, len) 
+    
+    for i, v := range ca {
+        ba[i] = byte(v)
+		if ba[i] == 0 {
+			len = i
+			break
+		}
 	}
 	
-	versionSplit := strings.Split(versionString, ".")
-	if len(versionSplit) != 3 {
-		return 0, 0, 0, errors.New("Sysctl returned invalid kernel version string")
-	}
-	
-	major, _ = strconv.Atoi(versionSplit[0])
-	minor, _ = strconv.Atoi(versionSplit[1])
-	component, _ = strconv.Atoi(versionSplit[2])
-	
-	return major, minor, component, nil;
+    return string(ba[:len])
 }
 
+// Get ID of device containing path
+func GetPathDeviceId(path string) (deviceId int32, err error) {
+	stat := syscall.Stat_t{}
+	err = syscall.Stat(path, &stat)
+	if err != nil {
+		return 0, err
+	}
+	return stat.Dev, nil
+}
+
+// Executes shell command with timeout and returns stdout
 func CommandWithTimeout(timeoutInSeconds int, name string, arg ...string) (output string, err error) {
-  
+
     ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutInSeconds) * time.Second)
 	defer cancel() 
 	
@@ -88,19 +96,31 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 		return top
 	}
 	
-	major, _, _, err := GetKernelVersion()
+	// Check repository filesystem is APFS
+	stat := syscall.Statfs_t{}
+	err := syscall.Statfs(top, &stat)
 	if err != nil {
-		LOG_ERROR("VSS_INIT", "Failed to get kernel version: " + err.Error())
+		LOG_ERROR("VSS_INIT", "Unable to determine filesystem of repository path")
+		return top
+	}
+	if CharsToString(stat.Fstypename[:]) != "apfs" {
+		LOG_WARN("VSS_INIT", "VSS requires APFS filesystem")
 		return top
 	}
 	
-	if major < 17 {
-		LOG_WARN("VSS_INIT", "VSS requires macOS 10.13 High Sierra or higher")
+	// Check path is local as tmutil snapshots will not support APFS formatted external drives
+	deviceIdLocal, err := GetPathDeviceId("/")
+	if err != nil {
+		LOG_ERROR("VSS_INIT", "Unable to get device ID of path: /")
 		return top
 	}
-	
-	if top == "/Volumes" || strings.HasPrefix(top, "/Volumes/") {
-		LOG_ERROR("VSS_PATH", "Invalid repository path: %s", top)
+	deviceIdRepository, err := GetPathDeviceId(top)
+	if err != nil {
+		LOG_ERROR("VSS_INIT", "Unable to get device ID of path: ", top)
+		return top
+	}
+	if deviceIdLocal != deviceIdRepository {
+		LOG_WARN("VSS_PATH", "VSS not supported for non-local repository path: ", top)
 		return top 
 	}
 
@@ -108,29 +128,32 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
         timeoutInSeconds = 60
 	}
 	
+	// Create mount point
     snapshotPath, err = ioutil.TempDir("/tmp/", "snp_")
 	if err != nil {
 	    LOG_ERROR("VSS_CREATE", "Failed to create temporary mount directory")
 		return top
 	}
 	
+	// Use tmutil to create snapshot
 	tmutilOutput, err := CommandWithTimeout(timeoutInSeconds, "tmutil", "snapshot")
     if err != nil {
-	    LOG_ERROR("VSS_CREATE", "Error while calling tmutil: " + err.Error())
+	    LOG_ERROR("VSS_CREATE", "Error while calling tmutil: ", err)
 		return top
 	}
 	
 	colonPos := strings.IndexByte(tmutilOutput, ':')
 	if colonPos < 0 {
-	    LOG_ERROR("VSS_CREATE", "Snapshot creation failed: " + tmutilOutput)
+	    LOG_ERROR("VSS_CREATE", "Snapshot creation failed: ", tmutilOutput)
 		return top
 	}
 	snapshotDate = strings.TrimSpace(tmutilOutput[colonPos+1:])
-	
+
+	// Mount snapshot as readonly and hide from GUI i.e. Finder
 	_, err = CommandWithTimeout(timeoutInSeconds, 
 		"mount", "-t", "apfs", "-o", "nobrowse,-r,-s=com.apple.TimeMachine." + snapshotDate, "/", snapshotPath)
 	if err != nil {
-	    LOG_ERROR("VSS_CREATE", "Error while mounting snapshot: " + err.Error())
+	    LOG_ERROR("VSS_CREATE", "Error while mounting snapshot: ", err)
         return top
 	}
 	
