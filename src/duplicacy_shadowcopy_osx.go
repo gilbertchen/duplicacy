@@ -8,14 +8,14 @@
 package duplicacy
 
 import (
-	"os"
-	"strings"
-	"io/ioutil"
-	"os/exec"
 	"context"
 	"errors"
-	"time"
+	"io/ioutil"
+	"os"
+	"os/exec"
+	"strings"
 	"syscall"
+	"time"
 )
 
 var snapshotPath string
@@ -40,11 +40,14 @@ func CharsToString(ca []int8) string {
 
 // Get ID of device containing path
 func GetPathDeviceId(path string) (deviceId int32, err error) {
+
 	stat := syscall.Stat_t{}
+
 	err = syscall.Stat(path, &stat)
 	if err != nil {
 		return 0, err
 	}
+
 	return stat.Dev, nil
 }
 
@@ -83,8 +86,12 @@ func DeleteShadowCopy() {
 		return
 	}
 
-	os.RemoveAll(snapshotPath)
-
+	err = os.RemoveAll(snapshotPath)
+	if err != nil {
+		LOG_ERROR("VSS_DELETE", "Error while deleting temporary mount directory")
+		return
+	}
+	
 	LOG_INFO("VSS_DELETE", "Shadow copy unmounted and deleted at %s", snapshotPath)
 
 	snapshotPath = "" 
@@ -141,7 +148,7 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 		LOG_ERROR("VSS_CREATE", "Error while calling tmutil: ", err)
 		return top
 	}
-	
+
 	colonPos := strings.IndexByte(tmutilOutput, ':')
 	if colonPos < 0 {
 		LOG_ERROR("VSS_CREATE", "Snapshot creation failed: ", tmutilOutput)
