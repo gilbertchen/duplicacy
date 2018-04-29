@@ -174,7 +174,7 @@ func (downloader *ChunkDownloader) Prefetch(file *Entry) {
 // Reclaim releases the downloaded chunk to the chunk pool
 func (downloader *ChunkDownloader) Reclaim(chunkIndex int) {
 
-	if downloader.lastChunkIndex == chunkIndex {
+	if downloader.lastChunkIndex >= chunkIndex {
 		return
 	}
 
@@ -187,13 +187,20 @@ func (downloader *ChunkDownloader) Reclaim(chunkIndex int) {
 		}
 	}
 
+	for i := downloader.lastChunkIndex; i < chunkIndex; i++ {
+		// These chunks are never downloaded if 'isDownloading' is false; note that 'isDownloading' isn't reset to
+		// false after a chunk has been downloaded
+		if !downloader.taskList[i].isDownloading {
+			atomic.AddInt64(&downloader.totalChunkSize, -int64(downloader.taskList[i].chunkLength))
+		}
+	}
 	downloader.lastChunkIndex = chunkIndex
 }
 
 // WaitForChunk waits until the specified chunk is ready
 func (downloader *ChunkDownloader) WaitForChunk(chunkIndex int) (chunk *Chunk) {
 
-	// Reclain any chunk not needed
+	// Reclaim any chunk not needed
 	downloader.Reclaim(chunkIndex)
 
 	// If we haven't started download the specified chunk, download it now
