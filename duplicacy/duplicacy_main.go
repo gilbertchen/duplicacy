@@ -1324,7 +1324,7 @@ func main() {
 				},
 				cli.BoolFlag{
 					Name:  "vss",
-					Usage: "enable the Volume Shadow Copy service (Windows only)",
+					Usage: "enable the Volume Shadow Copy service (Windows and macOS using APFS only)",
 				},
 				cli.IntFlag{
 					Name:     "vss-timeout",
