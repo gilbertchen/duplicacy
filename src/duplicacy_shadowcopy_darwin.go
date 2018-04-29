@@ -74,7 +74,7 @@ func DeleteShadowCopy() {
 		return
 	}
 
-	err := exec.Command("umount", "-f", snapshotPath).Run()
+	err := exec.Command("/sbin/umount", "-f", snapshotPath).Run()
 	if err != nil {
 		LOG_ERROR("VSS_DELETE", "Error while unmounting snapshot")
 		return
@@ -158,7 +158,7 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 
 	// Mount snapshot as readonly and hide from GUI i.e. Finder
 	_, err = CommandWithTimeout(timeoutInSeconds, 
-		"mount", "-t", "apfs", "-o", "nobrowse,-r,-s=com.apple.TimeMachine." + snapshotDate, "/", snapshotPath)
+		"/sbin/mount", "-t", "apfs", "-o", "nobrowse,-r,-s=com.apple.TimeMachine." + snapshotDate, "/", snapshotPath)
 	if err != nil {
 		LOG_ERROR("VSS_CREATE", "Error while mounting snapshot: ", err)
 		return top
