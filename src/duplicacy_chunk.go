@@ -5,11 +5,14 @@
 package duplicacy
 
 import (
+	"os"
 	"bytes"
 	"compress/zlib"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"crypto/hmac"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"hash"
@@ -267,6 +270,17 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err err
 
 }
 
+// This is to ensure compability with Vertical Backup, which still uses HMAC-SHA256 (instead of HMAC-BLAKE2) to
+// derive the key used to encrypt/decrypt files and chunks.
+
+var DecryptWithHMACSHA256 = false
+
+func init() {
+	if value, found := os.LookupEnv("DUPLICACY_DECRYPT_WITH_HMACSHA256"); found && value != "0" {
+		DecryptWithHMACSHA256 = true
+	}
+}
+
 // Decrypt decrypts the encrypted data stored in the chunk buffer.  If derivationKey is not nil, the actual
 // encryption key will be HMAC-SHA256(encryptionKey, derivationKey).
 func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err error) {
@@ -286,7 +300,13 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 		key := encryptionKey
 
 		if len(derivationKey) > 0 {
-			hasher := chunk.config.NewKeyedHasher([]byte(derivationKey))
+			var hasher hash.Hash
+			if DecryptWithHMACSHA256 {
+				hasher = hmac.New(sha256.New, []byte(derivationKey))
+			} else {
+				hasher = chunk.config.NewKeyedHasher([]byte(derivationKey))
+			}
+
 			hasher.Write(encryptionKey)
 			key = hasher.Sum(nil)
 		}
@@ -324,6 +344,7 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 		if err != nil {
 			return err
 		}
+
 
 		paddingLength := int(decryptedBytes[len(decryptedBytes)-1])
 		if paddingLength == 0 {
