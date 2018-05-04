@@ -45,6 +45,15 @@ type Entry struct {
 	Attributes map[string][]byte
 }
 
+type FilterDebugOptions struct {
+     ListFilteredEntries     bool
+     ListUnfilteredEntries   bool
+     ListIncludedFiles       bool
+     ListIncludedDirectories bool
+     ListExcludedFiles       bool
+     ListExcludedDirectories bool
+}
+
 // CreateEntry creates an entry from file properties.
 func CreateEntry(path string, size int64, time int64, mode uint32) *Entry {
 
@@ -433,9 +442,39 @@ func (files FileInfoCompare) Less(i, j int) bool {
 	}
 }
 
-// ListEntries returns a list of entries representing file and subdirectories under the directory 'path'.  Entry paths
-// are normalized as relative to 'top'.  'patterns' are used to exclude or include certain files.
-func ListEntries(top string, path string, fileList *[]*Entry, patterns []string, discardAttributes bool) (directoryList []*Entry,
+// logEntry determines whether to log a particular entry according to a set of filterDebugOptions
+func logEntry(entry *Entry, included bool, pattern string, filterDebugOptions *FilterDebugOptions) bool {
+    if !filterDebugOptions.ListFilteredEntries && pattern != "" {
+        return false
+    }
+    
+    if !filterDebugOptions.ListUnfilteredEntries && pattern == "" {
+        return false
+    }
+    
+    if entry.IsDir() {
+        if included && filterDebugOptions.ListIncludedDirectories {
+            return true
+        } else if !included && filterDebugOptions.ListExcludedDirectories {
+            return true
+        }
+        
+        return false
+    }
+    
+    if included && filterDebugOptions.ListIncludedFiles {
+        return true
+    } else if !included && filterDebugOptions.ListExcludedFiles {
+        return true
+    }
+    
+    return false
+}
+
+// ListEntries returns a list of entries representing file and subdirectories under the directory 'path' and optionally
+// logs information useful for debugging filter patterns.  Entry paths are normalized as relative to 'top'.
+// 'patterns' are used to exclude or include certain files.
+func ListEntries(top string, path string, fileList *[]*Entry, patterns []string, discardAttributes bool, filterDebugOptions *FilterDebugOptions) (directoryList []*Entry,
 	skippedFiles []string, err error) {
 
 	LOG_DEBUG("LIST_ENTRIES", "Listing %s", path)
@@ -468,10 +507,11 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 			continue
 		}
 		entry := CreateEntryFromFileInfo(f, normalizedPath)
-		if len(patterns) > 0 && !MatchPath(entry.Path, patterns) {
+		if filterDebugOptions == nil && len(patterns) > 0 && !MatchPath(entry.Path, patterns) {
 			LOG_DEBUG("LIST_EXCLUDE", "%s is excluded", entry.Path)
 			continue
 		}
+        originalPath := entry.Path // Save this in case it is modified by the following block
 		if entry.IsLink() {
 			isRegular := false
 			isRegular, entry.Link, err = Readlink(filepath.Join(top, entry.Path))
@@ -504,7 +544,23 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 		if !discardAttributes {
 			entry.ReadAttributes(top)
 		}
+        
+        pattern := ""
 
+		if filterDebugOptions != nil && len(patterns) > 0 {
+            isMatch, pattern := MatchPathVerbose(originalPath, patterns) // filtering is performed on the original path ...
+            
+            if !isMatch {
+                if logEntry(entry, false, pattern, filterDebugOptions) { // ... but for logging purposes, we want to know whether this is a directory symlink
+                    LOG_INFO("LIST_EXCLUDE", "EXCL\t%s\t%s", pattern, originalPath) // but print the original path, since that's what's needed for filter debugging
+                } else {
+                    LOG_DEBUG("LIST_EXCLUDE", "%s is excluded", originalPath)
+                }
+                
+                continue
+            }
+		}
+        
 		if f.Mode()&(os.ModeNamedPipe|os.ModeSocket|os.ModeDevice) != 0 {
 			LOG_WARN("LIST_SKIP", "Skipped non-regular file %s", entry.Path)
 			skippedFiles = append(skippedFiles, entry.Path)
@@ -512,6 +568,10 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 		}
 
 		entries = append(entries, entry)
+        
+        if logEntry(entry, true, pattern, filterDebugOptions) {
+            LOG_INFO("LIST_INCLUDE", "INCL\t%s\t%s", pattern, originalPath) // print the original path, since that's what's needed for filter debugging
+        }
 	}
 
 	// For top level directory we need to sort again because symlinks may have been changed
