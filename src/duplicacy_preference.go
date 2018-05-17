@@ -17,6 +17,7 @@ import (
 type Preference struct {
 	Name              string            `json:"name"`
 	SnapshotID        string            `json:"id"`
+	RepositoryPath    string            `json:"repository"`
 	StorageURL        string            `json:"storage"`
 	Encrypted         bool              `json:"encrypted"`
 	BackupProhibited  bool              `json:"no_backup"`
@@ -29,9 +30,13 @@ type Preference struct {
 var preferencePath string
 var Preferences []Preference
 
-func LoadPreferences(repository string) bool {
+func LoadPreferences(repository string, pref_dir string) bool {
 
-	preferencePath = path.Join(repository, DUPLICACY_DIRECTORY)
+	if pref_dir == "" {
+		preferencePath = path.Join(repository, DUPLICACY_DIRECTORY)
+	} else {
+		preferencePath = pref_dir
+	}
 
 	stat, err := os.Stat(preferencePath)
 	if err != nil {

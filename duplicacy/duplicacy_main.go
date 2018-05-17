@@ -7,6 +7,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -16,7 +17,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"net/http"
 
 	_ "net/http/pprof"
 
@@ -36,35 +36,46 @@ var ScriptEnabled bool
 func getRepositoryPreference(context *cli.Context, storageName string) (repository string,
 	preference *duplicacy.Preference) {
 
-	repository, err := os.Getwd()
-	if err != nil {
-		duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
-		return "", nil
+	var pref_dir string = context.GlobalString("pref-dir")
+	if pref_dir == "" {
+		repository = context.String("repository-dir")
+		if repository == "" {
+			repository, err := os.Getwd()
+			if err != nil {
+				duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
+				return "", nil
+			}
+		}
+
+		for {
+			pref_dir = path.Join(repository, duplicacy.DUPLICACY_DIRECTORY)
+			stat, err := os.Stat(pref_dir) //TOKEEP
+			if err != nil && !os.IsNotExist(err) {
+				duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the information about the directory %s: %v",
+					repository, err)
+				return "", nil
+			}
+
+			if stat != nil && (stat.IsDir() || stat.Mode().IsRegular()) {
+				break
+			}
+
+			parent := path.Dir(repository)
+			if parent == repository || parent == "" {
+				duplicacy.LOG_ERROR("REPOSITORY_PATH", "Repository has not been initialized")
+				return "", nil
+			}
+			repository = parent
+		}
 	}
-
-	for {
-		stat, err := os.Stat(path.Join(repository, duplicacy.DUPLICACY_DIRECTORY)) //TOKEEP
-		if err != nil && !os.IsNotExist(err) {
-			duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the information about the directory %s: %v",
-				repository, err)
-			return "", nil
-		}
-
-		if stat != nil && (stat.IsDir() || stat.Mode().IsRegular()) {
-			break
-		}
-
-		parent := path.Dir(repository)
-		if parent == repository || parent == "" {
-			duplicacy.LOG_ERROR("REPOSITORY_PATH", "Repository has not been initialized")
-			return "", nil
-		}
-		repository = parent
-	}
-	duplicacy.LoadPreferences(repository)
+	duplicacy.LoadPreferences(repository, pref_dir)
 
 	preferencePath := duplicacy.GetDuplicacyPreferencePath()
 	duplicacy.SetKeyringFile(path.Join(preferencePath, "keyring"))
+
+	if repository == "" && duplicacy.Preferences[0].RepositoryPath != "" {
+		repository = duplicacy.Preferences[0].RepositoryPath
+	}
 
 	if storageName == "" {
 		storageName = context.String("storage")
@@ -80,6 +91,11 @@ func getRepositoryPreference(context *cli.Context, storageName string) (reposito
 		duplicacy.LOG_ERROR("STORAGE_NONE", "No storage named '%s' is found", storageName)
 		return "", nil
 	}
+
+	if repository == "" && preference.RepositoryPath != "" {
+		repository = preference.RepositoryPath
+	}
+
 	return repository, preference
 }
 
@@ -147,8 +163,6 @@ func setGlobalOptions(context *cli.Context) {
 			http.ListenAndServe(address, nil)
 		}()
 	}
-
-
 
 	duplicacy.RunInBackground = context.GlobalBool("background")
 }
@@ -249,13 +263,20 @@ func configRepository(context *cli.Context, init bool) {
 	var err error
 
 	if init {
-		repository, err = os.Getwd()
-		if err != nil {
-			duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
+		repository = context.String("repository-dir")
+		if repository == "" {
+			repository, err = os.Getwd()
+			if err != nil {
+				duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
+				return
+			}
+		}
+		if repository == "" {
+			duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to locate a repository")
 			return
 		}
 
-		preferencePath := context.String("pref-dir")
+		preferencePath := context.GlobalString("pref-dir")
 		if preferencePath == "" {
 			preferencePath = path.Join(repository, duplicacy.DUPLICACY_DIRECTORY) // TOKEEP
 		}
@@ -271,7 +292,7 @@ func configRepository(context *cli.Context, init bool) {
 				preferencePath, err)
 			return
 		}
-		if context.String("pref-dir") != "" {
+		if context.GlobalString("pref-dir") != "" && !context.Bool("no-pref-link") {
 			// out of tree preference file
 			// write real path into .duplicacy file inside repository
 			duplicacyFileName := path.Join(repository, duplicacy.DUPLICACY_FILE)
@@ -294,10 +315,11 @@ func configRepository(context *cli.Context, init bool) {
 	}
 
 	preference := duplicacy.Preference{
-		Name:       storageName,
-		SnapshotID: snapshotID,
-		StorageURL: storageURL,
-		Encrypted:  context.Bool("encrypt"),
+		Name:           storageName,
+		SnapshotID:     snapshotID,
+		StorageURL:     storageURL,
+		RepositoryPath: repository,
+		Encrypted:      context.Bool("encrypt"),
 	}
 
 	storage := duplicacy.CreateStorage(preference, true, 1)
@@ -630,7 +652,7 @@ func changePassword(context *cli.Context) {
 				duplicacy.LOG_INFO("CONFIG_CLEAN", "The local copy of the old config has been removed")
 			}
 		}
-	} ()
+	}()
 
 	err = storage.DeleteFile(0, "config")
 	if err != nil {
@@ -1236,7 +1258,7 @@ func infoStorage(context *cli.Context) {
 
 	for _, dir := range dirs {
 		if len(dir) > 0 && dir[len(dir)-1] == '/' {
-			duplicacy.LOG_INFO("STORAGE_SNAPSHOT", "%s", dir[0:len(dir) - 1])
+			duplicacy.LOG_INFO("STORAGE_SNAPSHOT", "%s", dir[0:len(dir)-1])
 		}
 	}
 
@@ -1278,9 +1300,14 @@ func main() {
 					Argument: "<i>",
 				},
 				cli.StringFlag{
-					Name:     "pref-dir",
-					Usage:    "alternate location for the .duplicacy directory (absolute or relative to current directory)",
+					Name:     "repository-dir",
+					Value:    "",
+					Usage:    "Manually specify the path to the root of the new repository",
 					Argument: "<path>",
+				},
+				cli.BoolFlag{
+					Name:  "no-pref-link",
+					Usage: "disable creating the .duplicacy link to the preference directory. All commands will need to include the 'pref-dir' argument",
 				},
 				cli.StringFlag{
 					Name:     "storage-name",
@@ -1688,8 +1715,8 @@ func main() {
 					Argument: "<storage name>",
 				},
 				cli.BoolFlag{
-					Name:     "bit-identical",
-					Usage:    "(when using -copy) make the new storage bit-identical to also allow rsync etc.",
+					Name:  "bit-identical",
+					Usage: "(when using -copy) make the new storage bit-identical to also allow rsync etc.",
 				},
 			},
 			Usage:     "Add an additional storage to be used for the existing repository",
@@ -1855,8 +1882,14 @@ func main() {
 			Argument: "<address:port>",
 		},
 		cli.StringFlag{
-			Name:	"comment",
-			Usage:	"add a comment to identify the process",
+			Name:     "pref-dir",
+			Value:    "",
+			Usage:    "alternate location for the .duplicacy directory (absolute or relative to current directory)",
+			Argument: "<path>",
+		},
+		cli.StringFlag{
+			Name:  "comment",
+			Usage: "add a comment to identify the process",
 		},
 	}
 
