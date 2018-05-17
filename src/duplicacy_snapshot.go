@@ -57,7 +57,7 @@ func CreateEmptySnapshot(id string) (snapshto *Snapshot) {
 
 // CreateSnapshotFromDirectory creates a snapshot from the local directory 'top'.  Only 'Files'
 // will be constructed, while 'ChunkHashes' and 'ChunkLengths' can only be populated after uploading.
-func CreateSnapshotFromDirectory(id string, top string) (snapshot *Snapshot, skippedDirectories []string,
+func CreateSnapshotFromDirectory(id string, top string, nobackupFile string) (snapshot *Snapshot, skippedDirectories []string,
 	skippedFiles []string, err error) {
 
 	snapshot = &Snapshot{
@@ -125,7 +125,7 @@ func CreateSnapshotFromDirectory(id string, top string) (snapshot *Snapshot, ski
 		directory := directories[len(directories)-1]
 		directories = directories[:len(directories)-1]
 		snapshot.Files = append(snapshot.Files, directory)
-		subdirectories, skipped, err := ListEntries(top, directory.Path, &snapshot.Files, patterns, snapshot.discardAttributes)
+		subdirectories, skipped, err := ListEntries(top, directory.Path, &snapshot.Files, patterns, nobackupFile, snapshot.discardAttributes)
 		if err != nil {
 			LOG_WARN("LIST_FAILURE", "Failed to list subdirectory: %v", err)
 			skippedDirectories = append(skippedDirectories, directory.Path)

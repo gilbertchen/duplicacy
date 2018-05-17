@@ -435,7 +435,7 @@ func (files FileInfoCompare) Less(i, j int) bool {
 
 // ListEntries returns a list of entries representing file and subdirectories under the directory 'path'.  Entry paths
 // are normalized as relative to 'top'.  'patterns' are used to exclude or include certain files.
-func ListEntries(top string, path string, fileList *[]*Entry, patterns []string, discardAttributes bool) (directoryList []*Entry,
+func ListEntries(top string, path string, fileList *[]*Entry, patterns []string, nobackupFile string, discardAttributes bool) (directoryList []*Entry,
 	skippedFiles []string, err error) {
 
 	LOG_DEBUG("LIST_ENTRIES", "Listing %s", path)
@@ -447,6 +447,15 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 	files, err = ioutil.ReadDir(fullPath)
 	if err != nil {
 		return directoryList, nil, err
+	}
+	
+	// This binary search works because ioutil.ReadDir returns files sorted by Name() by default
+	if nobackupFile != "" {
+		ii := sort.Search(len(files), func(ii int) bool { return strings.Compare(files[ii].Name(), nobackupFile) >= 0})
+		if ii < len(files) && files[ii].Name() == nobackupFile {
+			LOG_DEBUG("LIST_NOBACKUP", "%s is excluded due to nobackup file", path)
+			return directoryList, skippedFiles, nil
+		}
 	}
 
 	normalizedPath := path
