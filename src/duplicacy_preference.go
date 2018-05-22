@@ -17,6 +17,7 @@ import (
 type Preference struct {
 	Name              string            `json:"name"`
 	SnapshotID        string            `json:"id"`
+	RepositoryPath    string            `json:"repository"`
 	StorageURL        string            `json:"storage"`
 	Encrypted         bool              `json:"encrypted"`
 	BackupProhibited  bool              `json:"no_backup"`

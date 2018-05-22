@@ -71,6 +71,10 @@ func getRepositoryPreference(context *cli.Context, storageName string) (reposito
 	}
 
 	if storageName == "" {
+		if duplicacy.Preferences[0].RepositoryPath != "" {
+			repository = duplicacy.Preferences[0].RepositoryPath
+			duplicacy.LOG_INFO("REPOSITORY_SET", "Repository set to %s", repository)
+		}
 		return repository, &duplicacy.Preferences[0]
 	}
 
@@ -80,6 +84,12 @@ func getRepositoryPreference(context *cli.Context, storageName string) (reposito
 		duplicacy.LOG_ERROR("STORAGE_NONE", "No storage named '%s' is found", storageName)
 		return "", nil
 	}
+
+	if preference.RepositoryPath != "" {
+		repository = preference.RepositoryPath
+		duplicacy.LOG_INFO("REPOSITORY_SET", "Repository set to %s", repository)
+	}
+
 	return repository, preference
 }
 
@@ -293,9 +303,14 @@ func configRepository(context *cli.Context, init bool) {
 		}
 	}
 
+	repositoryPath := ""
+	if context.String("repository") != "" {
+		repositoryPath = context.String("repository")
+	}
 	preference := duplicacy.Preference{
 		Name:       storageName,
 		SnapshotID: snapshotID,
+		RepositoryPath: repositoryPath,
 		StorageURL: storageURL,
 		Encrypted:  context.Bool("encrypt"),
 	}
@@ -427,8 +442,12 @@ func configRepository(context *cli.Context, init bool) {
 
 	duplicacy.SavePreferences()
 
+	if repositoryPath == "" {
+		repositoryPath = repository
+	}
+
 	duplicacy.LOG_INFO("REPOSITORY_INIT", "%s will be backed up to %s with id %s",
-		repository, preference.StorageURL, preference.SnapshotID)
+		repositoryPath, preference.StorageURL, preference.SnapshotID)
 }
 
 type TriBool struct {
@@ -1287,6 +1306,11 @@ func main() {
 					Usage:    "assign a name to the storage",
 					Argument: "<name>",
 				},
+				cli.StringFlag{
+					Name:     "repository",
+					Usage:    "initialize a new repository at the specified path rather than the current working directory",
+					Argument: "<path>",
+				},
 			},
 			Usage:     "Initialize the storage if necessary and the current directory as the repository",
 			ArgsUsage: "<snapshot id> <storage url>",
@@ -1690,6 +1714,11 @@ func main() {
 				cli.BoolFlag{
 					Name:     "bit-identical",
 					Usage:    "(when using -copy) make the new storage bit-identical to also allow rsync etc.",
+				},
+				cli.StringFlag{
+					Name:     "repository",
+					Usage:    "specify the path of the repository (instead of the current working directory)",
+					Argument: "<path>",
 				},
 			},
 			Usage:     "Add an additional storage to be used for the existing repository",
