@@ -514,7 +514,7 @@ func TestStorage(t *testing.T) {
 	} else {
 		err = storage.DeleteFile(0, filePath)
 		if err != nil {
-			t.Errorf("Failed to delete file %s: %v", filePath)
+			t.Errorf("Failed to delete file %s: %v", filePath, err)
 		} else {
 			time.Sleep(time.Duration(delay) * time.Second)
 			filePath, exist, _, err = storage.FindChunk(0, chunks[1], true)

@@ -111,7 +111,7 @@ func TestUploaderAndDownloader(t *testing.T) {
 	for i, chunk := range chunks {
 		downloaded := chunkDownloader.WaitForChunk(i)
 		if downloaded.GetID() != chunk.GetID() {
-			t.Error("Uploaded: %s, downloaded: %s", chunk.GetID(), downloaded.GetID())
+			t.Errorf("Uploaded: %s, downloaded: %s", chunk.GetID(), downloaded.GetID())
 		}
 	}
 

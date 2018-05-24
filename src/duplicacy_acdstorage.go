@@ -55,7 +55,7 @@ func CreateACDStorage(tokenFile string, storagePath string, threads int) (storag
 				return nil, err
 			}
 		} else if !isDir {
-			return nil, fmt.Errorf("%s/%s is not a directory", storagePath+"/"+dir)
+			return nil, fmt.Errorf("%s is not a directory", storagePath+"/"+dir)
 		}
 		storage.idCache[dir] = dirID
 	}

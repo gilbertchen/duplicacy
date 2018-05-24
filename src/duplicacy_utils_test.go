@@ -112,7 +112,7 @@ func TestRateLimit(t *testing.T) {
 		return
 	}
 	if int(n) != len(content) {
-		t.Errorf("Wrote %s bytes instead of %s", n, len(content))
+		t.Errorf("Wrote %d bytes instead of %d", n, len(content))
 		return
 	}
 
@@ -127,7 +127,7 @@ func TestRateLimit(t *testing.T) {
 		return
 	}
 	if int(n) != len(content) {
-		t.Errorf("Copied %s bytes instead of %s", n, len(content))
+		t.Errorf("Copied %d bytes instead of %d", n, len(content))
 		return
 	}
 
