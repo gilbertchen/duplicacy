@@ -344,11 +344,13 @@ func MatchPath(filePath string, patterns []string) (included bool) {
 	for _, pattern := range patterns {
 		if pattern[0] == '+' {
 			if matchPattern(filePath, pattern[1:]) {
+				LOG_DEBUG("PATTERN_INCLUDE", "%s is included by pattern %s", filePath, pattern)
 				return true
 			}
 		} else if pattern[0] == '-' {
 			allIncludes = false
 			if matchPattern(filePath, pattern[1:]) {
+				LOG_DEBUG("PATTERN_EXCLUDE", "%s is excluded by pattern %s", filePath, pattern)
 				return false
 			}
 		} else if strings.HasPrefix(pattern, "i:") || strings.HasPrefix(pattern, "e:") {
@@ -363,7 +365,14 @@ func MatchPath(filePath string, patterns []string) (included bool) {
 				matched = re.MatchString(filePath)
 			}
 			if matched {
-				return strings.HasPrefix(pattern, "i:")
+				if strings.HasPrefix(pattern, "i:") {
+					LOG_DEBUG("PATTERN_INCLUDE", "%s is included by pattern %s", filePath, pattern)
+					return true
+				} else {
+					LOG_DEBUG("PATTERN_EXCLUDE", "%s is excluded by pattern %s", filePath, pattern)
+					return false
+
+				}
 			} else {
 				if strings.HasPrefix(pattern, "e:") {
 					allIncludes = false
@@ -372,7 +381,13 @@ func MatchPath(filePath string, patterns []string) (included bool) {
 		}
 	}
 
-	return !allIncludes
+	if allIncludes {
+		LOG_DEBUG("PATTERN_EXCLUDE", "%s is excluded", filePath)
+		return false
+	} else {
+		LOG_DEBUG("PATTERN_INCLUDE", "%s is included", filePath)
+		return true
+	}
 }
 
 func joinPath(components ...string) string {

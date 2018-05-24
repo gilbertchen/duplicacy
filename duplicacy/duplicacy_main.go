@@ -714,13 +714,14 @@ func backupRepository(context *cli.Context) {
 
 	dryRun := context.Bool("dry-run")
 	uploadRateLimit := context.Int("limit-rate")
+	enumOnly := context.Bool("enum-only")
 	storage.SetRateLimits(0, uploadRateLimit)
 	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	backupManager.SetupSnapshotCache(preference.Name)
 	backupManager.SetDryRun(dryRun)
-	backupManager.Backup(repository, quickMode, threads, context.String("t"), showStatistics, enableVSS, vssTimeout)
+	backupManager.Backup(repository, quickMode, threads, context.String("t"), showStatistics, enableVSS, vssTimeout, enumOnly)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1362,6 +1363,10 @@ func main() {
 					Name:     "storage",
 					Usage:    "backup to the specified storage instead of the default one",
 					Argument: "<storage name>",
+				},
+				cli.BoolFlag{
+					Name:  "enum-only",
+					Usage: "enumerate the repository recursively and then exit",
 				},
 			},
 			Usage:     "Save a snapshot of the repository to the storage",

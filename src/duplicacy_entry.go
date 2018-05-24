@@ -478,7 +478,6 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 		}
 		entry := CreateEntryFromFileInfo(f, normalizedPath)
 		if len(patterns) > 0 && !MatchPath(entry.Path, patterns) {
-			LOG_DEBUG("LIST_EXCLUDE", "%s is excluded", entry.Path)
 			continue
 		}
 		if entry.IsLink() {
