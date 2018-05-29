@@ -502,3 +502,36 @@ func TestPruneWithRetentionPolicyAndTag(t *testing.T) {
 	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{"manual"}, []string{"0:7"}, false, true, []string{}, false, false, false)
 	checkTestSnapshots(snapshotManager, 22, 0)
 }
+
+// Test that an unreferenced fossil shouldn't be removed as it may be the result of another prune job in-progress.
+func TestPruneWithFossils(t *testing.T) {
+	setTestingT(t)
+
+	testDir := path.Join(os.TempDir(), "duplicacy_test", "snapshot_test")
+
+	snapshotManager := createTestSnapshotManager(testDir)
+
+	chunkSize := 1024
+	chunkHash1 := uploadRandomChunk(snapshotManager, chunkSize)
+	chunkHash2 := uploadRandomChunk(snapshotManager, chunkSize)
+	chunkHash3 := uploadRandomChunk(snapshotManager, chunkSize)
+	// Create an unreferenced fossil
+	snapshotManager.storage.UploadFile(0, "chunks/113b6a2350dcfd836829c47304dd330fa6b58b93dd7ac696c6b7b913e6868662.fsl", []byte("this is a test fossil"))
+
+	now := time.Now().Unix()
+	day := int64(24 * 3600)
+	t.Logf("Creating 2 snapshots")
+	createTestSnapshot(snapshotManager, "vm1@host1", 1, now-3*day-3600, now-3*day-60, []string{chunkHash1, chunkHash2}, "tag")
+	createTestSnapshot(snapshotManager, "vm1@host1", 2, now-2*day-3600, now-2*day-60, []string{chunkHash2, chunkHash3}, "tag")
+	checkTestSnapshots(snapshotManager, 2, 1)
+
+	t.Logf("Prune without removing any snapshots but with --exhaustive")
+	// The unreferenced fossil shouldn't be removed
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, true, false, []string{}, false, false, false)
+	checkTestSnapshots(snapshotManager, 2, 1)
+
+	t.Logf("Prune without removing any snapshots but with --exclusive")
+	// Now the unreferenced fossil should be removed
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, true, []string{}, false, false, false)
+	checkTestSnapshots(snapshotManager, 2, 0)
+}

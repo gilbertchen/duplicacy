@@ -2184,13 +2184,9 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[s
 				if _, found := referencedChunks[chunk]; found {
 					manager.resurrectChunk(chunkDir+file, chunk)
 				} else {
-					err := manager.storage.DeleteFile(0, chunkDir+file)
-					if err != nil {
-						LOG_WARN("FOSSIL_DELETE", "Failed to remove the unreferenced fossil %s: %v", file, err)
-					} else {
-						LOG_DEBUG("FOSSIL_DELETE", "Deleted unreferenced fossil %s", file)
-						fmt.Fprintf(logFile, "Deleted unreferenced fossil %s\n", file)
-					}
+					collection.AddFossil(chunkDir + file)
+					LOG_DEBUG("FOSSIL_FIND", "Found unreferenced fossil %s", file)
+					fmt.Fprintf(logFile, "Found unreferenced fossil %s\n", file)
 				}
 			}
 
