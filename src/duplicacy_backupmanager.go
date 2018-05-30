@@ -842,7 +842,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 			stat, err := os.Stat(fullPath)
 
 			if err == nil && !stat.IsDir() {
-				LOG_ERROR("RESTORE_NOTDIR", "The path %s is not a directory: %v", fullPath, err)
+				LOG_ERROR("RESTORE_NOTDIR", "The path %s is not a directory", fullPath)
 				return false
 			}
 
