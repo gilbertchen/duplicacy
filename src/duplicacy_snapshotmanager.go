@@ -1490,7 +1490,7 @@ func (manager *SnapshotManager) ShowHistory(top string, snapshotID string, revis
 		}
 		if showLocalHash {
 			localFile.Hash = manager.config.ComputeFileHash(joinPath(top, filePath), make([]byte, 32*1024))
-			if lastVersion.Hash != localFile.Hash {
+			if lastVersion == nil || lastVersion.Hash != localFile.Hash {
 				modifiedFlag = "*"
 			}
 		}
