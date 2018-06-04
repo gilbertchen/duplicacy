@@ -405,30 +405,35 @@ func joinPath(components ...string) string {
 
 func PrettyNumber(number int64) string {
 
-	G := int64(1024 * 1024 * 1024)
-	M := int64(1024 * 1024)
-	K := int64(1024)
+	T := float64(1024 * 1024 * 1024 * 1024)
+	G := float64(1024 * 1024 * 1024)
+	M := float64(1024 * 1024)
+	K := float64(1024)
 
-	if number > 1000*G {
-		return fmt.Sprintf("%dG", number/G)
-	} else if number > G {
-		return fmt.Sprintf("%d,%03dM", number/(1000*M), (number/M)%1000)
-	} else if number > M {
-		return fmt.Sprintf("%d,%03dK", number/(1000*K), (number/K)%1000)
-	} else if number > K {
-		return fmt.Sprintf("%dK", number/K)
+	float_number := float64(number)
+
+	if float_number > T {
+		return fmt.Sprintf("%.3fTiB", float_number/T)
+	} else if float_number > G {
+		return fmt.Sprintf("%.3fGiB", float_number/G)
+	} else if float_number > M {
+		return fmt.Sprintf("%.3fMiB", float_number/M)
+	} else if float_number > K {
+		return fmt.Sprintf("%.3fKiB", float_number/K)
 	} else {
-		return fmt.Sprintf("%d", number)
+		return fmt.Sprintf("%dB", number)
 	}
 }
 
 func PrettySize(size int64) string {
-	if size > 1024*1024 {
-		return fmt.Sprintf("%.2fM", float64(size)/(1024.0*1024.0))
+	if size > 1024*1024*1024 {
+		return fmt.Sprintf("%.2fGiB", float64(size)/(1024*1024*1024.0))
+	} else if size > 1024*1024 {
+		return fmt.Sprintf("%.2fMiB", float64(size)/(1024*1024.0))
 	} else if size > 1024 {
-		return fmt.Sprintf("%.0fK", float64(size)/1024.0)
+		return fmt.Sprintf("%.0fKiB", float64(size)/1024.0)
 	} else {
-		return fmt.Sprintf("%d", size)
+		return fmt.Sprintf("%dB", size)
 	}
 }
 
