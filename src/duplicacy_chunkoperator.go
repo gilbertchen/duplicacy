@@ -69,12 +69,19 @@ func CreateChunkOperator(storage Storage, threads int) *ChunkOperator {
 }
 
 func (operator *ChunkOperator) Stop() {
+	if atomic.LoadInt64(&operator.numberOfActiveTasks) < 0 {
+		return
+	}
+
 	for atomic.LoadInt64(&operator.numberOfActiveTasks) > 0 {
 		time.Sleep(100 * time.Millisecond)
 	}
 	for i := 0; i < operator.threads; i++ {
 		operator.stopChannel <- false
 	}
+
+	// Assign -1 to numberOfActiveTasks so Stop() can be called multiple times
+	atomic.AddInt64(&operator.numberOfActiveTasks, int64(-1))
 }
 
 func (operator *ChunkOperator) AddTask(operation int, chunkID string, filePath string) {
@@ -134,7 +141,6 @@ func (operator *ChunkOperator) Run(threadIndex int, task ChunkOperatorTask) {
 			LOG_DEBUG("CHUNK_FIND", "Chunk %s exists in the storage", task.chunkID)
 		}
 	} else if task.operation == ChunkOperationDelete {
-		// In exclusive mode, we assume no other restore operation is running concurrently.
 		err := operator.storage.DeleteFile(threadIndex, task.filePath)
 		if err != nil {
 			LOG_WARN("CHUNK_DELETE", "Failed to remove the file %s: %v", task.filePath, err)
@@ -160,7 +166,7 @@ func (operator *ChunkOperator) Run(threadIndex int, task ChunkOperatorTask) {
 				LOG_ERROR("CHUNK_DELETE", "Failed to fossilize the chunk %s: %v", task.chunkID, err)
 			}
 		} else {
-			LOG_TRACE("CHUNK_FOSSILIZE", "Fossilized chunk %s", task.chunkID)
+			LOG_TRACE("CHUNK_FOSSILIZE", "The chunk %s has been marked as a fossil", task.chunkID)
 			operator.fossilsLock.Lock()
 			operator.fossils = append(operator.fossils, fossilPath)
 			operator.fossilsLock.Unlock()

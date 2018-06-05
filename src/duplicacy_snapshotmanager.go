@@ -1571,6 +1571,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 	}
 
 	manager.chunkOperator = CreateChunkOperator(manager.storage, threads)
+	defer manager.chunkOperator.Stop()
 
 	prefPath := GetDuplicacyPreferencePath()
 	logDir := path.Join(prefPath, "logs")
@@ -1934,7 +1935,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 	}
 
 	// Save the fossil collection if it is not empty.
-	if !collection.IsEmpty() && !dryRun {
+	if !collection.IsEmpty() && !dryRun && !exclusive {
 		collection.EndTime = time.Now().Unix()
 
 		collectionNumber := maxCollectionNumber + 1
@@ -2135,19 +2136,33 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[s
 			// This is a fossil.  If it is unreferenced, it can be a result of failing to save the fossil
 			// collection file after making it a fossil.
 			if _, found := referencedFossils[file]; !found {
-				if dryRun {
-					LOG_INFO("FOSSIL_UNREFERENCED", "Found unreferenced fossil %s", file)
-					continue
-				}
 
 				chunk := strings.Replace(file, "/", "", -1)
 				chunk = strings.Replace(chunk, ".fsl", "", -1)
 
 				if _, found := referencedChunks[chunk]; found {
+
+					if dryRun {
+						LOG_INFO("FOSSIL_REFERENCED", "Found referenced fossil %s", file)
+						continue
+					}
+
 					manager.chunkOperator.Resurrect(chunk, chunkDir + file)
+					fmt.Fprintf(logFile, "Found referenced fossil %s\n", file)
+
 				} else {
-					collection.AddFossil(chunkDir + file)
-					LOG_DEBUG("FOSSIL_FIND", "Found unreferenced fossil %s", file)
+
+					if dryRun {
+						LOG_INFO("FOSSIL_UNREFERENCED", "Found unreferenced fossil %s", file)
+						continue
+					}
+
+					if exclusive {
+						manager.chunkOperator.Delete(chunk, chunkDir + file)
+					} else {
+						collection.AddFossil(chunkDir + file)
+						LOG_DEBUG("FOSSIL_FIND", "Found unreferenced fossil %s", file)
+					}
 					fmt.Fprintf(logFile, "Found unreferenced fossil %s\n", file)
 				}
 			}
