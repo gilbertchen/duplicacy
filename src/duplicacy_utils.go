@@ -413,27 +413,27 @@ func PrettyNumber(number int64) string {
 	float_number := float64(number)
 
 	if float_number > T {
-		return fmt.Sprintf("%.3fTiB", float_number/T)
+		return fmt.Sprintf("%.3fTi", float_number/T)
 	} else if float_number > G {
-		return fmt.Sprintf("%.3fGiB", float_number/G)
+		return fmt.Sprintf("%.3fGi", float_number/G)
 	} else if float_number > M {
-		return fmt.Sprintf("%.3fMiB", float_number/M)
+		return fmt.Sprintf("%.3fMi", float_number/M)
 	} else if float_number > K {
-		return fmt.Sprintf("%.3fKiB", float_number/K)
+		return fmt.Sprintf("%.3fKi", float_number/K)
 	} else {
-		return fmt.Sprintf("%dB", number)
+		return fmt.Sprintf("%d", number)
 	}
 }
 
 func PrettySize(size int64) string {
 	if size > 1024*1024*1024 {
-		return fmt.Sprintf("%.2fGiB", float64(size)/(1024*1024*1024.0))
+		return fmt.Sprintf("%.2fGi", float64(size)/(1024*1024*1024.0))
 	} else if size > 1024*1024 {
-		return fmt.Sprintf("%.2fMiB", float64(size)/(1024*1024.0))
+		return fmt.Sprintf("%.2fMi", float64(size)/(1024*1024.0))
 	} else if size > 1024 {
-		return fmt.Sprintf("%.0fKiB", float64(size)/1024.0)
+		return fmt.Sprintf("%.0fKi", float64(size)/1024.0)
 	} else {
-		return fmt.Sprintf("%dB", size)
+		return fmt.Sprintf("%d", size)
 	}
 }
 
