@@ -18,7 +18,6 @@ import (
 	"math/rand"
 	"net/http"
 	//"net/http/httputil"
-	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
@@ -360,11 +359,12 @@ func (storage *WebDAVStorage) MoveFile(threadIndex int, from string, to string) 
 
 // createParentDirectory creates the parent directory if it doesn't exist in the cache
 func (storage *WebDAVStorage) createParentDirectory(threadIndex int, dir string) (err error) {
-	parent := filepath.Dir(dir)
 
-	if parent == "." {
+	found := strings.LastIndex(dir, "/")
+	if found == -1 {
 		return nil
 	}
+	parent := dir[:found]
 
 	storage.directoryCacheLock.Lock()
 	_, exist := storage.directoryCache[parent]
