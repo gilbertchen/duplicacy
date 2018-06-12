@@ -920,9 +920,9 @@ func (manager *SnapshotManager) ShowStatistics(snapshotMap map[string][]*Snapsho
 
 			files := ""
 			if snapshot.FileSize != 0 && snapshot.NumberOfFiles != 0 {
-				files = fmt.Sprintf("%d files (%s bytes), ", snapshot.NumberOfFiles, PrettyNumber(snapshot.FileSize))
+				files = fmt.Sprintf("%d files (%sytes), ", snapshot.NumberOfFiles, PrettyNumber(snapshot.FileSize))
 			}
-			LOG_INFO("SNAPSHOT_CHECK", "Snapshot %s at revision %d: %s%s total chunk bytes, %s unique chunk bytes",
+			LOG_INFO("SNAPSHOT_CHECK", "Snapshot %s at revision %d: %s%sytes (total chunks), %sytes (unique chunks)",
 				snapshot.ID, snapshot.Revision, files, PrettyNumber(totalChunkSize), PrettyNumber(uniqueChunkSize))
 		}
 
@@ -936,7 +936,7 @@ func (manager *SnapshotManager) ShowStatistics(snapshotMap map[string][]*Snapsho
 				uniqueChunkSize += chunkSize
 			}
 		}
-		LOG_INFO("SNAPSHOT_CHECK", "Snapshot %s all revisions: %s total chunk bytes, %s unique chunk bytes",
+		LOG_INFO("SNAPSHOT_CHECK", "Snapshot %s all revisions: %sytes (total chunks), %sytes (unique chunks)",
 			snapshotID, PrettyNumber(totalChunkSize), PrettyNumber(uniqueChunkSize))
 	}
 }
