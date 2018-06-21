@@ -89,7 +89,7 @@ func (storage *StorageBase) SetRateLimits(downloadRateLimit int, uploadRateLimit
 }
 
 // SetDefaultNestingLevels sets the default read and write levels.  This is usually called by
-// derived storages to set the levels with old values so that storages initialied by ealier versions
+// derived storages to set the levels with old values so that storages initialized by earlier versions
 // will continue to work.
 func (storage *StorageBase) SetDefaultNestingLevels(readLevels []int, writeLevel int) {
 	storage.readLevels = readLevels

@@ -71,7 +71,7 @@ func TestChunk(t *testing.T) {
 		}
 
 		if bytes.Compare(plainData, decryptedData) != 0 {
-			t.Logf("orginal length: %d, decrypted length: %d", len(plainData), len(decryptedData))
+			t.Logf("Original length: %d, decrypted length: %d", len(plainData), len(decryptedData))
 			t.Errorf("Original data:\n%x\nDecrypted data:\n%x\n", plainData, decryptedData)
 		}
 

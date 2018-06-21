@@ -267,7 +267,7 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err err
 
 }
 
-// This is to ensure compability with Vertical Backup, which still uses HMAC-SHA256 (instead of HMAC-BLAKE2) to
+// This is to ensure compatibility with Vertical Backup, which still uses HMAC-SHA256 (instead of HMAC-BLAKE2) to
 // derive the key used to encrypt/decrypt files and chunks.
 
 var DecryptWithHMACSHA256 = false

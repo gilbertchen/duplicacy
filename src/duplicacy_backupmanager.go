@@ -981,12 +981,12 @@ type fileEncoder struct {
 	buffer         *bytes.Buffer
 }
 
-// Read reads data from the embeded buffer
+// Read reads data from the embedded buffer
 func (encoder fileEncoder) Read(data []byte) (n int, err error) {
 	return encoder.buffer.Read(data)
 }
 
-// NextFile switchs to the next file and generates its json description in the buffer.  It also takes care of
+// NextFile switches to the next file and generates its json description in the buffer.  It also takes care of
 // the ending ']' and the commas between files.
 func (encoder *fileEncoder) NextFile() (io.Reader, bool) {
 	if encoder.currentIndex == len(encoder.files) {
@@ -1126,7 +1126,7 @@ func (manager *BackupManager) UploadSnapshot(chunkMaker *ChunkMaker, uploader *C
 }
 
 // Restore downloads a file from the storage.  If 'inPlace' is false, the download file is saved first to a temporary
-// file under the .duplicacy directory and then replaces the existing one.  Otherwise, the exising file will be
+// file under the .duplicacy directory and then replaces the existing one.  Otherwise, the existing file will be
 // overwritten directly.
 func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chunkMaker *ChunkMaker, entry *Entry, top string, inPlace bool, overwrite bool,
 	showStatistics bool, totalFileSize int64, downloadedFileSize int64, startTime int64) bool {
@@ -1528,7 +1528,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 	revisionsToBeCopied []int, threads int) bool {
 
 	if !manager.config.IsCompatiableWith(otherManager.config) {
-		LOG_ERROR("CONFIG_INCOMPATIABLE", "Two storages are not compatiable for the copy operation")
+		LOG_ERROR("CONFIG_INCOMPATIBLE", "Two storages are not compatible for the copy operation")
 		return false
 	}
 

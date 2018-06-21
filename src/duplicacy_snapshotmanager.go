@@ -386,7 +386,7 @@ func (manager *SnapshotManager) CleanSnapshotCache(latestSnapshot *Snapshot, all
 
 	if allSnapshots == nil {
 		// If the 'fossils' directory exists then don't clean the cache as all snapshots will be needed later
-		// during the fossil collection phase.  The deletion procedure creates this direcotry.
+		// during the fossil collection phase.  The deletion procedure creates this directory.
 		// We only check this condition when allSnapshots is nil because
 		// in thise case it is the deletion procedure that is trying to clean the snapshot cache.
 		exist, _, _, err := manager.snapshotCache.GetFileInfo(0, "fossils")
@@ -1154,7 +1154,7 @@ func (manager *SnapshotManager) VerifySnapshot(snapshot *Snapshot) bool {
 	}
 }
 
-// RetrieveFile retrieve the file in the specifed snapshot.
+// RetrieveFile retrieves the file in the specified snapshot.
 func (manager *SnapshotManager) RetrieveFile(snapshot *Snapshot, file *Entry, output func([]byte)) bool {
 
 	if file.Size == 0 {
@@ -2247,7 +2247,7 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[s
 		chunk := strings.Replace(file, "/", "", -1)
 
 		if !chunkRegex.MatchString(chunk) {
-			LOG_WARN("CHUNK_UNKONWN_FILE", "File %s is not a chunk", file)
+			LOG_WARN("CHUNK_UNKNOWN_FILE", "File %s is not a chunk", file)
 			continue
 		}
 
