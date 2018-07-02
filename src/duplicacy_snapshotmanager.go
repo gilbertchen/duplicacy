@@ -1018,7 +1018,7 @@ func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string][]*
 			}
 		}
 		fmt.Fprintln(tableWriter, fmt.Sprintf(
-			"%s \tall \t \t \t \t%d \t%s \t%d \t%s \t \t \t",
+			"%s \tall \t \t \t \t \t%s \t \t%s \t%d \t \t",
 			snapshotID, totalChunkCount, PrettyNumber(totalChunkSize), uniqueChunkCount, PrettyNumber(uniqueChunkSize)))
 	}
 	tableWriter.Flush()
