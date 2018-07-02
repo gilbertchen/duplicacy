@@ -1066,12 +1066,17 @@ func pruneSnapshots(context *cli.Context) {
 		os.Exit(ArgumentExitCode)
 	}
 
+	threads := context.Int("threads")
+	if threads < 1 {
+		threads = 1
+	}
+
 	repository, preference := getRepositoryPreference(context, "")
 
 	runScript(context, preference.Name, "pre")
 
 	duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
-	storage := duplicacy.CreateStorage(*preference, false, 1)
+	storage := duplicacy.CreateStorage(*preference, false, threads)
 	if storage == nil {
 		return
 	}
@@ -1110,7 +1115,7 @@ func pruneSnapshots(context *cli.Context) {
 
 	backupManager.SetupSnapshotCache(preference.Name)
 	backupManager.SnapshotManager.PruneSnapshots(selfID, snapshotID, revisions, tags, retentions,
-		exhaustive, exclusive, ignoredIDs, dryRun, deleteOnly, collectOnly)
+		exhaustive, exclusive, ignoredIDs, dryRun, deleteOnly, collectOnly, threads)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1657,6 +1662,12 @@ func main() {
 					Name:     "storage",
 					Usage:    "prune snapshots from the specified storage",
 					Argument: "<storage name>",
+				},
+				cli.IntFlag{
+					Name:     "threads",
+					Value:    1,
+					Usage:    "number of threads used to prune unreferenced chunks",
+					Argument: "<n>",
 				},
 			},
 			Usage:     "Prune snapshots by revision, tag, or retention policy",
