@@ -1267,6 +1267,50 @@ func infoStorage(context *cli.Context) {
 
 }
 
+func benchmark(context *cli.Context) {
+	setGlobalOptions(context)
+	defer duplicacy.CatchLogException()
+
+	fileSize := context.Int("file-size")
+	if fileSize == 0 {
+		fileSize = 256
+	}
+
+	chunkCount := context.Int("chunk-count")
+	if chunkCount == 0 {
+		chunkCount = 64
+	}
+
+	chunkSize := context.Int("chunk-size")
+	if chunkSize == 0 {
+		chunkSize = 4
+	}
+
+	downloadThreads := context.Int("download-threads")
+	if downloadThreads < 1 {
+		downloadThreads = 1
+	}
+
+	uploadThreads := context.Int("upload-threads")
+	if uploadThreads < 1 {
+		uploadThreads = 1
+	}
+
+	threads := downloadThreads
+	if (threads < uploadThreads) {
+		threads = uploadThreads
+	}
+
+	repository, preference := getRepositoryPreference(context, context.String("storage"))
+
+	duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
+	storage := duplicacy.CreateStorage(*preference, false, threads)
+	if storage == nil {
+		return
+	}
+	duplicacy.Benchmark(repository, storage, int64(fileSize) * 1000000, chunkSize * 1024 * 1024, chunkCount, uploadThreads, downloadThreads)
+}
+
 func main() {
 
 	duplicacy.SetLoggingLevel(duplicacy.INFO)
@@ -1865,6 +1909,40 @@ func main() {
 			Usage:     "Show the information about the specified storage",
 			ArgsUsage: "<storage url>",
 			Action:    infoStorage,
+		},
+
+		{
+			Name: "benchmark",
+			Flags: []cli.Flag{
+				cli.IntFlag{
+					Name:     "file-size",
+					Usage:    "the size of the local file to write to and read from (in MB, default to 256)",
+					Argument: "<size>",
+				},
+				cli.IntFlag{
+					Name:     "chunk-count",
+					Usage:    "the number of chunks to upload and download (default to 64)",
+					Argument: "<count>",
+				},
+				cli.IntFlag{
+					Name:     "chunk-size",
+					Usage:    "the size of chunks to upload and download (in MB, default to 4)",
+					Argument: "<size>",
+				},
+				cli.IntFlag{
+					Name:     "upload-threads",
+					Usage:    "the number of upload threads (default to 1)",
+					Argument: "<n>",
+				},
+				cli.IntFlag{
+					Name:     "download-threads",
+					Usage:    "the number of download threads (default to 1)",
+					Argument: "<n>",
+				},
+			},
+			Usage:     "Run a set of benchmarks to test download and upload speeds",
+			ArgsUsage: " ",
+			Action:    benchmark,
 		},
 	}
 
