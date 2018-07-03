@@ -483,7 +483,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 					remainingTime = (totalModifiedFileSize-uploadedModifiedFileSize)/speed + 1
 				}
 				percentage := float32(uploadedModifiedFileSize * 1000 / totalModifiedFileSize)
-				LOG_INFO("UPLOAD_PROGRESS", "%s chunk %d size %d, %s/s %s %.1f%%", action, chunkIndex,
+				LOG_INFO("UPLOAD_PROGRESS", "%s chunk %d size %d, %sB/s %s %.1f%%", action, chunkIndex,
 					chunkSize, PrettySize(speed), PrettyTime(remainingTime), percentage/10)
 			}
 
@@ -654,22 +654,22 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 		len(localSnapshot.LengthSequence)
 	if showStatistics {
 
-		LOG_INFO("BACKUP_STATS", "Files: %d total, %sytes; %d new, %sytes",
+		LOG_INFO("BACKUP_STATS", "Files: %d total, %sBytes; %d new, %sBytes",
 			len(preservedEntries)+len(uploadedEntries),
 			PrettyNumber(preservedFileSize+uploadedFileSize),
 			len(uploadedEntries), PrettyNumber(uploadedFileSize))
 
-		LOG_INFO("BACKUP_STATS", "File chunks: %d total, %sytes; %d new, %sytes, %sytes uploaded",
+		LOG_INFO("BACKUP_STATS", "File chunks: %d total, %sBytes; %d new, %sBytes, %sBytes uploaded",
 			len(localSnapshot.ChunkHashes), PrettyNumber(totalFileChunkLength),
 			numberOfNewFileChunks, PrettyNumber(totalUploadedFileChunkLength),
 			PrettyNumber(totalUploadedFileChunkBytes))
 
-		LOG_INFO("BACKUP_STATS", "Metadata chunks: %d total, %sytes; %d new, %sytes, %sytes uploaded",
+		LOG_INFO("BACKUP_STATS", "Metadata chunks: %d total, %sBytes; %d new, %sBytes, %sBytes uploaded",
 			totalSnapshotChunks, PrettyNumber(totalSnapshotChunkLength),
 			numberOfNewSnapshotChunks, PrettyNumber(totalUploadedSnapshotChunkLength),
 			PrettyNumber(totalUploadedSnapshotChunkBytes))
 
-		LOG_INFO("BACKUP_STATS", "All chunks: %d total, %sytes; %d new, %sytes, %sytes uploaded",
+		LOG_INFO("BACKUP_STATS", "All chunks: %d total, %sBytes; %d new, %sBytes, %sBytes uploaded",
 			len(localSnapshot.ChunkHashes)+totalSnapshotChunks,
 			PrettyNumber(totalFileChunkLength+totalSnapshotChunkLength),
 			int(numberOfNewFileChunks)+numberOfNewSnapshotChunks,
@@ -952,8 +952,8 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 
 	LOG_INFO("RESTORE_END", "Restored %s to revision %d", top, revision)
 	if showStatistics {
-		LOG_INFO("RESTORE_STATS", "Files: %d total, %sytes", len(fileEntries), PrettySize(totalFileSize))
-		LOG_INFO("RESTORE_STATS", "Downloaded %d file, %sytes, %d chunks",
+		LOG_INFO("RESTORE_STATS", "Files: %d total, %sBytes", len(fileEntries), PrettySize(totalFileSize))
+		LOG_INFO("RESTORE_STATS", "Downloaded %d file, %sBytes, %d chunks",
 			len(downloadedFiles), PrettySize(downloadedFileSize), chunkDownloader.numberOfDownloadedChunks)
 	}
 

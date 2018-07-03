@@ -425,7 +425,7 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 			remainingTime = (downloader.totalChunkSize-downloadedChunkSize)/speed + 1
 		}
 		percentage := float32(downloadedChunkSize * 1000 / downloader.totalChunkSize)
-		LOG_INFO("DOWNLOAD_PROGRESS", "Downloaded chunk %d size %d, %s/s %s %.1f%%",
+		LOG_INFO("DOWNLOAD_PROGRESS", "Downloaded chunk %d size %d, %sB/s %s %.1f%%",
 			task.chunkIndex+1, chunk.GetLength(),
 			PrettySize(speed), PrettyTime(remainingTime), percentage/10)
 	} else {
