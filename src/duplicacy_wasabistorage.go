@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+	"strings"
 )
 
 type WasabiStorage struct {
@@ -99,6 +100,8 @@ func (storage *WasabiStorage) MoveFile(
 
 	// The from path includes the bucket
 	from_path := fmt.Sprintf("/%s/%s/%s", storage.bucket, storage.storageDir, from)
+	// Ensure no double slashes exist in the path which angers Wasabi's backend
+	from_path = strings.Replace(from_path, "//", "/", -1)
 
 	object := fmt.Sprintf("https://%s@%s%s",
 		storage.region, storage.endpoint, from_path)
