@@ -582,3 +582,42 @@ func TestPruneMultipleThread(t *testing.T) {
 	snapshotManager.PruneSnapshots("repository1", "repository1", []int{}, []string{}, []string{}, false, true, []string{}, false, false, false, numberOfThreads)
 	checkTestSnapshots(snapshotManager, 1, 0)
 }
+
+// A snapshot not seen by a fossil collection should always be consider a new snapshot in the fossil deletion step
+func TestPruneNewSnapshots(t *testing.T) {
+	setTestingT(t)
+
+	testDir := path.Join(os.TempDir(), "duplicacy_test", "snapshot_test")
+
+	snapshotManager := createTestSnapshotManager(testDir)
+
+	chunkSize := 1024
+	chunkHash1 := uploadRandomChunk(snapshotManager, chunkSize)
+	chunkHash2 := uploadRandomChunk(snapshotManager, chunkSize)
+	chunkHash3 := uploadRandomChunk(snapshotManager, chunkSize)
+	chunkHash4 := uploadRandomChunk(snapshotManager, chunkSize)
+
+	now := time.Now().Unix()
+	day := int64(24 * 3600)
+	t.Logf("Creating 3 snapshots")
+	createTestSnapshot(snapshotManager, "vm1@host1", 1, now-3*day-3600, now-3*day-60, []string{chunkHash1, chunkHash2}, "tag")
+	createTestSnapshot(snapshotManager, "vm1@host1", 2, now-2*day-3600, now-2*day-60, []string{chunkHash2, chunkHash3}, "tag")
+	createTestSnapshot(snapshotManager, "vm2@host1", 1, now-2*day-3600, now-2*day-60, []string{chunkHash3, chunkHash4}, "tag")
+	checkTestSnapshots(snapshotManager, 3, 0)
+
+	t.Logf("Prune snapshot 1")
+	// chunkHash1 should be marked as fossil
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{1}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
+	checkTestSnapshots(snapshotManager, 2, 2)
+
+	chunkHash5 := uploadRandomChunk(snapshotManager, chunkSize)
+	// Create another snapshot of vm1 that brings back chunkHash1
+	createTestSnapshot(snapshotManager, "vm1@host1", 3, now-0*day-3600, now-0*day-60, []string{chunkHash1, chunkHash3}, "tag")
+	// Create another snapshot of vm2 so the fossil collection will be processed by next prune
+	createTestSnapshot(snapshotManager, "vm2@host1", 2, now + 3600, now + 3600 * 2, []string{chunkHash4, chunkHash5}, "tag")
+
+	// Now chunkHash1 wil be resurrected
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
+	checkTestSnapshots(snapshotManager, 4, 0)
+	snapshotManager.CheckSnapshots("vm1@host1", []int{2, 3}, "", false, false, false, false, false);
+}

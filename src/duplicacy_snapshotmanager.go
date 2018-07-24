@@ -105,6 +105,8 @@ func (collection *FossilCollection) IsDeletable(isStrongConsistent bool, ignored
 				continue
 			}
 
+			newSnapshots = append(newSnapshots, snapshot)
+
 			extraTime := 0
 			if !isStrongConsistent {
 				extraTime = secondsInDay / 2
@@ -114,7 +116,6 @@ func (collection *FossilCollection) IsDeletable(isStrongConsistent bool, ignored
 			// might be in progress (although very unlikely).  So we only deem it deletable if that is not the case.
 			if snapshot.EndTime > collection.EndTime+int64(extraTime) {
 				hasNewSnapshot[hostID] = true
-				newSnapshots = append(newSnapshots, snapshot)
 				break
 			} else {
 				LOG_TRACE("SNAPSHOT_UNDELETABLE",
@@ -1758,6 +1759,8 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 			newChunks := make(map[string]bool)
 
 			for _, newSnapshot := range newSnapshots {
+				fmt.Fprintf(logFile, "Snapshot %s revision %d was created after collection %s\n", newSnapshot.ID, newSnapshot.Revision, collectionName)
+				LOG_INFO("PRUNE_NEWSNAPSHOT", "Snapshot %s revision %d was created after collection %s\n", newSnapshot.ID, newSnapshot.Revision, collectionName)
 				for _, chunk := range manager.GetSnapshotChunks(newSnapshot, false) {
 					newChunks[chunk] = true
 				}
