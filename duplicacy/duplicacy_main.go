@@ -1939,6 +1939,11 @@ func main() {
 					Usage:    "the number of download threads (default to 1)",
 					Argument: "<n>",
 				},
+				cli.StringFlag{
+					Name:     "storage",
+					Usage:    "run the download/upload test agaist the specified storage",
+					Argument: "<storage name>",
+				},
 			},
 			Usage:     "Run a set of benchmarks to test download and upload speeds",
 			ArgsUsage: " ",
