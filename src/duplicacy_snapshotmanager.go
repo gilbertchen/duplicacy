@@ -1760,7 +1760,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 
 			for _, newSnapshot := range newSnapshots {
 				fmt.Fprintf(logFile, "Snapshot %s revision %d was created after collection %s\n", newSnapshot.ID, newSnapshot.Revision, collectionName)
-				LOG_INFO("PRUNE_NEWSNAPSHOT", "Snapshot %s revision %d was created after collection %s\n", newSnapshot.ID, newSnapshot.Revision, collectionName)
+				LOG_INFO("PRUNE_NEWSNAPSHOT", "Snapshot %s revision %d was created after collection %s", newSnapshot.ID, newSnapshot.Revision, collectionName)
 				for _, chunk := range manager.GetSnapshotChunks(newSnapshot, false) {
 					newChunks[chunk] = true
 				}
