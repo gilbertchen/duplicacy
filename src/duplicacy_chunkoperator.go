@@ -27,11 +27,11 @@ type ChunkOperatorTask struct {
 
 // ChunkOperator is capable of performing multi-threaded operations on chunks.
 type ChunkOperator struct {
+	numberOfActiveTasks int64                  // The number of chunks that are being operated on
 	storage             Storage                // This storage
 	threads             int                    // Number of threads
 	taskQueue           chan ChunkOperatorTask // Operating goroutines are waiting on this channel for input
 	stopChannel         chan bool              // Used to stop all the goroutines
-	numberOfActiveTasks int64                  // The number of chunks that are being operated on
 
 	fossils     []string    // For fossilize operation, the paths of the fossils are stored in this slice
 	fossilsLock *sync.Mutex // The lock for 'fossils'
