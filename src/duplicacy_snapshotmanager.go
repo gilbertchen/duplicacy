@@ -38,6 +38,9 @@ type FossilCollection struct {
 	// The lastest revision for each snapshot id when the fossil collection was created.
 	LastRevisions map[string]int `json:"last_revisions"`
 
+	// Record the set of snapshots that have been removed by the prune command that created this fossil collection
+	DeletedRevisions map[string][]int `json:"deleted_revisions"`
+
 	// Fossils (i.e., chunks not referenced by any snapshots)
 	Fossils []string `json:"fossils"`
 
@@ -55,6 +58,7 @@ func CreateFossilCollection(allSnapshots map[string][]*Snapshot) *FossilCollecti
 
 	return &FossilCollection{
 		LastRevisions: lastRevisions,
+		DeletedRevisions: make(map[string][]int),
 	}
 }
 
@@ -1742,6 +1746,29 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 			return false
 		}
 
+		// Determine if any deleted revisions exist
+		exist := false
+		for snapshotID, revisionList := range collection.DeletedRevisions {
+			for _, revision := range revisionList {
+				for _, snapshot := range allSnapshots[snapshotID] {
+					if revision == snapshot.Revision {
+						LOG_INFO("FOSSIL_GHOSTSNAPSHOT", "Snapshot %s revision %d should have been deleted already", snapshotID, revision)
+						exist = true
+					}
+				}
+			}
+		}
+
+		if exist {
+			err = manager.snapshotCache.DeleteFile(0, collectionFile)
+			if err != nil {
+				LOG_WARN("FOSSIL_FILE", "Failed to remove the fossil collection file %s: %v", collectionFile, err)
+			} else {
+				LOG_INFO("FOSSIL_IGNORE", "The fossil collection file %s has been ignored due to ghost snapshots", collectionFile)
+			}
+			continue
+		}
+
 		for _, fossil := range collection.Fossils {
 			referencedFossils[fossil] = true
 		}
@@ -1934,6 +1961,15 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 	manager.chunkOperator.Stop()
 	for _, fossil := range manager.chunkOperator.fossils {
 		collection.AddFossil(fossil)
+	}
+
+	// Save the deleted revision in the fossil collection
+	for _, snapshots := range allSnapshots {
+		for _, snapshot := range snapshots {
+			if snapshot.Flag {
+				collection.DeletedRevisions[snapshot.ID] = append(collection.DeletedRevisions[snapshot.ID], snapshot.Revision)
+			}
+		}
 	}
 
 	// Save the fossil collection if it is not empty.

@@ -129,7 +129,7 @@ func logf(level int, logID string, format string, v ...interface{}) {
 	// fmt.Printf("%s %s %s %s\n", now.Format("2006-01-02 15:04:05.000"), getLevelName(level), logID, message)
 
 	if testingT != nil {
-		if level < WARN {
+		if level <= WARN {
 			if level >= loggingLevel {
 				testingT.Logf("%s %s %s %s\n",
 					now.Format("2006-01-02 15:04:05.000"), getLevelName(level), logID, message)

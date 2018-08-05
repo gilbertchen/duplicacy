@@ -124,7 +124,20 @@ func (operator *ChunkOperator) Run(threadIndex int, task ChunkOperatorTask) {
 				LOG_ERROR("CHUNK_FIND", "Failed to locate the path for the chunk %s: %v", task.chunkID, err)
 				return
 			} else if !exist {
-				LOG_ERROR("CHUNK_FIND", "Chunk %s does not exist in the storage", task.chunkID)
+				if task.operation == ChunkOperationDelete {
+					LOG_WARN("CHUNK_FIND", "Chunk %s does not exist in the storage", task.chunkID)
+					return
+				}
+
+				fossilPath, exist, _, _ := operator.storage.FindChunk(threadIndex, task.chunkID, true)
+				if exist {
+					LOG_WARN("CHUNK_FOSSILIZE", "Chunk %s is already a fossil", task.chunkID)
+					operator.fossilsLock.Lock()
+					operator.fossils = append(operator.fossils, fossilPath)
+					operator.fossilsLock.Unlock()
+				} else {
+					LOG_ERROR("CHUNK_FIND", "Chunk %s does not exist in the storage", task.chunkID)
+				}
 				return
 			}
 			task.filePath = filePath
@@ -162,6 +175,9 @@ func (operator *ChunkOperator) Run(threadIndex int, task ChunkOperatorTask) {
 				if err == nil {
 					LOG_TRACE("CHUNK_DELETE", "Deleted chunk file %s as the fossil already exists", task.chunkID)
 				}
+				operator.fossilsLock.Lock()
+				operator.fossils = append(operator.fossils, fossilPath)
+				operator.fossilsLock.Unlock()
 			} else {
 				LOG_ERROR("CHUNK_DELETE", "Failed to fossilize the chunk %s: %v", task.chunkID, err)
 			}
