@@ -792,6 +792,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	}
 
 	snapshotIDIndex := 0
+	totalMissingChunks := 0
 	for snapshotID, _ = range snapshotMap {
 
 		revisions := revisionsToCheck
@@ -877,16 +878,21 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 			}
 
 			if missingChunks > 0 {
-				LOG_ERROR("SNAPSHOT_CHECK", "Some chunks referenced by snapshot %s at revision %d are missing",
+				LOG_WARN("SNAPSHOT_CHECK", "Some chunks referenced by snapshot %s at revision %d are missing",
 					snapshotID, revision)
-				return false
+				totalMissingChunks += missingChunks
+			} else {
+				LOG_INFO("SNAPSHOT_CHECK", "All chunks referenced by snapshot %s at revision %d exist",
+					snapshotID, revision)
 			}
-
-			LOG_INFO("SNAPSHOT_CHECK", "All chunks referenced by snapshot %s at revision %d exist",
-				snapshotID, revision)
 		}
 
 		snapshotIDIndex += 1
+	}
+
+	if totalMissingChunks > 0 {
+		LOG_ERROR("SNAPSHOT_CHECK", "Some chunks referenced by some snapshots do not exist in the storage")
+		return false
 	}
 
 	if showTabular {
