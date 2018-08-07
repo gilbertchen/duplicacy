@@ -14,6 +14,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"io/ioutil"
 )
 
 func createDummySnapshot(snapshotID string, revision int, endTime int64) *Snapshot {
@@ -143,6 +144,15 @@ func uploadRandomChunk(manager *SnapshotManager, chunkSize int) string {
 	return uploadTestChunk(manager, content)
 }
 
+func uploadRandomChunks(manager *SnapshotManager, chunkSize int, numberOfChunks int) []string {
+	chunkList := make([]string, 0)
+	for i := 0; i < numberOfChunks; i++ {
+		chunkHash := uploadRandomChunk(manager, chunkSize)
+		chunkList = append(chunkList, chunkHash)
+	}
+	return chunkList
+}
+
 func createTestSnapshot(manager *SnapshotManager, snapshotID string, revision int, startTime int64, endTime int64, chunkHashes []string, tag string) {
 
 	snapshot := &Snapshot{
@@ -253,11 +263,11 @@ func TestPruneSingleRepository(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 4, 0)
 
 	t.Logf("Removing snapshot repository1 revisions 1 and 2 with --exclusive")
-	snapshotManager.PruneSnapshots("repository1", "repository1", []int{1, 2}, []string{}, []string{}, false, true, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("repository1", "repository1", []int{1, 2}, []string{}, []string{}, false, true, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 2, 0)
 
 	t.Logf("Removing snapshot repository1 revision 3 without --exclusive")
-	snapshotManager.PruneSnapshots("repository1", "repository1", []int{3}, []string{}, []string{}, false, false, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("repository1", "repository1", []int{3}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 1, 2)
 
 	t.Logf("Creating 1 snapshot")
@@ -266,7 +276,7 @@ func TestPruneSingleRepository(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 2, 2)
 
 	t.Logf("Prune without removing any snapshots -- fossils will be deleted")
-	snapshotManager.PruneSnapshots("repository1", "repository1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("repository1", "repository1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 2, 0)
 }
 
@@ -293,11 +303,11 @@ func TestPruneSingleHost(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 3, 0)
 
 	t.Logf("Removing snapshot vm1@host1 revision 1 without --exclusive")
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{1}, []string{}, []string{}, false, false, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{1}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 2, 2)
 
 	t.Logf("Prune without removing any snapshots -- no fossils will be deleted")
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 2, 2)
 
 	t.Logf("Creating 1 snapshot")
@@ -306,7 +316,7 @@ func TestPruneSingleHost(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 3, 2)
 
 	t.Logf("Prune without removing any snapshots -- fossils will be deleted")
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 3, 0)
 
 }
@@ -334,11 +344,11 @@ func TestPruneMultipleHost(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 3, 0)
 
 	t.Logf("Removing snapshot vm1@host1 revision 1 without --exclusive")
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{1}, []string{}, []string{}, false, false, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{1}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 2, 2)
 
 	t.Logf("Prune without removing any snapshots -- no fossils will be deleted")
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 2, 2)
 
 	t.Logf("Creating 1 snapshot")
@@ -347,7 +357,7 @@ func TestPruneMultipleHost(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 3, 2)
 
 	t.Logf("Prune without removing any snapshots -- no fossils will be deleted")
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 3, 2)
 
 	t.Logf("Creating 1 snapshot")
@@ -356,7 +366,7 @@ func TestPruneMultipleHost(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 4, 2)
 
 	t.Logf("Prune without removing any snapshots -- fossils will be deleted")
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 4, 0)
 }
 
@@ -381,7 +391,7 @@ func TestPruneAndResurrect(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 2, 0)
 
 	t.Logf("Removing snapshot vm1@host1 revision 1 without --exclusive")
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{1}, []string{}, []string{}, false, false, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{1}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 1, 2)
 
 	t.Logf("Creating 1 snapshot")
@@ -390,7 +400,7 @@ func TestPruneAndResurrect(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 2, 2)
 
 	t.Logf("Prune without removing any snapshots -- one fossil will be resurrected")
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 2, 0)
 }
 
@@ -418,11 +428,11 @@ func TestPruneWithInactiveHost(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 3, 0)
 
 	t.Logf("Removing snapshot vm1@host1 revision 1")
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{1}, []string{}, []string{}, false, false, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{1}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 2, 2)
 
 	t.Logf("Prune without removing any snapshots -- no fossils will be deleted")
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 2, 2)
 
 	t.Logf("Creating 1 snapshot")
@@ -431,7 +441,7 @@ func TestPruneWithInactiveHost(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 3, 2)
 
 	t.Logf("Prune without removing any snapshots -- fossils will be deleted")
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 3, 0)
 }
 
@@ -459,15 +469,15 @@ func TestPruneWithRetentionPolicy(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 30, 0)
 
 	t.Logf("Removing snapshot vm1@host1 0:20 with --exclusive")
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{"0:20"}, false, true, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{"0:20"}, false, true, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 19, 0)
 
 	t.Logf("Removing snapshot vm1@host1 -k 0:20 with --exclusive")
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{"0:20"}, false, true, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{"0:20"}, false, true, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 19, 0)
 
 	t.Logf("Removing snapshot vm1@host1 -k 3:14 -k 2:7 with --exclusive")
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{"3:14", "2:7"}, false, true, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{"3:14", "2:7"}, false, true, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 12, 0)
 }
 
@@ -499,7 +509,7 @@ func TestPruneWithRetentionPolicyAndTag(t *testing.T) {
 	checkTestSnapshots(snapshotManager, 30, 0)
 
 	t.Logf("Removing snapshot vm1@host1 0:20 with --exclusive and --tag manual")
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{"manual"}, []string{"0:7"}, false, true, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{"manual"}, []string{"0:7"}, false, true, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 22, 0)
 }
 
@@ -527,11 +537,151 @@ func TestPruneWithFossils(t *testing.T) {
 
 	t.Logf("Prune without removing any snapshots but with --exhaustive")
 	// The unreferenced fossil shouldn't be removed
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, true, false, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, true, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 2, 1)
 
 	t.Logf("Prune without removing any snapshots but with --exclusive")
 	// Now the unreferenced fossil should be removed
-	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, true, []string{}, false, false, false)
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, true, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 2, 0)
+}
+
+func TestPruneMultipleThread(t *testing.T) {
+
+	setTestingT(t)
+
+	testDir := path.Join(os.TempDir(), "duplicacy_test", "snapshot_test")
+
+	snapshotManager := createTestSnapshotManager(testDir)
+
+	chunkSize := 1024
+	numberOfChunks := 256
+	numberOfThreads := 4
+
+	chunkList1 := uploadRandomChunks(snapshotManager, chunkSize, numberOfChunks)
+	chunkList2 := uploadRandomChunks(snapshotManager, chunkSize, numberOfChunks)
+
+	now := time.Now().Unix()
+	day := int64(24 * 3600)
+	t.Logf("Creating 2 snapshots")
+	createTestSnapshot(snapshotManager, "repository1", 1, now-4*day-3600, now-3*day-60, chunkList1, "tag")
+	createTestSnapshot(snapshotManager, "repository1", 2, now-3*day-3600, now-2*day-60, chunkList2, "tag")
+	checkTestSnapshots(snapshotManager, 2, 0)
+
+	t.Logf("Removing snapshot revisions 1 with --exclusive")
+	snapshotManager.PruneSnapshots("repository1", "repository1", []int{1}, []string{}, []string{}, false, true, []string{}, false, false, false, numberOfThreads)
+	checkTestSnapshots(snapshotManager, 1, 0)
+
+	t.Logf("Creating 1 more snapshot")
+	chunkList3 := uploadRandomChunks(snapshotManager, chunkSize, numberOfChunks)
+	createTestSnapshot(snapshotManager, "repository1", 3, now-2*day-3600, now-1*day-60, chunkList3, "tag")
+
+	t.Logf("Removing snapshot repository1 revision 2 without --exclusive")
+	snapshotManager.PruneSnapshots("repository1", "repository1", []int{2}, []string{}, []string{}, false, false, []string{}, false, false, false, numberOfThreads)
+
+	t.Logf("Prune without removing any snapshots but with --exclusive")
+	snapshotManager.PruneSnapshots("repository1", "repository1", []int{}, []string{}, []string{}, false, true, []string{}, false, false, false, numberOfThreads)
+	checkTestSnapshots(snapshotManager, 1, 0)
+}
+
+// A snapshot not seen by a fossil collection should always be consider a new snapshot in the fossil deletion step
+func TestPruneNewSnapshots(t *testing.T) {
+	setTestingT(t)
+
+	testDir := path.Join(os.TempDir(), "duplicacy_test", "snapshot_test")
+
+	snapshotManager := createTestSnapshotManager(testDir)
+
+	chunkSize := 1024
+	chunkHash1 := uploadRandomChunk(snapshotManager, chunkSize)
+	chunkHash2 := uploadRandomChunk(snapshotManager, chunkSize)
+	chunkHash3 := uploadRandomChunk(snapshotManager, chunkSize)
+	chunkHash4 := uploadRandomChunk(snapshotManager, chunkSize)
+
+	now := time.Now().Unix()
+	day := int64(24 * 3600)
+	t.Logf("Creating 3 snapshots")
+	createTestSnapshot(snapshotManager, "vm1@host1", 1, now-3*day-3600, now-3*day-60, []string{chunkHash1, chunkHash2}, "tag")
+	createTestSnapshot(snapshotManager, "vm1@host1", 2, now-2*day-3600, now-2*day-60, []string{chunkHash2, chunkHash3}, "tag")
+	createTestSnapshot(snapshotManager, "vm2@host1", 1, now-2*day-3600, now-2*day-60, []string{chunkHash3, chunkHash4}, "tag")
+	checkTestSnapshots(snapshotManager, 3, 0)
+
+	t.Logf("Prune snapshot 1")
+	// chunkHash1 should be marked as fossil
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{1}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
+	checkTestSnapshots(snapshotManager, 2, 2)
+
+	chunkHash5 := uploadRandomChunk(snapshotManager, chunkSize)
+	// Create another snapshot of vm1 that brings back chunkHash1
+	createTestSnapshot(snapshotManager, "vm1@host1", 3, now-0*day-3600, now-0*day-60, []string{chunkHash1, chunkHash3}, "tag")
+	// Create another snapshot of vm2 so the fossil collection will be processed by next prune
+	createTestSnapshot(snapshotManager, "vm2@host1", 2, now + 3600, now + 3600 * 2, []string{chunkHash4, chunkHash5}, "tag")
+
+	// Now chunkHash1 wil be resurrected
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
+	checkTestSnapshots(snapshotManager, 4, 0)
+	snapshotManager.CheckSnapshots("vm1@host1", []int{2, 3}, "", false, false, false, false, false);
+}
+
+// A fossil collection left by an aborted prune should be ignored if any supposedly deleted snapshot exists
+func TestPruneGhostSnapshots(t *testing.T) {
+	setTestingT(t)
+
+	EnableStackTrace()
+
+	testDir := path.Join(os.TempDir(), "duplicacy_test", "snapshot_test")
+
+	snapshotManager := createTestSnapshotManager(testDir)
+
+	chunkSize := 1024
+	chunkHash1 := uploadRandomChunk(snapshotManager, chunkSize)
+	chunkHash2 := uploadRandomChunk(snapshotManager, chunkSize)
+	chunkHash3 := uploadRandomChunk(snapshotManager, chunkSize)
+
+	now := time.Now().Unix()
+	day := int64(24 * 3600)
+	t.Logf("Creating 2 snapshots")
+	createTestSnapshot(snapshotManager, "vm1@host1", 1, now-3*day-3600, now-3*day-60, []string{chunkHash1, chunkHash2}, "tag")
+	createTestSnapshot(snapshotManager, "vm1@host1", 2, now-2*day-3600, now-2*day-60, []string{chunkHash2, chunkHash3}, "tag")
+	checkTestSnapshots(snapshotManager, 2, 0)
+
+	snapshot1, err := ioutil.ReadFile(path.Join(testDir, "snapshots", "vm1@host1", "1"))
+	if err != nil {
+		t.Errorf("Failed to read snapshot file: %v", err)
+	}
+
+	t.Logf("Prune snapshot 1")
+	// chunkHash1 should be marked as fossil
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{1}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
+	checkTestSnapshots(snapshotManager, 1, 2)
+
+	// Recover the snapshot file for revision 1; this is to simulate a scenario where prune may encounter a network error after
+	// leaving the fossil collection but before deleting any snapshots.
+	err = ioutil.WriteFile(path.Join(testDir, "snapshots", "vm1@host1", "1"), snapshot1, 0644)
+	if err != nil {
+		t.Errorf("Failed to write snapshot file: %v", err)
+	}
+
+	// Create another snapshot of vm1 so the fossil collection becomes eligible for processing.
+	chunkHash4 := uploadRandomChunk(snapshotManager, chunkSize)
+	createTestSnapshot(snapshotManager, "vm1@host1", 3, now - day - 3600, now - day - 60, []string{chunkHash3, chunkHash4}, "tag")
+
+	// Run the prune again but the fossil collection should be igored, since revision 1 still exists
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
+	checkTestSnapshots(snapshotManager, 3, 2)
+	snapshotManager.CheckSnapshots("vm1@host1", []int{1, 2, 3}, "", false, false, false, true /*searchFossils*/, false);
+
+	// Prune snapshot 1 again
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{1}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
+	checkTestSnapshots(snapshotManager, 2, 2)
+
+	// Create another snapshot
+	chunkHash5 := uploadRandomChunk(snapshotManager, chunkSize)
+	createTestSnapshot(snapshotManager, "vm1@host1", 4, now + 3600, now + 3600 * 2, []string{chunkHash5, chunkHash5}, "tag")
+	checkTestSnapshots(snapshotManager, 3, 2)
+
+	// Run the prune again and this time the fossil collection will be processed and the fossils removed
+	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
+	checkTestSnapshots(snapshotManager, 3, 0)
+	snapshotManager.CheckSnapshots("vm1@host1", []int{2, 3, 4}, "", false, false, false, false, false);
 }

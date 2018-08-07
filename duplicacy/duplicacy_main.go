@@ -32,6 +32,7 @@ const (
 )
 
 var ScriptEnabled bool
+var GitCommit = "unofficial"
 
 func getRepositoryPreference(context *cli.Context, storageName string) (repository string,
 	preference *duplicacy.Preference) {
@@ -1066,12 +1067,17 @@ func pruneSnapshots(context *cli.Context) {
 		os.Exit(ArgumentExitCode)
 	}
 
+	threads := context.Int("threads")
+	if threads < 1 {
+		threads = 1
+	}
+
 	repository, preference := getRepositoryPreference(context, "")
 
 	runScript(context, preference.Name, "pre")
 
 	duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
-	storage := duplicacy.CreateStorage(*preference, false, 1)
+	storage := duplicacy.CreateStorage(*preference, false, threads)
 	if storage == nil {
 		return
 	}
@@ -1110,7 +1116,7 @@ func pruneSnapshots(context *cli.Context) {
 
 	backupManager.SetupSnapshotCache(preference.Name)
 	backupManager.SnapshotManager.PruneSnapshots(selfID, snapshotID, revisions, tags, retentions,
-		exhaustive, exclusive, ignoredIDs, dryRun, deleteOnly, collectOnly)
+		exhaustive, exclusive, ignoredIDs, dryRun, deleteOnly, collectOnly, threads)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1262,6 +1268,50 @@ func infoStorage(context *cli.Context) {
 
 }
 
+func benchmark(context *cli.Context) {
+	setGlobalOptions(context)
+	defer duplicacy.CatchLogException()
+
+	fileSize := context.Int("file-size")
+	if fileSize == 0 {
+		fileSize = 256
+	}
+
+	chunkCount := context.Int("chunk-count")
+	if chunkCount == 0 {
+		chunkCount = 64
+	}
+
+	chunkSize := context.Int("chunk-size")
+	if chunkSize == 0 {
+		chunkSize = 4
+	}
+
+	downloadThreads := context.Int("download-threads")
+	if downloadThreads < 1 {
+		downloadThreads = 1
+	}
+
+	uploadThreads := context.Int("upload-threads")
+	if uploadThreads < 1 {
+		uploadThreads = 1
+	}
+
+	threads := downloadThreads
+	if (threads < uploadThreads) {
+		threads = uploadThreads
+	}
+
+	repository, preference := getRepositoryPreference(context, context.String("storage"))
+
+	duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
+	storage := duplicacy.CreateStorage(*preference, false, threads)
+	if storage == nil {
+		return
+	}
+	duplicacy.Benchmark(repository, storage, int64(fileSize) * 1000000, chunkSize * 1024 * 1024, chunkCount, uploadThreads, downloadThreads)
+}
+
 func main() {
 
 	duplicacy.SetLoggingLevel(duplicacy.INFO)
@@ -1351,7 +1401,7 @@ func main() {
 				},
 				cli.BoolFlag{
 					Name:  "vss",
-					Usage: "enable the Volume Shadow Copy service (Windows only)",
+					Usage: "enable the Volume Shadow Copy service (Windows and macOS using APFS only)",
 				},
 				cli.IntFlag{
 					Name:     "vss-timeout",
@@ -1658,6 +1708,12 @@ func main() {
 					Usage:    "prune snapshots from the specified storage",
 					Argument: "<storage name>",
 				},
+				cli.IntFlag{
+					Name:     "threads",
+					Value:    1,
+					Usage:    "number of threads used to prune unreferenced chunks",
+					Argument: "<n>",
+				},
 			},
 			Usage:     "Prune snapshots by revision, tag, or retention policy",
 			ArgsUsage: " ",
@@ -1855,6 +1911,45 @@ func main() {
 			ArgsUsage: "<storage url>",
 			Action:    infoStorage,
 		},
+
+		{
+			Name: "benchmark",
+			Flags: []cli.Flag{
+				cli.IntFlag{
+					Name:     "file-size",
+					Usage:    "the size of the local file to write to and read from (in MB, default to 256)",
+					Argument: "<size>",
+				},
+				cli.IntFlag{
+					Name:     "chunk-count",
+					Usage:    "the number of chunks to upload and download (default to 64)",
+					Argument: "<count>",
+				},
+				cli.IntFlag{
+					Name:     "chunk-size",
+					Usage:    "the size of chunks to upload and download (in MB, default to 4)",
+					Argument: "<size>",
+				},
+				cli.IntFlag{
+					Name:     "upload-threads",
+					Usage:    "the number of upload threads (default to 1)",
+					Argument: "<n>",
+				},
+				cli.IntFlag{
+					Name:     "download-threads",
+					Usage:    "the number of download threads (default to 1)",
+					Argument: "<n>",
+				},
+				cli.StringFlag{
+					Name:     "storage",
+					Usage:    "run the download/upload test agaist the specified storage",
+					Argument: "<storage name>",
+				},
+			},
+			Usage:     "Run a set of benchmarks to test download and upload speeds",
+			ArgsUsage: " ",
+			Action:    benchmark,
+		},
 	}
 
 	app.Flags = []cli.Flag{
@@ -1898,7 +1993,7 @@ func main() {
 	app.Name = "duplicacy"
 	app.HelpName = "duplicacy"
 	app.Usage = "A new generation cloud backup tool based on lock-free deduplication"
-	app.Version = "2.1.0"
+	app.Version = "2.1.1" + " (" + GitCommit + ")"
 
 	// If the program is interrupted, call the RunAtError function.
 	c := make(chan os.Signal, 1)
