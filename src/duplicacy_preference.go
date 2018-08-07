@@ -15,10 +15,10 @@ import (
 
 // Preference stores options for each storage.
 type Preference struct {
-	Name              string            `json:"name"`
-	SnapshotID        string            `json:"id"`
-	RepositoryPath    string            `json:"repository"`
-	StorageURL        string            `json:"storage"`
+	Name              string            `json:"storage_name"`
+	SnapshotID        string            `json:"snapshot_id"`
+	RepositoryPath    string            `json:"repository_path"`
+	StorageURL        string            `json:"storage_url"`
 	Encrypted         bool              `json:"encrypted"`
 	BackupProhibited  bool              `json:"no_backup"`
 	RestoreProhibited bool              `json:"no_restore"`
