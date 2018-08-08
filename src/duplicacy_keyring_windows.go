@@ -136,6 +136,16 @@ func keyringSet(key string, value string) bool {
 	if value == "" {
 		keyring[key] = nil
 	} else {
+
+		// Check if the value to be set is the same as the existing one
+		existingEncryptedValue := keyring[key]
+		if len(existingEncryptedValue) > 0 {
+			existingValue, err := keyringDecrypt(existingEncryptedValue)
+			if err == nil && string(existingValue) == value {
+				return true
+			}
+		}
+
 		encryptedValue, err := keyringEncrypt([]byte(value))
 		if err != nil {
 			LOG_DEBUG("KEYRING_ENCRYPT", "Failed to encrypt the value: %v", err)
