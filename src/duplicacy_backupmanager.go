@@ -472,7 +472,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 			uploadedModifiedFileSize := atomic.AddInt64(&uploadedModifiedFileSize, int64(chunkSize))
 
-			if IsTracing() || showStatistics {
+			if (IsTracing() || showStatistics) && totalModifiedFileSize > 0 {
 				now := time.Now().Unix()
 				if now <= startUploadingTime {
 					now = startUploadingTime + 1
