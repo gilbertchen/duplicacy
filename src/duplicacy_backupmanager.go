@@ -825,6 +825,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 				if stat.Mode()&os.ModeSymlink != 0 {
 					isRegular, link, err := Readlink(fullPath)
 					if err == nil && link == entry.Link && !isRegular {
+						entry.RestoreMetadata(fullPath, nil, setOwner)
 						continue
 					}
 				}
@@ -837,6 +838,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 				LOG_ERROR("RESTORE_SYMLINK", "Can't create symlink %s: %v", entry.Path, err)
 				return false
 			}
+			entry.RestoreMetadata(fullPath, nil, setOwner)
 			LOG_TRACE("DOWNLOAD_DONE", "Symlink %s updated", entry.Path)
 		} else if entry.IsDir() {
 			stat, err := os.Stat(fullPath)
