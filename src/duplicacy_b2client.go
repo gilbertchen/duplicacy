@@ -40,6 +40,7 @@ var B2AuthorizationURL = "https://api.backblazeb2.com/b2api/v1/b2_authorize_acco
 type B2Client struct {
 	HTTPClient         *http.Client
 	AccountID          string
+	AllowedBucketID    string
 	ApplicationKey     string
 	AuthorizationToken string
 	APIURL             string
@@ -205,6 +206,9 @@ func (client *B2Client) call(url string, method string, requestHeaders map[strin
 
 type B2AuthorizeAccountOutput struct {
 	AccountID          string
+	Allowed            struct {
+		BucketID string
+	}
 	AuthorizationToken string
 	APIURL             string
 	DownloadURL        string
@@ -229,6 +233,16 @@ func (client *B2Client) AuthorizeAccount() (err error) {
 	client.APIURL = output.APIURL
 	client.DownloadURL = output.DownloadURL
 
+	// The accountID given may be an application ID.
+	// In case it is, set the AccountID to match the real ID returned by the authorization.
+	client.AccountID = output.AccountID
+
+	// The accountID given may be restricted to a single bucket.
+	// In case it is, set the AllowedBucketID to the allowed bucket
+	if output.Allowed.BucketID != "" {
+		client.AllowedBucketID = output.Allowed.BucketID
+	}
+
 	return nil
 }
 
@@ -243,6 +257,11 @@ func (client *B2Client) FindBucket(bucketName string) (err error) {
 
 	input := make(map[string]string)
 	input["accountId"] = client.AccountID
+
+	// If the AllowedBucketID is known, add it to the request
+	if client.AllowedBucketID != "" {
+		input["bucketId"] = client.AllowedBucketID
+	}
 
 	url := client.APIURL + "/b2api/v1/b2_list_buckets"
 
@@ -268,7 +287,7 @@ func (client *B2Client) FindBucket(bucketName string) (err error) {
 	}
 
 	if client.BucketID == "" {
-		return fmt.Errorf("Bucket %s not found", bucketName)
+		return fmt.Errorf("Bucket %s not found or unauthorized", bucketName)
 	}
 
 	return nil
