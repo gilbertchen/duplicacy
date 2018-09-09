@@ -170,6 +170,16 @@ func (collection *FossilCollection) IsEmpty() bool {
 	return len(collection.Fossils) == 0 && len(collection.Temporaries) == 0
 }
 
+// Calculates the number of days between two times ignoring the hours, minutes and seconds.
+func getDaysBetween(start int64, end int64) int {
+	startTime := time.Unix(start, 0).In(time.Now().Location())
+	endTime := time.Unix(end, 0).In(time.Now().Location())
+	startDate := time.Date(startTime.Year(), startTime.Month(), startTime.Day(), 0, 0, 0, 0, startTime.Location())
+	endDate := time.Date(endTime.Year(), endTime.Month(), endTime.Day(), 0, 0, 0, 0, endTime.Location())
+	hours := int(endDate.Sub(startDate).Hours())
+	return (hours + 1) / 24
+}
+
 // SnapshotManager is mainly responsible for downloading, and deleting snapshots.
 type SnapshotManager struct {
 
@@ -1907,7 +1917,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 
 				// Find out which retent policy applies based on the age.
 				for i < len(retentionPolicies) &&
-					int(now-snapshot.StartTime) < retentionPolicies[i].Age*secondsInDay {
+					getDaysBetween(snapshot.StartTime, now) < retentionPolicies[i].Age {
 					i++
 					lastSnapshotTime = 0
 				}
@@ -1920,9 +1930,8 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 						snapshot.Flag = true
 						toBeDeleted++
 					} else if lastSnapshotTime != 0 &&
-						int(snapshot.StartTime-lastSnapshotTime) < retentionPolicies[i].Interval*secondsInDay-600 {
-						// Delete the snapshot if it is too close to the last kept one.  Note that a tolerance of 10
-						// minutes was subtracted from the interval.
+						getDaysBetween(lastSnapshotTime, snapshot.StartTime) < retentionPolicies[i].Interval {
+						// Delete the snapshot if it is too close to the last kept one.
 						LOG_DEBUG("SNAPSHOT_DELETE", "Snapshot %s at revision %d to be deleted - older than %d days, less than %d days from previous",
 							snapshot.ID, snapshot.Revision, retentionPolicies[i].Age, retentionPolicies[i].Interval)
 						snapshot.Flag = true
