@@ -40,6 +40,7 @@ var B2AuthorizationURL = "https://api.backblazeb2.com/b2api/v1/b2_authorize_acco
 type B2Client struct {
 	HTTPClient         *http.Client
 	AccountID          string
+	ApplicationKeyID   string
 	ApplicationKey     string
 	AuthorizationToken string
 	APIURL             string
@@ -53,11 +54,11 @@ type B2Client struct {
 	TestMode bool
 }
 
-func NewB2Client(accountID string, applicationKey string) *B2Client {
+func NewB2Client(applicationKeyID string, applicationKey string) *B2Client {
 	client := &B2Client{
-		HTTPClient:     http.DefaultClient,
-		AccountID:      accountID,
-		ApplicationKey: applicationKey,
+		HTTPClient:       http.DefaultClient,
+		ApplicationKeyID: applicationKeyID,
+		ApplicationKey:   applicationKey,
 	}
 	return client
 }
@@ -119,7 +120,7 @@ func (client *B2Client) call(url string, method string, requestHeaders map[strin
 		}
 
 		if url == B2AuthorizationURL {
-			request.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(client.AccountID+":"+client.ApplicationKey)))
+			request.Header.Set("Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(client.ApplicationKeyID+":"+client.ApplicationKey)))
 		} else {
 			request.Header.Set("Authorization", client.AuthorizationToken)
 		}
@@ -225,6 +226,10 @@ func (client *B2Client) AuthorizeAccount() (err error) {
 		return err
 	}
 
+	// The account id may be different from the application key id so we're getting the account id from the returned
+	// json object here, which is needed by the b2_list_buckets call.
+	client.AccountID = output.AccountID
+
 	client.AuthorizationToken = output.AuthorizationToken
 	client.APIURL = output.APIURL
 	client.DownloadURL = output.DownloadURL
@@ -233,7 +238,7 @@ func (client *B2Client) AuthorizeAccount() (err error) {
 }
 
 type ListBucketOutput struct {
-	AccoundID  string
+	AccountID  string
 	BucketID   string
 	BucketName string
 	BucketType string
