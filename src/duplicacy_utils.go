@@ -176,6 +176,15 @@ func GetPasswordFromPreference(preference Preference, passwordType string) strin
 		if password, found := os.LookupEnv(name); found && password != "" {
 			return password
 		}
+
+		re := regexp.MustCompile(`[^a-zA-Z0-9_]`)
+		namePlain := re.ReplaceAllString(name, "_")
+		if namePlain != name {
+			LOG_DEBUG("PASSWORD_ENV_VAR", "Reading the environment variable %s", namePlain)
+			if password, found := os.LookupEnv(namePlain); found && password != "" {
+				return password
+			}
+		}
 	}
 
 	// If the password is stored in the preference, there is no need to include the storage name
