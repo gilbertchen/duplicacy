@@ -200,15 +200,18 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 	// This cache contains all chunks referenced by last snasphot. Any other chunks will lead to a call to
 	// UploadChunk.
-	chunkCache := make(map[string]bool)
+	var chunkCache = struct{
+		sync.RWMutex
+		m map[string]SnapshotChunk
+	}{m: make(map[string]SnapshotChunk)}
 
 	var incompleteSnapshot *Snapshot
 
 	// A revision number of 0 means this is the initial backup
 	if remoteSnapshot.Revision > 0 {
 		// Add all chunks in the last snapshot to the cache
-		for _, chunkID := range manager.SnapshotManager.GetSnapshotChunks(remoteSnapshot, true) {
-			chunkCache[chunkID] = true
+		for _, chunk := range manager.SnapshotManager.GetSnapshotChunks(remoteSnapshot, true) {
+			chunkCache.m[chunk.id] = chunk
 		}
 	} else {
 
@@ -221,9 +224,9 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 		// put them in the cache.
 		if manager.storage.IsFastListing() || incompleteSnapshot != nil {
 			LOG_INFO("BACKUP_LIST", "Listing all chunks")
-			allChunks, _ := manager.SnapshotManager.ListAllFiles(manager.storage, "chunks/")
+			allChunks, allSizes := manager.SnapshotManager.ListAllFiles(manager.storage, "chunks/")
 
-			for _, chunk := range allChunks {
+			for chunkIndex, chunk := range allChunks {
 				if len(chunk) == 0 || chunk[len(chunk)-1] == '/' {
 					continue
 				}
@@ -233,7 +236,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 				}
 
 				chunk = strings.Replace(chunk, "/", "", -1)
-				chunkCache[chunk] = true
+				chunkCache.m[chunk] = SnapshotChunk{chunk, int(allSizes[chunkIndex])}
 			}
 		}
 
@@ -243,7 +246,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 			lastCompleteChunk := -1
 			for i, chunkHash := range incompleteSnapshot.ChunkHashes {
 				chunkID := manager.config.GetChunkIDFromHash(chunkHash)
-				if _, ok := chunkCache[chunkID]; ok {
+				if _, ok := chunkCache.m[chunkID]; ok {
 					lastCompleteChunk = i
 				} else {
 					break
@@ -298,6 +301,18 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 			totalModifiedFileSize += entry.Size
 		}
 	} else {
+		// @returns true if entry contains chunk upload lengths
+		hasUploadLengths := func(entry *Entry) bool {
+			if len(remoteSnapshot.ChunkUploadLengths) == 0 {
+				return false
+			}
+			for i := entry.StartChunk; i <= entry.EndChunk; i++ {
+				if remoteSnapshot.ChunkUploadLengths[i] < 0  {
+					return false
+				}
+			}
+			return true
+		}
 
 		var i, j int
 		for i < len(localSnapshot.Files) {
@@ -317,7 +332,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 			} else if remote = remoteSnapshot.Files[j]; !remote.IsFile() {
 				j++
 			} else if local.Path == remote.Path {
-				if local.IsSameAs(remote) {
+				if local.IsSameAs(remote) && hasUploadLengths(remote) {
 					local.Hash = remote.Hash
 					local.StartChunk = remote.StartChunk
 					local.StartOffset = remote.StartOffset
@@ -345,6 +360,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 	var preservedChunkHashes []string
 	var preservedChunkLengths []int
+	var preservedChunkUploadLengths []int
 
 	// For each preserved file, adjust the StartChunk and EndChunk pointers.  This is done by finding gaps
 	// between these indices and subtracting the number of deleted chunks.
@@ -362,6 +378,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 			}
 			preservedChunkHashes = append(preservedChunkHashes, remoteSnapshot.ChunkHashes[i])
 			preservedChunkLengths = append(preservedChunkLengths, remoteSnapshot.ChunkLengths[i])
+			preservedChunkUploadLengths = append(preservedChunkUploadLengths, remoteSnapshot.ChunkUploadLengths[i])
 		}
 
 		last = entry.EndChunk
@@ -373,6 +390,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	var uploadedEntries []*Entry
 	var uploadedChunkHashes []string
 	var uploadedChunkLengths []int
+	var uploadedChunkUploadLengths []int
 	var uploadedChunkLock = &sync.Mutex{}
 
 	// Set all file sizes to -1 to indicate they haven't been processed.   This must be done before creating the file
@@ -429,10 +447,13 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 							localSnapshot.ChunkHashes = append(localSnapshot.ChunkHashes, uploadedChunkHashes...)
 							localSnapshot.ChunkLengths = preservedChunkLengths
 							localSnapshot.ChunkLengths = append(localSnapshot.ChunkLengths, uploadedChunkLengths...)
+							localSnapshot.ChunkUploadLengths = preservedChunkUploadLengths
+							localSnapshot.ChunkUploadLengths = append(localSnapshot.ChunkUploadLengths, uploadedChunkUploadLengths...)
 						} else {
 							//localSnapshot.Files = uploadedEntries
 							localSnapshot.ChunkHashes = uploadedChunkHashes
 							localSnapshot.ChunkLengths = uploadedChunkLengths
+							localSnapshot.ChunkUploadLengths = uploadedChunkUploadLengths
 						}
 						uploadedChunkLock.Unlock()
 					}
@@ -470,6 +491,12 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 				}
 			}
 
+			if uploadSize > 0 {
+				chunkCache.Lock()
+				chunkCache.m[chunk.id] = SnapshotChunk{chunk.id, uploadSize}
+				chunkCache.Unlock()
+			}
+
 			uploadedModifiedFileSize := atomic.AddInt64(&uploadedModifiedFileSize, int64(chunkSize))
 
 			if (IsTracing() || showStatistics) && totalModifiedFileSize > 0 {
@@ -504,7 +531,9 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 				chunkIndex++
 
-				_, found := chunkCache[chunkID]
+				chunkCache.RLock()
+				cachedChunk, found := chunkCache.m[chunkID]
+				chunkCache.RUnlock()
 				if found {
 					if time.Now().Unix()-lastUploadingTime > keepUploadAlive {
 						LOG_INFO("UPLOAD_KEEPALIVE", "Skip chunk cache to keep connection alive")
@@ -513,11 +542,12 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 				}
 
 				if found {
-					completionFunc(chunk, chunkIndex, true, chunkSize, 0)
+					completionFunc(chunk, chunkIndex, true, chunkSize, cachedChunk.uploadLength)
 				} else {
 					lastUploadingTime = time.Now().Unix()
-					chunkCache[chunkID] = true
-
+					chunkCache.Lock();
+					chunkCache.m[chunkID] = SnapshotChunk{chunkID, -1}
+					chunkCache.Unlock();
 					chunkUploader.StartChunk(chunk, chunkIndex)
 				}
 
@@ -525,6 +555,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 				uploadedChunkLock.Lock()
 				uploadedChunkHashes = append(uploadedChunkHashes, hash)
 				uploadedChunkLengths = append(uploadedChunkLengths, chunkSize)
+				// uploadedChunkUploadLengths populated below
 				uploadedChunkLock.Unlock()
 
 				if len(uploadedChunkHashes) == chunkToFail {
@@ -565,6 +596,15 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 		//
 		// Therefore, we saved uploaded entries and then do a loop here to set offsets for them.
 		setEntryContent(uploadedEntries, uploadedChunkLengths, len(preservedChunkHashes))
+
+		// populate uploaded (compressed) chunk lengths
+		for _, chunkHash := range uploadedChunkHashes {
+			uploadLength := -1
+			chunkID := manager.config.GetChunkIDFromHash(chunkHash)
+			cachedChunk, ok := chunkCache.m[chunkID]
+			if ok { uploadLength = cachedChunk.uploadLength }
+			uploadedChunkUploadLengths = append(uploadedChunkUploadLengths, uploadLength)
+		}
 	}
 
 	if len(preservedChunkHashes) > 0 {
@@ -572,9 +612,12 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 		localSnapshot.ChunkHashes = append(localSnapshot.ChunkHashes, uploadedChunkHashes...)
 		localSnapshot.ChunkLengths = preservedChunkLengths
 		localSnapshot.ChunkLengths = append(localSnapshot.ChunkLengths, uploadedChunkLengths...)
+		localSnapshot.ChunkUploadLengths = preservedChunkUploadLengths
+		localSnapshot.ChunkUploadLengths = append(localSnapshot.ChunkUploadLengths, uploadedChunkUploadLengths...)
 	} else {
 		localSnapshot.ChunkHashes = uploadedChunkHashes
 		localSnapshot.ChunkLengths = uploadedChunkLengths
+		localSnapshot.ChunkUploadLengths = uploadedChunkUploadLengths
 	}
 
 	localSnapshotReady = true
@@ -625,7 +668,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 	totalSnapshotChunkLength, numberOfNewSnapshotChunks,
 		totalUploadedSnapshotChunkLength, totalUploadedSnapshotChunkBytes :=
-		manager.UploadSnapshot(chunkMaker, chunkUploader, top, localSnapshot, chunkCache)
+		manager.UploadSnapshot(chunkMaker, chunkUploader, top, localSnapshot, chunkCache.m)
 
 	if showStatistics && !RunInBackground {
 		for _, entry := range uploadedEntries {
@@ -651,7 +694,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	RemoveIncompleteSnapshot()
 
 	totalSnapshotChunks := len(localSnapshot.FileSequence) + len(localSnapshot.ChunkSequence) +
-		len(localSnapshot.LengthSequence)
+		len(localSnapshot.LengthSequence) + len(localSnapshot.UploadLengthSequence)
 	if showStatistics {
 
 		LOG_INFO("BACKUP_STATS", "Files: %d total, %s bytes; %d new, %s bytes",
@@ -1023,7 +1066,7 @@ func (encoder *fileEncoder) NextFile() (io.Reader, bool) {
 // UploadSnapshot uploads the specified snapshot to the storage. It turns Files, ChunkHashes, and ChunkLengths into
 // sequences of chunks, and uploads these chunks, and finally the snapshot file.
 func (manager *BackupManager) UploadSnapshot(chunkMaker *ChunkMaker, uploader *ChunkUploader, top string, snapshot *Snapshot,
-	chunkCache map[string]bool) (totalSnapshotChunkSize int64,
+	chunkCache map[string]SnapshotChunk) (totalSnapshotChunkSize int64,
 	numberOfNewSnapshotChunks int, totalUploadedSnapshotChunkSize int64,
 	totalUploadedSnapshotChunkBytes int64) {
 
@@ -1056,8 +1099,8 @@ func (manager *BackupManager) UploadSnapshot(chunkMaker *ChunkMaker, uploader *C
 			func(chunk *Chunk, final bool) {
 				totalSnapshotChunkSize += int64(chunk.GetLength())
 				chunkID := chunk.GetID()
-				if _, found := chunkCache[chunkID]; found {
-					completionFunc(chunk, 0, true, chunk.GetLength(), 0)
+				if cachedChunk, found := chunkCache[chunkID]; found {
+					completionFunc(chunk, 0, true, chunk.GetLength(), cachedChunk.uploadLength)
 				} else {
 					uploader.StartChunk(chunk, len(sequence))
 				}
@@ -1068,7 +1111,7 @@ func (manager *BackupManager) UploadSnapshot(chunkMaker *ChunkMaker, uploader *C
 		return sequence
 	}
 
-	sequences := []string{"chunks", "lengths"}
+	sequences := []string{"chunks", "lengths", "upload-lengths"}
 	// The file list is assumed not to be too large when fixed-size chunking is used
 	if chunkMaker.minimumChunkSize == chunkMaker.maximumChunkSize {
 		sequences = append(sequences, "files")
@@ -1635,6 +1678,12 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 		}
 
 		for _, chunkHash := range snapshot.LengthSequence {
+			if _, found := chunks[chunkHash]; !found {
+				chunks[chunkHash] = true
+			}
+		}
+
+		for _, chunkHash := range snapshot.UploadLengthSequence {
 			if _, found := chunks[chunkHash]; !found {
 				chunks[chunkHash] = true
 			}

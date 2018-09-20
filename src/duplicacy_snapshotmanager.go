@@ -343,6 +343,9 @@ func (manager *SnapshotManager) DownloadSnapshotSequence(snapshot *Snapshot, seq
 	if sequenceType == "lengths" {
 		sequence = snapshot.LengthSequence
 		loadFunc = snapshot.LoadLengths
+	} else if sequenceType == "upload-lengths" {
+		sequence = snapshot.UploadLengthSequence
+		loadFunc = snapshot.LoadUploadLengths
 	}
 
 	content := manager.DownloadSequence(sequence)
@@ -370,6 +373,9 @@ func (manager *SnapshotManager) DownloadSnapshotContents(snapshot *Snapshot, pat
 	manager.DownloadSnapshotFileSequence(snapshot, patterns, attributesNeeded)
 	manager.DownloadSnapshotSequence(snapshot, "chunks")
 	manager.DownloadSnapshotSequence(snapshot, "lengths")
+	if len(snapshot.UploadLengthSequence) > 0 {
+		manager.DownloadSnapshotSequence(snapshot, "upload-lengths")
+	}
 
 	err := manager.CheckSnapshot(snapshot)
 	if err != nil {
@@ -405,8 +411,8 @@ func (manager *SnapshotManager) CleanSnapshotCache(latestSnapshot *Snapshot, all
 	chunks := make(map[string]bool)
 
 	if latestSnapshot != nil {
-		for _, chunkID := range manager.GetSnapshotChunks(latestSnapshot, true) {
-			chunks[chunkID] = true
+		for _, chunk := range manager.GetSnapshotChunks(latestSnapshot, true) {
+			chunks[chunk.id] = true
 		}
 	}
 
@@ -615,20 +621,25 @@ func (manager *SnapshotManager) ListAllFiles(storage Storage, top string) (allFi
 	return allFiles, allSizes
 }
 
+type SnapshotChunk struct {
+	id string
+	uploadLength int
+}
+
 // GetSnapshotChunks returns all chunks referenced by a given snapshot. If
-// keepChunkHashes is true, snapshot.ChunkHashes will be populated.
-func (manager *SnapshotManager) GetSnapshotChunks(snapshot *Snapshot, keepChunkHashes bool) (chunks []string) {
+// keepChunkHashes is true, snapshot.ChunkHashes & snapshot.ChunkUploadLengths will be populated.
+func (manager *SnapshotManager) GetSnapshotChunks(snapshot *Snapshot, keepChunkHashes bool) (chunks []SnapshotChunk) {
 
 	for _, chunkHash := range snapshot.FileSequence {
-		chunks = append(chunks, manager.config.GetChunkIDFromHash(chunkHash))
+		chunks = append(chunks, SnapshotChunk{manager.config.GetChunkIDFromHash(chunkHash), -1})
 	}
 
 	for _, chunkHash := range snapshot.ChunkSequence {
-		chunks = append(chunks, manager.config.GetChunkIDFromHash(chunkHash))
+		chunks = append(chunks, SnapshotChunk{manager.config.GetChunkIDFromHash(chunkHash), -1})
 	}
 
 	for _, chunkHash := range snapshot.LengthSequence {
-		chunks = append(chunks, manager.config.GetChunkIDFromHash(chunkHash))
+		chunks = append(chunks, SnapshotChunk{manager.config.GetChunkIDFromHash(chunkHash), -1})
 	}
 
 	if len(snapshot.ChunkHashes) == 0 {
@@ -642,8 +653,31 @@ func (manager *SnapshotManager) GetSnapshotChunks(snapshot *Snapshot, keepChunkH
 		}
 	}
 
-	for _, chunkHash := range snapshot.ChunkHashes {
-		chunks = append(chunks, manager.config.GetChunkIDFromHash(chunkHash))
+	if len(snapshot.ChunkUploadLengths) == 0 {
+		if len(snapshot.UploadLengthSequence) > 0 {
+			description := manager.DownloadSequence(snapshot.UploadLengthSequence)
+			err := snapshot.LoadUploadLengths(description)
+			if err != nil {
+				LOG_ERROR("SNAPSHOT_CHUNK", "Failed to load chunk upload lengths for snapshot %s at revision %d: %v",
+					snapshot.ID, snapshot.Revision, err)
+				return nil
+			}
+		} else {
+			snapshot.ChunkUploadLengths = make([]int, len(snapshot.ChunkHashes))
+			for i, _ := range snapshot.ChunkUploadLengths { snapshot.ChunkUploadLengths[i] = -1 }
+		}
+	}
+
+	if len(snapshot.ChunkHashes) != len(snapshot.ChunkUploadLengths) {
+		LOG_ERROR("SNAPSHOT_CHUNK", "Number of hashes (%d) does not match number of lengths (%d) for snapshot %s at revision %d",
+			len(snapshot.ChunkHashes), len(snapshot.ChunkUploadLengths), snapshot.ID, snapshot.Revision)
+		return nil
+	}
+
+	for chunkIndex, chunkHash := range snapshot.ChunkHashes {
+		chunks = append(chunks, SnapshotChunk{
+			manager.config.GetChunkIDFromHash(chunkHash),
+			snapshot.ChunkUploadLengths[chunkIndex]})
 	}
 
 	if !keepChunkHashes {
@@ -736,14 +770,18 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 					}
 				}
 
-				metaChunks := len(snapshot.FileSequence) + len(snapshot.ChunkSequence) + len(snapshot.LengthSequence)
+				metaChunks := len(snapshot.FileSequence) + len(snapshot.ChunkSequence) + len(snapshot.LengthSequence) + len(snapshot.UploadLengthSequence)
 				LOG_INFO("SNAPSHOT_STATS", "Files: %d, total size: %d, file chunks: %d, metadata chunks: %d",
 					totalFiles, totalFileSize, lastChunk+1, metaChunks)
 			}
 
 			if showChunks {
-				for _, chunkID := range manager.GetSnapshotChunks(snapshot, false) {
-					LOG_INFO("SNAPSHOT_CHUNKS", "chunk: %s", chunkID)
+				for _, chunk := range manager.GetSnapshotChunks(snapshot, false) {
+					chunkStr := fmt.Sprintf("chunk: %s", chunk.id)
+					if chunk.uploadLength >= 0 {
+						chunkStr += fmt.Sprintf(" (%d bytes)", chunk.uploadLength)
+					}
+					LOG_INFO("SNAPSHOT_CHUNKS", "%s", chunkStr)
 				}
 			}
 
@@ -849,29 +887,32 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 				continue
 			}
 
-			chunks := make(map[string]bool)
-			for _, chunkID := range manager.GetSnapshotChunks(snapshot, false) {
-				chunks[chunkID] = true
-			}
-
+			invalidChunks := 0
 			missingChunks := 0
-			for chunkID, _ := range chunks {
+			for _, chunk := range manager.GetSnapshotChunks(snapshot, false) {
+				chunkSize, found := chunkSizeMap[chunk.id]
 
-				_, found := chunkSizeMap[chunkID]
-
-				if !found {
+				if found {
+					if chunk.uploadLength >= 0 && int(chunkSize) != chunk.uploadLength {
+						invalidChunks += 1
+						LOG_WARN("SNAPSHOT_VALIDATE",
+							"Chunk %s referenced by snapshot %s at revision %d expected size %d but actual is %d",
+							chunk.id, snapshotID, snapshot.Revision, chunk.uploadLength, chunkSize)
+						continue
+					}
+				} else {
 					if !searchFossils {
 						missingChunks += 1
 						LOG_WARN("SNAPSHOT_VALIDATE",
 							"Chunk %s referenced by snapshot %s at revision %d does not exist",
-							chunkID, snapshotID, snapshot.Revision)
+							chunk.id, snapshotID, snapshot.Revision)
 						continue
 					}
 
-					chunkPath, exist, size, err := manager.storage.FindChunk(0, chunkID, true)
+					chunkPath, exist, size, err := manager.storage.FindChunk(0, chunk.id, true)
 					if err != nil {
 						LOG_ERROR("SNAPSHOT_VALIDATE", "Failed to check the existence of chunk %s: %v",
-							chunkID, err)
+							chunk.id, err)
 						return false
 					}
 
@@ -879,37 +920,37 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 						missingChunks += 1
 						LOG_WARN("SNAPSHOT_VALIDATE",
 							"Chunk %s referenced by snapshot %s at revision %d does not exist",
-							chunkID, snapshotID, snapshot.Revision)
+							chunk.id, snapshotID, snapshot.Revision)
 						continue
 					}
 
 					if resurrect {
-						manager.resurrectChunk(chunkPath, chunkID)
+						manager.resurrectChunk(chunkPath, chunk.id)
 					} else {
 						LOG_WARN("SNAPSHOT_FOSSIL", "Chunk %s referenced by snapshot %s at revision %d "+
-							"has been marked as a fossil", chunkID, snapshotID, snapshot.Revision)
+							"has been marked as a fossil", chunk.id, snapshotID, snapshot.Revision)
 					}
 
-					chunkSizeMap[chunkID] = size
+					chunkSizeMap[chunk.id] = size
 				}
 
-				if unique, found := chunkUniqueMap[chunkID]; !found {
-					chunkUniqueMap[chunkID] = true
+				if unique, found := chunkUniqueMap[chunk.id]; !found {
+					chunkUniqueMap[chunk.id] = true
 				} else {
 					if unique {
-						chunkUniqueMap[chunkID] = false
+						chunkUniqueMap[chunk.id] = false
 					}
 				}
 
-				if previousSnapshotIDIndex, found := chunkSnapshotMap[chunkID]; !found {
-					chunkSnapshotMap[chunkID] = snapshotIDIndex
+				if previousSnapshotIDIndex, found := chunkSnapshotMap[chunk.id]; !found {
+					chunkSnapshotMap[chunk.id] = snapshotIDIndex
 				} else if previousSnapshotIDIndex != snapshotIDIndex && previousSnapshotIDIndex != -1 {
-					chunkSnapshotMap[chunkID] = -1
+					chunkSnapshotMap[chunk.id] = -1
 				}
 			}
 
-			if missingChunks > 0 {
-				LOG_WARN("SNAPSHOT_CHECK", "Some chunks referenced by snapshot %s at revision %d are missing",
+			if invalidChunks > 0 || missingChunks > 0 {
+				LOG_WARN("SNAPSHOT_CHECK", "Some chunks referenced by snapshot %s at revision %d are missing and/or invalid",
 					snapshotID, snapshot.Revision)
 				totalMissingChunks += missingChunks
 			} else {
@@ -945,9 +986,9 @@ func (manager *SnapshotManager) ShowStatistics(snapshotMap map[string][]*Snapsho
 		for _, snapshot := range snapshotList {
 
 			chunks := make(map[string]bool)
-			for _, chunkID := range manager.GetSnapshotChunks(snapshot, false) {
-				chunks[chunkID] = true
-				snapshotChunks[chunkID] = true
+			for _, chunk := range manager.GetSnapshotChunks(snapshot, false) {
+				chunks[chunk.id] = true
+				snapshotChunks[chunk.id] = true
 			}
 
 			var totalChunkSize int64
@@ -998,20 +1039,20 @@ func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string][]*
 		earliestSeenChunks := make(map[string]int)
 
 		for _, snapshot := range snapshotList {
-			for _, chunkID := range manager.GetSnapshotChunks(snapshot, true) {
-				if earliestSeenChunks[chunkID] == 0 {
-					earliestSeenChunks[chunkID] = math.MaxInt32
+			for _, chunk := range manager.GetSnapshotChunks(snapshot, true) {
+				if earliestSeenChunks[chunk.id] == 0 {
+					earliestSeenChunks[chunk.id] = math.MaxInt32
 				}
-				earliestSeenChunks[chunkID] = MinInt(earliestSeenChunks[chunkID], snapshot.Revision)
+				earliestSeenChunks[chunk.id] = MinInt(earliestSeenChunks[chunk.id], snapshot.Revision)
 			}
 		}
 
 		for _, snapshot := range snapshotList {
 
 			chunks := make(map[string]bool)
-			for _, chunkID := range manager.GetSnapshotChunks(snapshot, true) {
-				chunks[chunkID] = true
-				snapshotChunks[chunkID] = true
+			for _, chunk := range manager.GetSnapshotChunks(snapshot, true) {
+				chunks[chunk.id] = true
+				snapshotChunks[chunk.id] = true
 			}
 
 			var totalChunkSize int64
@@ -1090,9 +1131,11 @@ func (manager *SnapshotManager) PrintSnapshot(snapshot *Snapshot) bool {
 	object["file_sequence"] = manager.ConvertSequence(snapshot.FileSequence)
 	object["chunk_sequence"] = manager.ConvertSequence(snapshot.ChunkSequence)
 	object["length_sequence"] = manager.ConvertSequence(snapshot.LengthSequence)
+	object["upload_length_sequence"] = manager.ConvertSequence(snapshot.UploadLengthSequence)
 
 	object["chunks"] = manager.ConvertSequence(snapshot.ChunkHashes)
 	object["lengths"] = snapshot.ChunkLengths
+	object["upload-lengths"] = snapshot.ChunkUploadLengths
 
 	// By default the json serialization of a file entry contains the path in base64 format.  This is
 	// to convert every file entry into an object which include the path in a more readable format.
@@ -1825,7 +1868,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 				fmt.Fprintf(logFile, "Snapshot %s revision %d was created after collection %s\n", newSnapshot.ID, newSnapshot.Revision, collectionName)
 				LOG_INFO("PRUNE_NEWSNAPSHOT", "Snapshot %s revision %d was created after collection %s", newSnapshot.ID, newSnapshot.Revision, collectionName)
 				for _, chunk := range manager.GetSnapshotChunks(newSnapshot, false) {
-					newChunks[chunk] = true
+					newChunks[chunk.id] = true
 				}
 			}
 
@@ -2107,7 +2150,7 @@ func (manager *SnapshotManager) pruneSnapshotsNonExhaustive(allSnapshots map[str
 
 			for _, chunk := range chunks {
 				// The initial value is 'false'.  When a referenced chunk is found it will change the value to 'true'.
-				targetChunks[chunk] = false
+				targetChunks[chunk.id] = false
 			}
 		}
 	}
@@ -2121,8 +2164,8 @@ func (manager *SnapshotManager) pruneSnapshotsNonExhaustive(allSnapshots map[str
 			chunks := manager.GetSnapshotChunks(snapshot, false)
 
 			for _, chunk := range chunks {
-				if _, found := targetChunks[chunk]; found {
-					targetChunks[chunk] = true
+				if _, found := targetChunks[chunk.id]; found {
+					targetChunks[chunk.id] = true
 				}
 			}
 		}
@@ -2179,7 +2222,7 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[s
 
 			for _, chunk := range chunks {
 				// The initial value is 'false'.  When a referenced chunk is found it will change the value to 'true'.
-				referencedChunks[chunk] = false
+				referencedChunks[chunk.id] = false
 			}
 		}
 	}
