@@ -2081,7 +2081,7 @@ func (manager *SnapshotManager) pruneSnapshotsNonExhaustive(allSnapshots map[str
 				continue
 			}
 
-			LOG_INFO("SNAPSHOT_DELETE", "Deleting snapshot %s at revision %d", snapshot.ID, snapshot.Revision)
+			LOG_INFO("REVISION_DELETE", "Deleting revision %d of snapshot %s", snapshot.ID, snapshot.Revision)
 			chunks := manager.GetSnapshotChunks(snapshot, false)
 
 			for _, chunk := range chunks {
