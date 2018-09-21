@@ -536,6 +536,11 @@ func setPreference(context *cli.Context) {
 	
 	newPreference.NobackupFile = context.String("nobackup-file")
 
+	triBool = context.Generic("exclude-by-attribute").(*TriBool)
+	if triBool.IsSet() {
+		newPreference.ExcludeByAttribute = triBool.IsTrue()
+	}
+
 	key := context.String("key")
 	value := context.String("value")
 
@@ -717,7 +722,7 @@ func backupRepository(context *cli.Context) {
 	uploadRateLimit := context.Int("limit-rate")
 	enumOnly := context.Bool("enum-only")
 	storage.SetRateLimits(0, uploadRateLimit)
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile)
+	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.ExcludeByAttribute)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	backupManager.SetupSnapshotCache(preference.Name)
@@ -806,7 +811,7 @@ func restoreRepository(context *cli.Context) {
 	duplicacy.LOG_DEBUG("REGEX_DEBUG", "There are %d compiled regular expressions stored", len(duplicacy.RegexMap))
 
 	storage.SetRateLimits(context.Int("limit-rate"), 0)
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile)
+	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.ExcludeByAttribute)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	backupManager.SetupSnapshotCache(preference.Name)
@@ -846,7 +851,7 @@ func listSnapshots(context *cli.Context) {
 	tag := context.String("t")
 	revisions := getRevisions(context)
 
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile)
+	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.ExcludeByAttribute)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	id := preference.SnapshotID
@@ -894,7 +899,7 @@ func checkSnapshots(context *cli.Context) {
 	tag := context.String("t")
 	revisions := getRevisions(context)
 
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile)
+	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.ExcludeByAttribute)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	id := preference.SnapshotID
@@ -949,7 +954,7 @@ func printFile(context *cli.Context) {
 		snapshotID = context.String("id")
 	}
 
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile)
+	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.ExcludeByAttribute)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	backupManager.SetupSnapshotCache(preference.Name)
@@ -1005,11 +1010,11 @@ func diff(context *cli.Context) {
 	}
 
 	compareByHash := context.Bool("hash")
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile)
+	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.ExcludeByAttribute)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	backupManager.SetupSnapshotCache(preference.Name)
-	backupManager.SnapshotManager.Diff(repository, snapshotID, revisions, path, compareByHash, preference.NobackupFile)
+	backupManager.SnapshotManager.Diff(repository, snapshotID, revisions, path, compareByHash, preference.NobackupFile, preference.ExcludeByAttribute)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1048,7 +1053,7 @@ func showHistory(context *cli.Context) {
 
 	revisions := getRevisions(context)
 	showLocalHash := context.Bool("hash")
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile)
+	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.ExcludeByAttribute)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	backupManager.SetupSnapshotCache(preference.Name)
@@ -1111,7 +1116,7 @@ func pruneSnapshots(context *cli.Context) {
 		os.Exit(ArgumentExitCode)
 	}
 
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile)
+	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.ExcludeByAttribute)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	backupManager.SetupSnapshotCache(preference.Name)
@@ -1151,7 +1156,7 @@ func copySnapshots(context *cli.Context) {
 		sourcePassword = duplicacy.GetPassword(*source, "password", "Enter source storage password:", false, false)
 	}
 
-	sourceManager := duplicacy.CreateBackupManager(source.SnapshotID, sourceStorage, repository, sourcePassword, source.NobackupFile)
+	sourceManager := duplicacy.CreateBackupManager(source.SnapshotID, sourceStorage, repository, sourcePassword, source.NobackupFile, source.ExcludeByAttribute)
 	sourceManager.SetupSnapshotCache(source.Name)
 	duplicacy.SavePassword(*source, "password", sourcePassword)
 
@@ -1184,7 +1189,7 @@ func copySnapshots(context *cli.Context) {
 	destinationStorage.SetRateLimits(0, context.Int("upload-limit-rate"))
 
 	destinationManager := duplicacy.CreateBackupManager(destination.SnapshotID, destinationStorage, repository,
-		destinationPassword, destination.NobackupFile)
+		destinationPassword, destination.NobackupFile, destination.ExcludeByAttribute)
 	duplicacy.SavePassword(*destination, "password", destinationPassword)
 	destinationManager.SetupSnapshotCache(destination.Name)
 
@@ -1818,7 +1823,12 @@ func main() {
 					Name:  "nobackup-file",
 					Usage: "Directories containing a file with this name will not be backed up",
 					Argument: "<file name>",
-					Value:   "",
+				},
+				cli.GenericFlag{
+					Name:  "exclude-by-attribute",
+					Usage: "Exclude files based on file attributes. (macOS only, com_apple_backup_excludeItem)",
+					Value: &TriBool{},
+					Arg:   "true",
 				},
 				cli.StringFlag{
 					Name:  "key",

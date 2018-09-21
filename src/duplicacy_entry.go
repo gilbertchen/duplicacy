@@ -28,6 +28,29 @@ var fileModeMask = os.ModePerm | os.ModeSetuid | os.ModeSetgid | os.ModeSticky
 // Regex for matching 'StartChunk:StartOffset:EndChunk:EndOffset'
 var contentRegex = regexp.MustCompile(`^([0-9]+):([0-9]+):([0-9]+):([0-9]+)`)
 
+// AttributeExcludeName attribute name to determine file exclusion
+var AttributeExcludeName = getDefaultAttributeExcludeName()
+
+// AttributeExcludeValue attribute value to determine file exclusion
+var AttributeExcludeValue = getDefaultAttributeExcludeValue()
+
+func getDefaultAttributeExcludeName() string {
+	if runtime.GOOS == "darwin" {
+		return "com.apple.metadata:com_apple_backup_excludeItem"
+	}
+	if runtime.GOOS == "linux" {
+		return "duplicacy_exclude"
+	}
+	return ""
+}
+
+func getDefaultAttributeExcludeValue() string {
+	if runtime.GOOS == "darwin" {
+		return "com.apple.backupd"
+	}
+	return ""
+}
+
 // Entry encapsulates information about a file or directory.
 type Entry struct {
 	Path string
@@ -443,7 +466,7 @@ func (files FileInfoCompare) Less(i, j int) bool {
 
 // ListEntries returns a list of entries representing file and subdirectories under the directory 'path'.  Entry paths
 // are normalized as relative to 'top'.  'patterns' are used to exclude or include certain files.
-func ListEntries(top string, path string, fileList *[]*Entry, patterns []string, nobackupFile string, discardAttributes bool) (directoryList []*Entry,
+func ListEntries(top string, path string, fileList *[]*Entry, patterns []string, nobackupFile string, discardAttributes bool, excludeByAttribute bool) (directoryList []*Entry,
 	skippedFiles []string, err error) {
 
 	LOG_DEBUG("LIST_ENTRIES", "Listing %s", path)
@@ -519,6 +542,17 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 
 		if !discardAttributes {
 			entry.ReadAttributes(top)
+		}
+
+		if excludeByAttribute && (runtime.GOOS == "darwin" || runtime.GOOS == "linux") {
+			attrValue, ok := entry.Attributes[AttributeExcludeName]
+			if ok {
+				attrValueString := string(attrValue)
+				if strings.Contains(attrValueString, AttributeExcludeValue) {
+					LOG_WARN("LIST_NOBACKUPXATTR", "%s is excluded due to extended attribute: %s", entry.Path, AttributeExcludeName)
+					continue
+				}
+			}
 		}
 
 		if f.Mode()&(os.ModeNamedPipe|os.ModeSocket|os.ModeDevice) != 0 {
