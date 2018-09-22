@@ -163,7 +163,7 @@ func setEntryContent(entries []*Entry, chunkLengths []int, offset int) {
 // unmodified files with last backup).  Otherwise (or if this is the first backup), the entire repository will
 // be scanned to create the snapshot.  'tag' is the tag assigned to the new snapshot.
 func (manager *BackupManager) Backup(top string, quickMode bool, threads int, tag string,
-	showStatistics bool, shadowCopy bool, shadowCopyTimeout int, enumOnly bool) bool {
+	showStatistics bool, shadowCopy bool, shadowCopyTimeout int, enumOnly bool, check bool) bool {
 
 	var err error
 	top, err = filepath.Abs(top)
@@ -198,6 +198,22 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 		return true
 	}
 
+	gatherRemoteChunks := func(onChunkFunc func(chunkId string, uploadSize int64)) {
+		allChunks, allSizes := manager.SnapshotManager.ListAllFiles(manager.storage, "chunks/")
+		for chunkIndex, chunk := range allChunks {
+			if len(chunk) == 0 || chunk[len(chunk)-1] == '/' {
+				continue
+			}
+
+			if strings.HasSuffix(chunk, ".fsl") {
+				continue
+			}
+
+			chunkId := strings.Replace(chunk, "/", "", -1)
+			onChunkFunc(chunkId, allSizes[chunkIndex])
+		}
+	}
+
 	// This cache contains all chunks referenced by last snasphot. Any other chunks will lead to a call to
 	// UploadChunk.
 	var chunkCache = struct{
@@ -206,12 +222,15 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	}{m: make(map[string]SnapshotChunk)}
 
 	var incompleteSnapshot *Snapshot
+	var remoteChunkLengths map[string]int64
 
 	// A revision number of 0 means this is the initial backup
 	if remoteSnapshot.Revision > 0 {
 		// Add all chunks in the last snapshot to the cache
 		for _, chunk := range manager.SnapshotManager.GetSnapshotChunks(remoteSnapshot, true) {
-			chunkCache.m[chunk.id] = chunk
+			if chunk.uploadLength >= 0 {
+				chunkCache.m[chunk.id] = chunk
+			}
 		}
 	} else {
 
@@ -224,20 +243,10 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 		// put them in the cache.
 		if manager.storage.IsFastListing() || incompleteSnapshot != nil {
 			LOG_INFO("BACKUP_LIST", "Listing all chunks")
-			allChunks, allSizes := manager.SnapshotManager.ListAllFiles(manager.storage, "chunks/")
-
-			for chunkIndex, chunk := range allChunks {
-				if len(chunk) == 0 || chunk[len(chunk)-1] == '/' {
-					continue
-				}
-
-				if strings.HasSuffix(chunk, ".fsl") {
-					continue
-				}
-
-				chunk = strings.Replace(chunk, "/", "", -1)
-				chunkCache.m[chunk] = SnapshotChunk{chunk, int(allSizes[chunkIndex])}
-			}
+			gatherRemoteChunks(func(chunkId string, uploadSize int64) {
+				chunkCache.m[chunkId] = SnapshotChunk{chunkId, int(uploadSize)}
+				remoteChunkLengths[chunkId] = uploadSize
+			})
 		}
 
 		if incompleteSnapshot != nil {
@@ -301,17 +310,45 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 			totalModifiedFileSize += entry.Size
 		}
 	} else {
-		// @returns true if entry contains chunk upload lengths
-		hasUploadLengths := func(entry *Entry) bool {
+		// check remote chunks
+		if len(remoteChunkLengths) == 0 && check {
+			remoteChunkLengths = make(map[string]int64)
+			LOG_INFO("BACKUP_LIST", "Listing remote chunks")
+			gatherRemoteChunks(func(chunkId string, uploadSize int64) {
+				remoteChunkLengths[chunkId] = uploadSize
+			})
+		}
+
+		// @returns true if entry contains chunk valid upload lengths
+		verifyUploadLengths := func(entry *Entry) bool {
 			if len(remoteSnapshot.ChunkUploadLengths) == 0 {
 				return false
 			}
+
+			result := true
 			for i := entry.StartChunk; i <= entry.EndChunk; i++ {
-				if remoteSnapshot.ChunkUploadLengths[i] < 0  {
-					return false
+				chunkUploadLength := remoteSnapshot.ChunkUploadLengths[i]
+				if chunkUploadLength < 0  {
+					result = false
+					break
+				}
+
+				// verify remote lengths match
+				if len(remoteChunkLengths) > 0 {
+					chunkHash := remoteSnapshot.ChunkHashes[i]
+					chunkId := manager.config.GetChunkIDFromHash(chunkHash)
+					if remoteLength, ok := remoteChunkLengths[chunkId]; ok {
+						if chunkUploadLength >= 0 && chunkUploadLength != int(remoteLength) {
+							LOG_WARN("SNAPSHOT_VALIDATE",
+								"Chunk %s referenced by snapshot %s at revision %d expected size %d but actual is %d",
+								chunkId, remoteSnapshot.ID, remoteSnapshot.Revision, chunkUploadLength, remoteLength)
+							delete(chunkCache.m, chunkId)
+							result = false // and continue checking the remaining chunks
+						}
+					}
 				}
 			}
-			return true
+			return result
 		}
 
 		var i, j int
@@ -332,7 +369,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 			} else if remote = remoteSnapshot.Files[j]; !remote.IsFile() {
 				j++
 			} else if local.Path == remote.Path {
-				if local.IsSameAs(remote) && hasUploadLengths(remote) {
+				if local.IsSameAs(remote) && verifyUploadLengths(remote) {
 					local.Hash = remote.Hash
 					local.StartChunk = remote.StartChunk
 					local.StartOffset = remote.StartOffset

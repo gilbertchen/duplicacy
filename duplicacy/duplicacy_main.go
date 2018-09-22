@@ -713,6 +713,7 @@ func backupRepository(context *cli.Context) {
 	enableVSS := context.Bool("vss")
 	vssTimeout := context.Int("vss-timeout")
 
+	check := context.Bool("check")
 	dryRun := context.Bool("dry-run")
 	uploadRateLimit := context.Int("limit-rate")
 	enumOnly := context.Bool("enum-only")
@@ -722,7 +723,7 @@ func backupRepository(context *cli.Context) {
 
 	backupManager.SetupSnapshotCache(preference.Name)
 	backupManager.SetDryRun(dryRun)
-	backupManager.Backup(repository, quickMode, threads, context.String("t"), showStatistics, enableVSS, vssTimeout, enumOnly)
+	backupManager.Backup(repository, quickMode, threads, context.String("t"), showStatistics, enableVSS, vssTimeout, enumOnly, check)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1394,6 +1395,10 @@ func main() {
 					Value:    0,
 					Usage:    "the maximum upload rate (in kilobytes/sec)",
 					Argument: "<kB/s>",
+				},
+				cli.BoolFlag{
+					Name:  "check",
+					Usage: "check remote chunk lengths",
 				},
 				cli.BoolFlag{
 					Name:  "dry-run",

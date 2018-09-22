@@ -112,25 +112,25 @@ func (uploader *ChunkUploader) Upload(threadIndex int, task ChunkUploadTask) boo
 	}
 
 	// This returns the path the chunk file should be at.
-	chunkPath, exist, _, err := uploader.storage.FindChunk(threadIndex, chunkID, false)
+	chunkPath, exist, remoteSize, err := uploader.storage.FindChunk(threadIndex, chunkID, false)
 	if err != nil {
 		LOG_ERROR("UPLOAD_CHUNK", "Failed to find the path for the chunk %s: %v", chunkID, err)
 		return false
 	}
 
-	if exist {
-		// Chunk deduplication by name in effect here.
-		LOG_DEBUG("CHUNK_DUPLICATE", "Chunk %s already exists", chunkID)
-
-		uploader.completionFunc(chunk, task.chunkIndex, true, chunkSize, 0)
-		atomic.AddInt32(&uploader.numberOfUploadingTasks, -1)
-		return false
-	}
-
-	// Encrypt the chunk only after we know that it must be uploaded.
+	// Encrypt & compress the chunk so we know the chunk's upload size
 	err = chunk.Encrypt(uploader.config.ChunkKey, chunk.GetHash())
 	if err != nil {
 		LOG_ERROR("UPLOAD_CHUNK", "Failed to encrypt the chunk %s: %v", chunkID, err)
+		return false
+	}
+
+	if exist && chunk.GetLength() == int(remoteSize) {
+		// Chunk deduplication by name + size in effect here.
+		LOG_DEBUG("CHUNK_DUPLICATE", "Chunk %s already exists", chunkID)
+
+		uploader.completionFunc(chunk, task.chunkIndex, true, chunkSize, chunk.GetLength())
+		atomic.AddInt32(&uploader.numberOfUploadingTasks, -1)
 		return false
 	}
 
