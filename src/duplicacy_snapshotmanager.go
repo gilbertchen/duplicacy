@@ -642,6 +642,10 @@ func (manager *SnapshotManager) GetSnapshotChunks(snapshot *Snapshot, keepChunkH
 		chunks = append(chunks, SnapshotChunk{manager.config.GetChunkIDFromHash(chunkHash), -1})
 	}
 
+	for _, chunkHash := range snapshot.UploadLengthSequence {
+		chunks = append(chunks, SnapshotChunk{manager.config.GetChunkIDFromHash(chunkHash), -1})
+	}
+
 	if len(snapshot.ChunkHashes) == 0 {
 
 		description := manager.DownloadSequence(snapshot.ChunkSequence)
