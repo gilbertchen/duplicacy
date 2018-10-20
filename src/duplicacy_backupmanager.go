@@ -345,6 +345,12 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 							delete(chunkCache.m, chunkId)
 							result = false // and continue checking the remaining chunks
 						}
+					} else {
+						LOG_WARN("SNAPSHOT_VALIDATE",
+							"Chunk %s referenced by snapshot %s at revision %d is missing",
+							chunkId, remoteSnapshot.ID, remoteSnapshot.Revision)
+						delete(chunkCache.m, chunkId)
+						result = false // and continue checking the remaining chunks
 					}
 				}
 			}
