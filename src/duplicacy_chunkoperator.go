@@ -136,7 +136,7 @@ func (operator *ChunkOperator) Run(threadIndex int, task ChunkOperatorTask) {
 					operator.fossils = append(operator.fossils, fossilPath)
 					operator.fossilsLock.Unlock()
 				} else {
-					LOG_ERROR("CHUNK_FIND", "Chunk %s does not exist in the storage", task.chunkID)
+					LOG_WARN("CHUNK_FIND", "Chunk %s does not exist in the storage", task.chunkID)
 				}
 				return
 			}
