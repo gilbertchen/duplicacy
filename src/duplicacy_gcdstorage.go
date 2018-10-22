@@ -390,7 +390,7 @@ func (storage *GCDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 			subDirs = append(subDirs, file.Name + "/")
 		}
 		return subDirs, nil, nil
-	} else if strings.HasPrefix(dir, "snapshots/") {
+	} else if strings.HasPrefix(dir, "snapshots/") || strings.HasPrefix(dir, "benchmark") {
 		pathID, err := storage.getIDFromPath(threadIndex, dir, false)
 		if err != nil {
 			return nil, nil, err
