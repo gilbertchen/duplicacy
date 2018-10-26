@@ -386,7 +386,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	// is the last file.
 	fileReader := CreateFileReader(shadowTop, modifiedEntries)
 
-	startUploadingTime := time.Now().Unix()
+	//startUploadingTime := time.Now().Unix()
 
 	lastUploadingTime := time.Now().Unix()
 
