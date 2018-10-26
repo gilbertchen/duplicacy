@@ -164,7 +164,7 @@ func setEntryContent(entries []*Entry, chunkLengths []int, offset int) {
 // be scanned to create the snapshot.  'tag' is the tag assigned to the new snapshot.
 func (manager *BackupManager) Backup(top string, quickMode bool, threads int, tag string,
 	showStatistics bool, shadowCopy bool, shadowCopyTimeout int, enumOnly bool) bool {
-	windowedRate := NewWindowedRate(150)
+	windowedRate := NewWindowedRate(100)
 
 	var err error
 	top, err = filepath.Abs(top)
