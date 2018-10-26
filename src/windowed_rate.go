@@ -5,8 +5,8 @@ import (
 )
 
 type ratePair struct {
-	instant time.Time
-	value   int
+	insertedTime time.Time
+	value        int64
 }
 
 type WindowedRate struct {
@@ -24,14 +24,14 @@ func NewWindowedRate(arrayCapacity int) WindowedRate {
 	rpm.values = make([]ratePair, arrayCapacity)
 
 	for i := 0; i < arrayCapacity; i++ {
-		rpm.values[i].instant = time.Now()
+		rpm.values[i].insertedTime = time.Now()
 	}
 
 	return rpm
 }
 
 //noinspection GoUnusedExportedFunction,GoUnusedParameter
-func (rpm *WindowedRate) InsertValue(value int) {
+func (rpm *WindowedRate) InsertValue(value int64) {
 	rpm.insertIndex = (rpm.insertIndex + 1) % rpm.arrayCapacity
 	if rpm.arraySize < rpm.arrayCapacity {
 		rpm.arraySize++
@@ -41,24 +41,25 @@ func (rpm *WindowedRate) InsertValue(value int) {
 }
 
 //noinspection GoUnusedExportedFunction,GoUnusedVariable
-func (rpm WindowedRate) ComputeAverage() float64 {
-	latestEntry := rpm.values[rpm.insertIndex].instant
+func (rpm WindowedRate) ComputeAverage() int64 {
+	latestEntry := rpm.values[rpm.insertIndex].insertedTime
 
-	earliestEntry := rpm.values[0].instant // this handles the case rpm.arraySize < rpm.arrayCapacity
+	firstEntry := rpm.values[0].insertedTime // this handles the case rpm.arraySize < rpm.arrayCapacity
 	if rpm.arraySize == rpm.arrayCapacity {
-		earliestEntry = rpm.values[(rpm.insertIndex+1)%rpm.arrayCapacity].instant
+		firstEntry = rpm.values[(rpm.insertIndex+1)%rpm.arrayCapacity].insertedTime
 	}
 
-	sum := 0
+	sum := int64(0)
 	for i := 0; i < rpm.arraySize; i++ {
 		sum += rpm.values[i].value
 	}
+	totalTransferred := sum / int64(rpm.arraySize)
 
-	duration := latestEntry.Unix() - earliestEntry.Unix()
+	duration := latestEntry.Unix() - firstEntry.Unix()
 	if duration == 0 {
 		duration = 1
 	}
 
-	avg := float64(sum) / float64(duration)
+	avg := totalTransferred / duration
 	return avg
 }
