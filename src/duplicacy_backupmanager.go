@@ -33,7 +33,7 @@ type BackupManager struct {
 	snapshotCache   *FileStorage     // for copies of chunks needed by snapshots
 
 	config *Config // contains a number of options
-	
+
 	nobackupFile string // don't backup directory when this file name is found
 }
 
@@ -65,7 +65,7 @@ func CreateBackupManager(snapshotID string, storage Storage, top string, passwor
 		SnapshotManager: snapshotManager,
 
 		config: config,
-		
+
 		nobackupFile: nobackupFile,
 	}
 
@@ -164,6 +164,7 @@ func setEntryContent(entries []*Entry, chunkLengths []int, offset int) {
 // be scanned to create the snapshot.  'tag' is the tag assigned to the new snapshot.
 func (manager *BackupManager) Backup(top string, quickMode bool, threads int, tag string,
 	showStatistics bool, shadowCopy bool, shadowCopyTimeout int, enumOnly bool) bool {
+	windowedRate := NewWindowedRate(1000)
 
 	var err error
 	top, err = filepath.Abs(top)
@@ -473,11 +474,8 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 			uploadedModifiedFileSize := atomic.AddInt64(&uploadedModifiedFileSize, int64(chunkSize))
 
 			if (IsTracing() || showStatistics) && totalModifiedFileSize > 0 {
-				now := time.Now().Unix()
-				if now <= startUploadingTime {
-					now = startUploadingTime + 1
-				}
-				speed := uploadedModifiedFileSize / (now - startUploadingTime)
+				windowedRate.InsertValue(uploadedModifiedFileSize)
+				speed := windowedRate.ComputeAverage()
 				remainingTime := int64(0)
 				if speed > 0 {
 					remainingTime = (totalModifiedFileSize-uploadedModifiedFileSize)/speed + 1
@@ -485,6 +483,19 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 				percentage := float32(uploadedModifiedFileSize * 1000 / totalModifiedFileSize)
 				LOG_INFO("UPLOAD_PROGRESS", "%s chunk %d size %d, %sB/s %s %.1f%%", action, chunkIndex,
 					chunkSize, PrettySize(speed), PrettyTime(remainingTime), percentage/10)
+
+				//now := time.Now().Unix()
+				//if now <= startUploadingTime {
+				//	now = startUploadingTime + 1
+				//}
+				//speed := uploadedModifiedFileSize / (now - startUploadingTime)
+				//remainingTime := int64(0)
+				//if speed > 0 {
+				//	remainingTime = (totalModifiedFileSize-uploadedModifiedFileSize)/speed + 1
+				//}
+				//percentage := float32(uploadedModifiedFileSize * 1000 / totalModifiedFileSize)
+				//LOG_INFO("UPLOAD_PROGRESS", "%s chunk %d size %d, %sB/s %s %.1f%%", action, chunkIndex,
+				//	chunkSize, PrettySize(speed), PrettyTime(remainingTime), percentage/10)
 			}
 
 			atomic.AddInt64(&numberOfCollectedChunks, 1)
@@ -1323,7 +1334,6 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 			return false
 		}
 	}
-
 
 	for i := entry.StartChunk; i <= entry.EndChunk; i++ {
 		if _, found := offsetMap[chunkDownloader.taskList[i].chunkHash]; !found {
