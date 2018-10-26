@@ -60,27 +60,16 @@ It handles the case where the array was not filled completely
 (we are early in the upload)
 */
 func (rpm WindowedRate) ComputeAverage() int64 {
-	latestEntry := rpm.values[rpm.insertIndex].insertedTime
+	latestEntry := rpm.values[rpm.insertIndex]
 
-	firstEntry := rpm.values[0].insertedTime // this handles the case rpm.arraySize < rpm.arrayCapacity
+	firstEntry := rpm.values[0] // this handles the case rpm.arraySize < rpm.arrayCapacity
 	if rpm.arraySize == rpm.arrayCapacity {
-		firstEntry = rpm.values[(rpm.insertIndex+1)%rpm.arrayCapacity].insertedTime
+		firstEntry = rpm.values[(rpm.insertIndex+1)%rpm.arrayCapacity]
 	}
 
-	/**
-	The sum is used to smooth-out random reansfer rate outliers
-	eg.:
-	- previous last and last transfer speeds: 100 MB, 120MB (so 20 MB transferred)
-	- current transfer: 120.1MB (so 0.1 MB transferred)
-	=> if the smoothing would not be applied, there would be a higher drop in transfer speed displayed
-	*/
-	sum := int64(0)
-	for i := 0; i < rpm.arraySize; i++ {
-		sum += rpm.values[i].value
-	}
-	totalTransferred := sum / int64(rpm.arraySize)
+	totalTransferred := latestEntry.value - firstEntry.value
 
-	duration := latestEntry.Unix() - firstEntry.Unix()
+	duration := latestEntry.insertedTime.Unix() - firstEntry.insertedTime.Unix()
 	if duration == 0 {
 		duration = 1
 	}
