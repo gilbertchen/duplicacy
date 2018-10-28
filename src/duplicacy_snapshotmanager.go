@@ -31,7 +31,6 @@ const (
 
 // FossilCollection contains fossils and temporary files found during a snapshot deletions.
 type FossilCollection struct {
-
 	// At what time the fossil collection was finished
 	EndTime int64 `json:"end_time"`
 
@@ -57,7 +56,7 @@ func CreateFossilCollection(allSnapshots map[string][]*Snapshot) *FossilCollecti
 	}
 
 	return &FossilCollection{
-		LastRevisions: lastRevisions,
+		LastRevisions:    lastRevisions,
 		DeletedRevisions: make(map[string][]int),
 	}
 }
@@ -182,7 +181,6 @@ func getDaysBetween(start int64, end int64) int {
 
 // SnapshotManager is mainly responsible for downloading, and deleting snapshots.
 type SnapshotManager struct {
-
 	// These are variables shared with the backup manager
 	config        *Config
 	storage       Storage
@@ -2200,7 +2198,7 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[s
 						continue
 					}
 
-					manager.chunkOperator.Resurrect(chunk, chunkDir + file)
+					manager.chunkOperator.Resurrect(chunk, chunkDir+file)
 					fmt.Fprintf(logFile, "Found referenced fossil %s\n", file)
 
 				} else {
@@ -2211,7 +2209,7 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[s
 					}
 
 					if exclusive {
-						manager.chunkOperator.Delete(chunk, chunkDir + file)
+						manager.chunkOperator.Delete(chunk, chunkDir+file)
 					} else {
 						collection.AddFossil(chunkDir + file)
 						LOG_DEBUG("FOSSIL_FIND", "Found unreferenced fossil %s", file)
@@ -2388,7 +2386,7 @@ func (manager *SnapshotManager) DownloadFile(path string, derivationKey string) 
 	}
 
 	if len(derivationKey) > 64 {
-		derivationKey = derivationKey[len(derivationKey) - 64:]
+		derivationKey = derivationKey[len(derivationKey)-64:]
 	}
 
 	err = manager.fileChunk.Decrypt(manager.config.FileKey, derivationKey)
@@ -2422,7 +2420,7 @@ func (manager *SnapshotManager) UploadFile(path string, derivationKey string, co
 	}
 
 	if len(derivationKey) > 64 {
-		derivationKey = derivationKey[len(derivationKey) - 64:]
+		derivationKey = derivationKey[len(derivationKey)-64:]
 	}
 
 	err := manager.fileChunk.Encrypt(manager.config.FileKey, derivationKey)
