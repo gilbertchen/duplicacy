@@ -816,11 +816,28 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 
 		for _, revision := range revisions {
 			snapshot := manager.DownloadSnapshot(snapshotID, revision)
-			snapshotMap[snapshotID] = append(snapshotMap[snapshotID], snapshot)
-
 			if tag != "" && snapshot.Tag != tag {
 				continue
 			}
+			snapshotMap[snapshotID] = append(snapshotMap[snapshotID], snapshot)
+		}
+	}
+
+	totalRevisions := 0
+	for _, snapshotList := range snapshotMap {
+		totalRevisions += len(snapshotList)
+	}
+	LOG_INFO("SNAPSHOT_CHECK", "%d snapshots and %d revisions", len(snapshotMap), totalRevisions)
+
+	var totalChunkSize int64
+	for _, size := range chunkSizeMap {
+		totalChunkSize += size
+	}
+	LOG_INFO("SNAPSHOT_CHECK", "Total chunk size is %s in %d chunks", PrettyNumber(totalChunkSize), len(chunkSizeMap))
+
+	for snapshotID, _ = range snapshotMap {
+
+		for _, snapshot := range snapshotMap[snapshotID] {
 
 			if checkFiles {
 				manager.DownloadSnapshotContents(snapshot, nil, false)
@@ -843,7 +860,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 						missingChunks += 1
 						LOG_WARN("SNAPSHOT_VALIDATE",
 							"Chunk %s referenced by snapshot %s at revision %d does not exist",
-							chunkID, snapshotID, revision)
+							chunkID, snapshotID, snapshot.Revision)
 						continue
 					}
 
@@ -858,7 +875,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 						missingChunks += 1
 						LOG_WARN("SNAPSHOT_VALIDATE",
 							"Chunk %s referenced by snapshot %s at revision %d does not exist",
-							chunkID, snapshotID, revision)
+							chunkID, snapshotID, snapshot.Revision)
 						continue
 					}
 
@@ -866,7 +883,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 						manager.resurrectChunk(chunkPath, chunkID)
 					} else {
 						LOG_WARN("SNAPSHOT_FOSSIL", "Chunk %s referenced by snapshot %s at revision %d "+
-							"has been marked as a fossil", chunkID, snapshotID, revision)
+							"has been marked as a fossil", chunkID, snapshotID, snapshot.Revision)
 					}
 
 					chunkSizeMap[chunkID] = size
@@ -889,11 +906,11 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 
 			if missingChunks > 0 {
 				LOG_WARN("SNAPSHOT_CHECK", "Some chunks referenced by snapshot %s at revision %d are missing",
-					snapshotID, revision)
+					snapshotID, snapshot.Revision)
 				totalMissingChunks += missingChunks
 			} else {
 				LOG_INFO("SNAPSHOT_CHECK", "All chunks referenced by snapshot %s at revision %d exist",
-					snapshotID, revision)
+					snapshotID, snapshot.Revision)
 			}
 		}
 
