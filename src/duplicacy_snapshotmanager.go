@@ -689,6 +689,9 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 		for _, revision := range revisions {
 
 			snapshot := manager.DownloadSnapshot(snapshotID, revision)
+			if tag != "" && snapshot.Tag != tag {
+				continue
+			}
 			creationTime := time.Unix(snapshot.StartTime, 0).Format("2006-01-02 15:04")
 			tagWithSpace := ""
 			if len(snapshot.Tag) > 0 {
@@ -696,10 +699,6 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 			}
 			LOG_INFO("SNAPSHOT_INFO", "Snapshot %s revision %d created at %s %s%s",
 				snapshotID, revision, creationTime, tagWithSpace, snapshot.Options)
-
-			if tag != "" && snapshot.Tag != tag {
-				continue
-			}
 
 			if showFiles {
 				manager.DownloadSnapshotFileSequence(snapshot, nil, false)
