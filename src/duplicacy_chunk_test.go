@@ -22,6 +22,8 @@ func TestChunk(t *testing.T) {
 	config.CompressionLevel = DEFAULT_COMPRESSION_LEVEL
 	maxSize := 1000000
 
+	remainderLength := -1
+
 	for i := 0; i < 500; i++ {
 
 		size := rand.Int() % maxSize
@@ -43,6 +45,12 @@ func TestChunk(t *testing.T) {
 
 		encryptedData := make([]byte, chunk.GetLength())
 		copy(encryptedData, chunk.GetBytes())
+
+		if remainderLength == -1 {
+			remainderLength = len(encryptedData) % 256
+		} else if len(encryptedData) % 256 != remainderLength {
+			t.Errorf("Incorrect padding size")
+		}
 
 		chunk.Reset(false)
 		chunk.Write(encryptedData)

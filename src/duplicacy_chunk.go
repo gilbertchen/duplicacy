@@ -250,10 +250,7 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err err
 	// PKCS7 is used.  Compressed chunk sizes leaks information about the original chunks so we want the padding sizes
 	// to be the maximum allowed by PKCS7
 	dataLength := encryptedBuffer.Len() - offset
-	paddingLength := dataLength % 256
-	if paddingLength == 0 {
-		paddingLength = 256
-	}
+	paddingLength := 256 - dataLength % 256
 
 	encryptedBuffer.Write(bytes.Repeat([]byte{byte(paddingLength)}, paddingLength))
 	encryptedBuffer.Write(bytes.Repeat([]byte{0}, gcm.Overhead()))
