@@ -705,6 +705,11 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 			}
 
 			if showFiles {
+
+				if snapshot.NumberOfFiles > 0 {
+					LOG_INFO("SNAPSHOT_STATS", "Files: %d", snapshot.NumberOfFiles)
+				}
+
 				maxSize := int64(9)
 				maxSizeDigits := 1
 				totalFiles := 0
