@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -68,44 +69,15 @@ func CreateSnapshotFromDirectory(id string, top string, nobackupFile string) (sn
 
 	var patterns []string
 
-	patternFile, err := ioutil.ReadFile(path.Join(GetDuplicacyPreferencePath(), "filters"))
-	if err == nil {
-		for _, pattern := range strings.Split(string(patternFile), "\n") {
-			pattern = strings.TrimSpace(pattern)
-			if len(pattern) == 0 {
-				continue
-			}
+	patterns = ProcessFilterFile(path.Join(GetDuplicacyPreferencePath(), "filters"), make([]string, 0))
 
-			if pattern[0] == '#' {
-				continue
-			}
+	LOG_DEBUG("REGEX_DEBUG", "There are %d compiled regular expressions stored", len(RegexMap))
 
-			if IsUnspecifiedFilter(pattern) {
-				pattern = "+" + pattern
-			}
+	LOG_INFO("SNAPSHOT_FILTER", "Loaded %d include/exclude pattern(s)", len(patterns))
 
-			if IsEmptyFilter(pattern) {
-				continue
-			}
-
-			if strings.HasPrefix(pattern, "i:") || strings.HasPrefix(pattern, "e:") {
-				valid, err := IsValidRegex(pattern[2:])
-				if !valid || err != nil {
-					LOG_ERROR("SNAPSHOT_FILTER", "Invalid regular expression encountered for filter: \"%s\", error: %v", pattern, err)
-				}
-			}
-
-			patterns = append(patterns, pattern)
-		}
-
-		LOG_DEBUG("REGEX_DEBUG", "There are %d compiled regular expressions stored", len(RegexMap))
-
-		LOG_INFO("SNAPSHOT_FILTER", "Loaded %d include/exclude pattern(s)", len(patterns))
-
-		if IsTracing() {
-			for _, pattern := range patterns {
-				LOG_TRACE("SNAPSHOT_PATTERN", "Pattern: %s", pattern)
-			}
+	if IsTracing() {
+		for _, pattern := range patterns {
+			LOG_TRACE("SNAPSHOT_PATTERN", "Pattern: %s", pattern)
 		}
 
 	}
@@ -148,6 +120,59 @@ func CreateSnapshotFromDirectory(id string, top string, nobackupFile string) (sn
 	snapshot.Files = snapshot.Files[1:]
 
 	return snapshot, skippedDirectories, skippedFiles, nil
+}
+
+func ProcessFilterFile(patternFile string, includedFiles []string) (patterns []string) {
+	if Contains(includedFiles, patternFile) {
+		// cycle in include mechanism discovered.
+		LOG_WARN("SNAPSHOT_FILTER", "Cycle in filter includes: %s", strings.Join(includedFiles, " => "))
+		return patterns
+	}
+	includedFiles = append(includedFiles, patternFile)
+	LOG_INFO("SNAPSHOT_FILTER", "Parsing filter file %s ...", patternFile)
+	patternFileContent, err := ioutil.ReadFile(patternFile)
+	if err == nil {
+		for _, pattern := range strings.Split(string(patternFileContent), "\n") {
+			pattern = strings.TrimSpace(pattern)
+			if len(pattern) == 0 {
+				continue
+			}
+
+			if strings.HasPrefix(pattern, "@") {
+				patternIncludeFile := strings.TrimSpace(pattern[1:])
+				if ! filepath.IsAbs(patternIncludeFile) {
+					patternIncludeFile = joinPath(filepath.Dir(patternFile), patternIncludeFile)
+				}
+				for _, pattern := range ProcessFilterFile(patternIncludeFile, includedFiles) {
+					patterns = append(patterns, pattern)
+				}
+				continue
+			}
+
+			if pattern[0] == '#' {
+				continue
+			}
+
+			if IsUnspecifiedFilter(pattern) {
+				pattern = "+" + pattern
+			}
+
+			if IsEmptyFilter(pattern) {
+				continue
+			}
+
+			if strings.HasPrefix(pattern, "i:") || strings.HasPrefix(pattern, "e:") {
+				valid, err := IsValidRegex(pattern[2:])
+				if !valid || err != nil {
+					LOG_ERROR("SNAPSHOT_FILTER", "Invalid regular expression encountered for filter: \"%s\", error: %v", pattern, err)
+				}
+			}
+
+			patterns = append(patterns, pattern)
+		}
+	}
+
+	return patterns
 }
 
 // This is the struct used to save/load incomplete snapshots
