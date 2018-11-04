@@ -784,26 +784,16 @@ func restoreRepository(context *cli.Context) {
 			pattern = pattern[1:]
 		}
 
-		if duplicacy.IsUnspecifiedFilter(pattern) {
-			pattern = "+" + pattern
-		}
-
-		if duplicacy.IsEmptyFilter(pattern) {
-			continue
-		}
-
-		if strings.HasPrefix(pattern, "i:") || strings.HasPrefix(pattern, "e:") {
-			valid, err := duplicacy.IsValidRegex(pattern[2:])
-			if !valid || err != nil {
-				duplicacy.LOG_ERROR("SNAPSHOT_FILTER", "Invalid regular expression encountered for filter: \"%s\", error: %v", pattern, err)
-			}
-		}
-
 		patterns = append(patterns, pattern)
 
+	
+
 	}
+	patterns = duplicacy.ProcessFilterLines(patterns, make([]string, 0))
 
 	duplicacy.LOG_DEBUG("REGEX_DEBUG", "There are %d compiled regular expressions stored", len(duplicacy.RegexMap))
+
+	duplicacy.LOG_INFO("SNAPSHOT_FILTER", "Loaded %d include/exclude pattern(s)", len(patterns))
 
 	storage.SetRateLimits(context.Int("limit-rate"), 0)
 	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile)
