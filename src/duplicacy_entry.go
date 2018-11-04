@@ -481,9 +481,6 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 	entries := make([]*Entry, 0, 4)
 
 	for _, f := range files {
-		if (f.Name() == DUPLICACY_DIRECTORY) && (nobackupFile == "") {
-			continue
-		}
 		entry := CreateEntryFromFileInfo(f, normalizedPath)
 		if len(patterns) > 0 && !MatchPath(entry.Path, patterns) {
 			continue
