@@ -12,7 +12,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -123,17 +122,7 @@ func AppendPattern(patterns []string, new_pattern string) (new_patterns []string
 	return new_patterns
 }
 func ProcessFilters() (patterns []string) {
-	patternFileLines := []string{
-		`# ============================ exclude the internal files and directories in all ".duplicacy" subfolders`,
-		`e:(?i)(^|/)` + regexp.QuoteMeta(DUPLICACY_DIRECTORY) + `/cache/`,
-		`e:(?i)(^|/)` + regexp.QuoteMeta(DUPLICACY_DIRECTORY) + `/temporary$`,
-		`# ============================ exclude the internal files and directories in toplevel ".duplicacy" subfolder`,
-		`e:(?i)^` + regexp.QuoteMeta(DUPLICACY_DIRECTORY) + `/incomplete$`,
-		`e:(?i)^` + regexp.QuoteMeta(DUPLICACY_DIRECTORY) + `/logs/`,
-		"@" + joinPath(GetDuplicacyPreferencePath(), "filters"),
-		}
-	LOG_DEBUG("SNAPSHOT_FILTER", "Adding standard filters ...")
-	patterns = ProcessFilterLines(patternFileLines, make([]string, 0))
+	patterns = ProcessFilterFile(joinPath(GetDuplicacyPreferencePath(), "filters"), make([]string, 0))
 
 	LOG_DEBUG("REGEX_DEBUG", "There are %d compiled regular expressions stored", len(RegexMap))
 
