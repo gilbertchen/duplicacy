@@ -80,12 +80,12 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		return storage, err
 	} else if testStorageName == "s3" {
 		storage, err := CreateS3Storage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads, true, false)
-		return storage, err
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
+		return storage, err
 	} else if testStorageName == "wasabi" {
 		storage, err := CreateWasabiStorage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads)
-		return storage, err
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
+		return storage, err
 	} else if testStorageName == "s3c" {
 		storage, err := CreateS3CStorage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
@@ -153,10 +153,7 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		}
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else {
-		return nil, fmt.Errorf("Invalid storage named: %s", testStorageName)
 	}
-
 	return nil, fmt.Errorf("Invalid storage named: %s", testStorageName)
 }
 

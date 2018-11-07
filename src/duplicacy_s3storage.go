@@ -237,8 +237,6 @@ func (storage *S3Storage) UploadFile(threadIndex int, filePath string, content [
 		LOG_INFO("S3_RETRY", "Retrying on %s: %v", reflect.TypeOf(err), err)
 		attempts += 1
 	}
-
-	return err
 }
 
 // If a local snapshot cache is needed for the storage to avoid downloading/uploading chunks too often when
