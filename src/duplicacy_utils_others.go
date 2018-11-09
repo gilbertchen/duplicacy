@@ -9,6 +9,7 @@ package duplicacy
 import (
 	"bytes"
 	"os"
+	"path"
 	"path/filepath"
 	"syscall"
 
@@ -82,4 +83,8 @@ func (entry *Entry) SetAttributesToFile(fullPath string) {
 		xattr.Setxattr(fullPath, name, attribute)
 	}
 
+}
+
+func joinPath(components ...string) string {
+	return path.Join(components...)
 }
