@@ -291,6 +291,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 
 		// If ssh_key_file is set, skip password-based login
 		keyFile := GetPasswordFromPreference(preference, "ssh_key_file")
+		passphrase := ""
 
 		password := ""
 		passwordCallback := func() (string, error) {
@@ -348,7 +349,20 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 				} else {
 					key, err = ssh.ParsePrivateKey(content)
 					if err != nil {
-						LOG_INFO("SSH_PUBLICKEY", "Failed to parse the private key file %s: %v", keyFile, err)
+						if strings.Contains(err.Error(), "cannot decode encrypted private keys") {
+							LOG_TRACE("SSH_PUBLICKEY", "The private key file is encrypted")
+							passphrase = GetPassword(preference, "ssh_passphrase", "Enter the passphrase to decrypt the private key file:", false, resetPassword)
+							if len(passphrase) == 0 {
+								LOG_INFO("SSH_PUBLICKEY", "No passphrase to descrypt the private key file %s", keyFile)
+							} else {
+								key, err = ssh.ParsePrivateKeyWithPassphrase(content, []byte(passphrase))
+								if err != nil {
+									LOG_INFO("SSH_PUBLICKEY", "Failed to parse the encrypted private key file %s: %v", keyFile, err)
+								}
+							}
+						} else {
+							LOG_INFO("SSH_PUBLICKEY", "Failed to parse the private key file %s: %v", keyFile, err)
+						}
 					}
 				}
 			}
@@ -410,6 +424,9 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 
 		if keyFile != "" {
 			SavePassword(preference, "ssh_key_file", keyFile)
+			if passphrase != "" {
+				SavePassword(preference, "ssh_passphrase", passphrase)
+			}
 		} else if password != "" {
 			SavePassword(preference, "ssh_password", password)
 		}
