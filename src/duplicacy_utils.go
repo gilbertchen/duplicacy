@@ -10,10 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
-	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -388,19 +385,6 @@ func MatchPath(filePath string, patterns []string) (included bool) {
 		LOG_DEBUG("PATTERN_INCLUDE", "%s is included", filePath)
 		return true
 	}
-}
-
-func joinPath(components ...string) string {
-
-	combinedPath := path.Join(components...)
-	if len(combinedPath) > 257 && runtime.GOOS == "windows" {
-		combinedPath = `\\?\` + filepath.Join(components...)
-		// If the path is on a samba drive we must use the UNC format
-		if strings.HasPrefix(combinedPath, `\\?\\\`) {
-			combinedPath = `\\?\UNC\` + combinedPath[6:]
-		}
-	}
-	return combinedPath
 }
 
 func PrettyNumber(number int64) string {
