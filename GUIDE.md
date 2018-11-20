@@ -1,4 +1,4 @@
-All documentation has been moved to our wiki page:
+All documentation has been moved to our [wiki page](https://forum.duplicacy.com/t/duplicacy-user-guide/1197):
 
 * Commands
     * [init](https://github.com/gilbertchen/duplicacy/wiki/init)
