@@ -288,7 +288,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	var modifiedEntries []*Entry  // Files that has been modified or newly created
 	var preservedEntries []*Entry // Files unchanges
 
-	// If the quick mode is disable and there isn't an incomplete snapshot from last (failed) backup,
+	// If the quick mode is disabled and there isn't an incomplete snapshot from last (failed) backup,
 	// we simply treat all files as if they were new, and break them into chunks.
 	// Otherwise, we need to find those that are new or recently modified
 
