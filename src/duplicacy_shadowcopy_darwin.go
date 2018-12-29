@@ -25,7 +25,7 @@ var snapshotDate string
 func CharsToString(ca []int8) string {
 
 	len := len(ca)
-	ba := make([]byte, len) 
+	ba := make([]byte, len)
 
 	for i, v := range ca {
 		ba[i] = byte(v)
@@ -54,8 +54,8 @@ func GetPathDeviceId(path string) (deviceId int32, err error) {
 // Executes shell command with timeout and returns stdout
 func CommandWithTimeout(timeoutInSeconds int, name string, arg ...string) (output string, err error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutInSeconds) * time.Second)
-	defer cancel() 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutInSeconds)*time.Second)
+	defer cancel()
 
 	cmd := exec.CommandContext(ctx, name, arg...)
 	out, err := cmd.Output()
@@ -91,10 +91,10 @@ func DeleteShadowCopy() {
 		LOG_ERROR("VSS_DELETE", "Error while deleting temporary mount directory")
 		return
 	}
-	
+
 	LOG_INFO("VSS_DELETE", "Shadow copy unmounted and deleted at %s", snapshotPath)
 
-	snapshotPath = "" 
+	snapshotPath = ""
 }
 
 func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadowTop string) {
@@ -128,7 +128,7 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 	}
 	if deviceIdLocal != deviceIdRepository {
 		LOG_WARN("VSS_PATH", "VSS not supported for non-local repository path: ", top)
-		return top 
+		return top
 	}
 
 	if timeoutInSeconds <= 60 {
@@ -157,8 +157,8 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 	snapshotDate = strings.TrimSpace(tmutilOutput[colonPos+1:])
 
 	// Mount snapshot as readonly and hide from GUI i.e. Finder
-	_, err = CommandWithTimeout(timeoutInSeconds, 
-		"/sbin/mount", "-t", "apfs", "-o", "nobrowse,-r,-s=com.apple.TimeMachine." + snapshotDate, "/", snapshotPath)
+	_, err = CommandWithTimeout(timeoutInSeconds,
+		"/sbin/mount", "-t", "apfs", "-o", "nobrowse,-r,-s=com.apple.TimeMachine."+snapshotDate, "/", snapshotPath)
 	if err != nil {
 		LOG_ERROR("VSS_CREATE", "Error while mounting snapshot: ", err)
 		return top

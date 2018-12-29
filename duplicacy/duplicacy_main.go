@@ -7,6 +7,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -16,7 +17,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"net/http"
 
 	_ "net/http/pprof"
 
@@ -158,8 +158,6 @@ func setGlobalOptions(context *cli.Context) {
 			http.ListenAndServe(address, nil)
 		}()
 	}
-
-
 
 	duplicacy.RunInBackground = context.GlobalBool("background")
 }
@@ -309,11 +307,11 @@ func configRepository(context *cli.Context, init bool) {
 		repositoryPath = context.String("repository")
 	}
 	preference := duplicacy.Preference{
-		Name:       storageName,
-		SnapshotID: snapshotID,
+		Name:           storageName,
+		SnapshotID:     snapshotID,
 		RepositoryPath: repositoryPath,
-		StorageURL: storageURL,
-		Encrypted:  context.Bool("encrypt"),
+		StorageURL:     storageURL,
+		Encrypted:      context.Bool("encrypt"),
 	}
 
 	storage := duplicacy.CreateStorage(preference, true, 1)
@@ -533,7 +531,7 @@ func setPreference(context *cli.Context) {
 	if triBool.IsSet() {
 		newPreference.DoNotSavePassword = triBool.IsTrue()
 	}
-	
+
 	newPreference.NobackupFile = context.String("nobackup-file")
 
 	key := context.String("key")
@@ -650,7 +648,7 @@ func changePassword(context *cli.Context) {
 				duplicacy.LOG_INFO("CONFIG_CLEAN", "The local copy of the old config has been removed")
 			}
 		}
-	} ()
+	}()
 
 	err = storage.DeleteFile(0, "config")
 	if err != nil {
@@ -1262,7 +1260,7 @@ func infoStorage(context *cli.Context) {
 
 	for _, dir := range dirs {
 		if len(dir) > 0 && dir[len(dir)-1] == '/' {
-			duplicacy.LOG_INFO("STORAGE_SNAPSHOT", "%s", dir[0:len(dir) - 1])
+			duplicacy.LOG_INFO("STORAGE_SNAPSHOT", "%s", dir[0:len(dir)-1])
 		}
 	}
 
@@ -1298,7 +1296,7 @@ func benchmark(context *cli.Context) {
 	}
 
 	threads := downloadThreads
-	if (threads < uploadThreads) {
+	if threads < uploadThreads {
 		threads = uploadThreads
 	}
 
@@ -1309,7 +1307,7 @@ func benchmark(context *cli.Context) {
 	if storage == nil {
 		return
 	}
-	duplicacy.Benchmark(repository, storage, int64(fileSize) * 1000000, chunkSize * 1024 * 1024, chunkCount, uploadThreads, downloadThreads)
+	duplicacy.Benchmark(repository, storage, int64(fileSize)*1000000, chunkSize*1024*1024, chunkCount, uploadThreads, downloadThreads)
 }
 
 func main() {
@@ -1773,8 +1771,8 @@ func main() {
 					Argument: "<storage name>",
 				},
 				cli.BoolFlag{
-					Name:     "bit-identical",
-					Usage:    "(when using -copy) make the new storage bit-identical to also allow rsync etc.",
+					Name:  "bit-identical",
+					Usage: "(when using -copy) make the new storage bit-identical to also allow rsync etc.",
 				},
 				cli.StringFlag{
 					Name:     "repository",
@@ -1815,10 +1813,10 @@ func main() {
 					Arg:   "true",
 				},
 				cli.StringFlag{
-					Name:  "nobackup-file",
-					Usage: "Directories containing a file with this name will not be backed up",
+					Name:     "nobackup-file",
+					Usage:    "Directories containing a file with this name will not be backed up",
 					Argument: "<file name>",
-					Value:   "",
+					Value:    "",
 				},
 				cli.StringFlag{
 					Name:  "key",
@@ -1984,8 +1982,8 @@ func main() {
 			Argument: "<address:port>",
 		},
 		cli.StringFlag{
-			Name:	"comment",
-			Usage:	"add a comment to identify the process",
+			Name:  "comment",
+			Usage: "add a comment to identify the process",
 		},
 	}
 
@@ -1999,7 +1997,7 @@ func main() {
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
 	go func() {
-		for _ = range c {
+		for range c {
 			duplicacy.RunAtError()
 			os.Exit(1)
 		}

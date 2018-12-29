@@ -57,7 +57,7 @@ func CreateFossilCollection(allSnapshots map[string][]*Snapshot) *FossilCollecti
 	}
 
 	return &FossilCollection{
-		LastRevisions: lastRevisions,
+		LastRevisions:    lastRevisions,
 		DeletedRevisions: make(map[string][]int),
 	}
 }
@@ -807,7 +807,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 
 	snapshotIDIndex := 0
 	totalMissingChunks := 0
-	for snapshotID, _ = range snapshotMap {
+	for snapshotID = range snapshotMap {
 
 		revisions := revisionsToCheck
 		if len(revisions) == 0 || showStatistics {
@@ -839,7 +839,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	}
 	LOG_INFO("SNAPSHOT_CHECK", "Total chunk size is %s in %d chunks", PrettyNumber(totalChunkSize), len(chunkSizeMap))
 
-	for snapshotID, _ = range snapshotMap {
+	for snapshotID = range snapshotMap {
 
 		for _, snapshot := range snapshotMap[snapshotID] {
 
@@ -855,7 +855,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 			}
 
 			missingChunks := 0
-			for chunkID, _ := range chunks {
+			for chunkID := range chunks {
 
 				_, found := chunkSizeMap[chunkID]
 
@@ -953,7 +953,7 @@ func (manager *SnapshotManager) ShowStatistics(snapshotMap map[string][]*Snapsho
 			var totalChunkSize int64
 			var uniqueChunkSize int64
 
-			for chunkID, _ := range chunks {
+			for chunkID := range chunks {
 				chunkSize := chunkSizeMap[chunkID]
 				totalChunkSize += chunkSize
 				if chunkUniqueMap[chunkID] {
@@ -971,7 +971,7 @@ func (manager *SnapshotManager) ShowStatistics(snapshotMap map[string][]*Snapsho
 
 		var totalChunkSize int64
 		var uniqueChunkSize int64
-		for chunkID, _ := range snapshotChunks {
+		for chunkID := range snapshotChunks {
 			chunkSize := chunkSizeMap[chunkID]
 			totalChunkSize += chunkSize
 
@@ -1021,7 +1021,7 @@ func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string][]*
 			var newChunkCount int64
 			var newChunkSize int64
 
-			for chunkID, _ := range chunks {
+			for chunkID := range chunks {
 				chunkSize := chunkSizeMap[chunkID]
 				totalChunkSize += chunkSize
 				totalChunkCount += 1
@@ -1049,7 +1049,7 @@ func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string][]*
 		var uniqueChunkSize int64
 		var totalChunkCount int64
 		var uniqueChunkCount int64
-		for chunkID, _ := range snapshotChunks {
+		for chunkID := range snapshotChunks {
 			chunkSize := chunkSizeMap[chunkID]
 			totalChunkSize += chunkSize
 			totalChunkCount += 1
@@ -2221,7 +2221,7 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[s
 						continue
 					}
 
-					manager.chunkOperator.Resurrect(chunk, chunkDir + file)
+					manager.chunkOperator.Resurrect(chunk, chunkDir+file)
 					fmt.Fprintf(logFile, "Found referenced fossil %s\n", file)
 
 				} else {
@@ -2232,7 +2232,7 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[s
 					}
 
 					if exclusive {
-						manager.chunkOperator.Delete(chunk, chunkDir + file)
+						manager.chunkOperator.Delete(chunk, chunkDir+file)
 					} else {
 						collection.AddFossil(chunkDir + file)
 						LOG_DEBUG("FOSSIL_FIND", "Found unreferenced fossil %s", file)
@@ -2409,7 +2409,7 @@ func (manager *SnapshotManager) DownloadFile(path string, derivationKey string) 
 	}
 
 	if len(derivationKey) > 64 {
-		derivationKey = derivationKey[len(derivationKey) - 64:]
+		derivationKey = derivationKey[len(derivationKey)-64:]
 	}
 
 	err = manager.fileChunk.Decrypt(manager.config.FileKey, derivationKey)
@@ -2443,7 +2443,7 @@ func (manager *SnapshotManager) UploadFile(path string, derivationKey string, co
 	}
 
 	if len(derivationKey) > 64 {
-		derivationKey = derivationKey[len(derivationKey) - 64:]
+		derivationKey = derivationKey[len(derivationKey)-64:]
 	}
 
 	err := manager.fileChunk.Encrypt(manager.config.FileKey, derivationKey)

@@ -33,7 +33,7 @@ type BackupManager struct {
 	snapshotCache   *FileStorage     // for copies of chunks needed by snapshots
 
 	config *Config // contains a number of options
-	
+
 	nobackupFile string // don't backup directory when this file name is found
 }
 
@@ -65,7 +65,7 @@ func CreateBackupManager(snapshotID string, storage Storage, top string, passwor
 		SnapshotManager: snapshotManager,
 
 		config: config,
-		
+
 		nobackupFile: nobackupFile,
 	}
 
@@ -1324,7 +1324,6 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 		}
 	}
 
-
 	for i := entry.StartChunk; i <= entry.EndChunk; i++ {
 		if _, found := offsetMap[chunkDownloader.taskList[i].chunkHash]; !found {
 			chunkDownloader.taskList[i].needed = true
@@ -1674,7 +1673,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 	chunksToCopy := 0
 	chunksToSkip := 0
 
-	for chunkHash, _ := range chunks {
+	for chunkHash := range chunks {
 		otherChunkID := otherManager.config.GetChunkIDFromHash(chunkHash)
 		if _, found := otherChunks[otherChunkID]; found {
 			chunksToSkip++
@@ -1704,7 +1703,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 	totalSkipped := 0
 	chunkIndex := 0
 
-	for chunkHash, _ := range chunks {
+	for chunkHash := range chunks {
 		chunkIndex++
 		chunkID := manager.config.GetChunkIDFromHash(chunkHash)
 		newChunkID := otherManager.config.GetChunkIDFromHash(chunkHash)

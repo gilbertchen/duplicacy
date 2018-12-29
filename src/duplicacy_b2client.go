@@ -385,7 +385,7 @@ func (client *B2Client) ListFileNames(startFileName string, singleFile bool, inc
 			}
 			fileUploadTimestamp, _ := strconv.ParseInt(responseHeader.Get("X-Bz-Upload-Timestamp"), 0, 64)
 
-			return []*B2Entry{&B2Entry{fileID, fileName, fileAction, fileSize, fileUploadTimestamp}}, nil
+			return []*B2Entry{{fileID, fileName, fileAction, fileSize, fileUploadTimestamp}}, nil
 		}
 
 		if err = json.NewDecoder(readCloser).Decode(&output); err != nil {

@@ -207,7 +207,7 @@ func (storage *SFTPStorage) UploadFile(threadIndex int, filePath string, content
 		if err != nil {
 			// The error may be caused by a non-existent fullDir, or a broken connection.  In either case,
 			// we just assume it is the former because there isn't a way to tell which is the case.
-			for i, _ := range dirs[1 : len(dirs)-1] {
+			for i := range dirs[1 : len(dirs)-1] {
 				subDir := path.Join(storage.storageDir, path.Join(dirs[0:i+2]...))
 				// We don't check the error; just keep going blindly but always store the last err
 				err = storage.client.Mkdir(subDir)

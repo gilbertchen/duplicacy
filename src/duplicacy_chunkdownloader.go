@@ -178,7 +178,7 @@ func (downloader *ChunkDownloader) Reclaim(chunkIndex int) {
 		return
 	}
 
-	for i, _ := range downloader.completedTasks {
+	for i := range downloader.completedTasks {
 		if i < chunkIndex && downloader.taskList[i].chunk != nil {
 			downloader.config.PutChunk(downloader.taskList[i].chunk)
 			downloader.taskList[i].chunk = nil
@@ -253,7 +253,7 @@ func (downloader *ChunkDownloader) Stop() {
 		downloader.numberOfDownloadingChunks--
 	}
 
-	for i, _ := range downloader.completedTasks {
+	for i := range downloader.completedTasks {
 		downloader.config.PutChunk(downloader.taskList[i].chunk)
 		downloader.taskList[i].chunk = nil
 		downloader.numberOfActiveChunks--

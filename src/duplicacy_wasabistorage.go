@@ -100,7 +100,7 @@ func (storage *WasabiStorage) MoveFile(
 	var from_path string
 	// The from path includes the bucket.  Take care not to include an empty storageDir
 	// string as Wasabi's backend will return 404 on URLs with double slashes.
-	if (storage.storageDir == "") {
+	if storage.storageDir == "" {
 		from_path = fmt.Sprintf("/%s/%s", storage.bucket, from)
 	} else {
 		from_path = fmt.Sprintf("/%s/%s/%s", storage.bucket, storage.storageDir, from)

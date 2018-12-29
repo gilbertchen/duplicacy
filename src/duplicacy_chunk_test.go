@@ -48,7 +48,7 @@ func TestChunk(t *testing.T) {
 
 		if remainderLength == -1 {
 			remainderLength = len(encryptedData) % 256
-		} else if len(encryptedData) % 256 != remainderLength {
+		} else if len(encryptedData)%256 != remainderLength {
 			t.Errorf("Incorrect padding size")
 		}
 

@@ -21,7 +21,7 @@ type SwiftStorage struct {
 	threads    int
 }
 
-// CreateSwiftStorage creates an OpenStack Swift storage object.  storageURL is in the form of 
+// CreateSwiftStorage creates an OpenStack Swift storage object.  storageURL is in the form of
 // `user@authURL/container/path?arg1=value1&arg2=value2``
 func CreateSwiftStorage(storageURL string, key string, threads int) (storage *SwiftStorage, err error) {
 
