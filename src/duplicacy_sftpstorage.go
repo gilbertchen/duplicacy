@@ -245,15 +245,10 @@ func (storage *SFTPStorage) UploadFile(threadIndex int, filePath string, content
 	}
 	file.Close()
 
-	err = storage.client.Rename(temporaryFile, fullPath)
+	err = storage.client.PosixRename(temporaryFile, fullPath)
 	if err != nil {
-
-		if _, err = storage.client.Stat(fullPath); err == nil {
-			storage.client.Remove(temporaryFile)
-			return nil
-		} else {
-			return fmt.Errorf("Uploaded file but failed to store it at %s: %v", fullPath, err)
-		}
+		storage.client.Remove(temporaryFile)
+		return fmt.Errorf("Uploaded file but failed to store it at %s: %v", fullPath, err)
 	}
 
 	return nil

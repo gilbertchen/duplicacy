@@ -36,10 +36,14 @@ type Snapshot struct {
 	// A sequence of chunks whose aggregated content is the json representation of 'ChunkLengths'.
 	LengthSequence []string
 
+	// A sequence of chunks whose aggregated content is the json representation of 'ChunkUploadLengths'.
+	UploadLengthSequence []string
+
 	Files []*Entry // list of files and subdirectories
 
-	ChunkHashes  []string // a sequence of chunks representing the file content
-	ChunkLengths []int    // the length of each chunk
+	ChunkHashes        []string // a sequence of chunks representing the file content
+	ChunkLengths       []int    // the length of each chunk
+	ChunkUploadLengths []int    // the length of each uploaded chunk
 
 	Flag bool // used to mark certain snapshots for deletion or copy
 
@@ -152,9 +156,10 @@ func CreateSnapshotFromDirectory(id string, top string, nobackupFile string) (sn
 
 // This is the struct used to save/load incomplete snapshots
 type IncompleteSnapshot struct {
-	Files        []*Entry
-	ChunkHashes  []string
-	ChunkLengths []int
+	Files              []*Entry
+	ChunkHashes        []string
+	ChunkLengths       []int
+	ChunkUploadLengths []int
 }
 
 // LoadIncompleteSnapshot loads the incomplete snapshot if it exists
@@ -185,9 +190,10 @@ func LoadIncompleteSnapshot() (snapshot *Snapshot) {
 	}
 
 	snapshot = &Snapshot{
-		Files:        incompleteSnapshot.Files,
-		ChunkHashes:  chunkHashes,
-		ChunkLengths: incompleteSnapshot.ChunkLengths,
+		Files:              incompleteSnapshot.Files,
+		ChunkHashes:        chunkHashes,
+		ChunkLengths:       incompleteSnapshot.ChunkLengths,
+		ChunkUploadLengths: incompleteSnapshot.ChunkUploadLengths,
 	}
 	LOG_INFO("INCOMPLETE_LOAD", "Incomplete snapshot loaded from %s", snapshotFile)
 	return snapshot
@@ -211,9 +217,10 @@ func SaveIncompleteSnapshot(snapshot *Snapshot) {
 	}
 
 	incompleteSnapshot := IncompleteSnapshot{
-		Files:        files,
-		ChunkHashes:  chunkHashes,
-		ChunkLengths: snapshot.ChunkLengths,
+		Files:              files,
+		ChunkHashes:        chunkHashes,
+		ChunkLengths:       snapshot.ChunkLengths,
+		ChunkUploadLengths: snapshot.ChunkUploadLengths,
 	}
 
 	description, err := json.MarshalIndent(incompleteSnapshot, "", "  ")
@@ -308,9 +315,14 @@ func CreateSnapshotFromDescription(description []byte) (snapshot *Snapshot, err 
 		}
 	}
 
-	for _, sequenceType := range []string{"files", "chunks", "lengths"} {
+	for _, sequenceType := range []string{"files", "chunks", "lengths", "upload-lengths"} {
 		if value, ok := root[sequenceType]; !ok {
-			return nil, fmt.Errorf("No %s are specified in the snapshot", sequenceType)
+			if (sequenceType == "upload-lengths") {
+				// optional sequence type
+				snapshot.SetSequence(sequenceType, nil)
+			} else {
+				return nil, fmt.Errorf("No %s are specified in the snapshot", sequenceType)
+			}
 		} else if _, ok = value.([]interface{}); !ok {
 			return nil, fmt.Errorf("Invalid %s are specified in the snapshot", sequenceType)
 		} else {
@@ -360,11 +372,18 @@ func (snapshot *Snapshot) LoadChunks(description []byte) (err error) {
 // ClearChunks removes loaded chunks from memory
 func (snapshot *Snapshot) ClearChunks() {
 	snapshot.ChunkHashes = nil
+	snapshot.ChunkLengths = nil
+	snapshot.ChunkUploadLengths = nil
 }
 
 // LoadLengths construct 'ChunkLengths' from the json description.
 func (snapshot *Snapshot) LoadLengths(description []byte) (err error) {
 	return json.Unmarshal(description, &snapshot.ChunkLengths)
+}
+
+// LoadUploadLengths construct 'ChunkUploadLengths' from the json description.
+func (snapshot *Snapshot) LoadUploadLengths(description []byte) (err error) {
+	return json.Unmarshal(description, &snapshot.ChunkUploadLengths)
 }
 
 // MarshalJSON creates a json representation of the snapshot.
@@ -386,6 +405,7 @@ func (snapshot *Snapshot) MarshalJSON() ([]byte, error) {
 	object["files"] = encodeSequence(snapshot.FileSequence)
 	object["chunks"] = encodeSequence(snapshot.ChunkSequence)
 	object["lengths"] = encodeSequence(snapshot.LengthSequence)
+	object["upload-lengths"] = encodeSequence(snapshot.UploadLengthSequence)
 
 	return json.Marshal(object)
 }
@@ -397,8 +417,12 @@ func (snapshot *Snapshot) MarshalSequence(sequenceType string) ([]byte, error) {
 		return json.Marshal(snapshot.Files)
 	} else if sequenceType == "chunks" {
 		return json.Marshal(encodeSequence(snapshot.ChunkHashes))
-	} else {
+	} else if sequenceType == "lengths" {
 		return json.Marshal(snapshot.ChunkLengths)
+	} else if sequenceType == "upload-lengths" {
+		return json.Marshal(snapshot.ChunkUploadLengths)
+	} else {
+		return nil, fmt.Errorf("Unsupported sequenceType (%s)", sequenceType)
 	}
 }
 
@@ -408,8 +432,10 @@ func (snapshot *Snapshot) SetSequence(sequenceType string, sequence []string) {
 		snapshot.FileSequence = sequence
 	} else if sequenceType == "chunks" {
 		snapshot.ChunkSequence = sequence
-	} else {
+	} else if sequenceType == "lengths" {
 		snapshot.LengthSequence = sequence
+	} else if sequenceType == "upload-lengths" {
+		snapshot.UploadLengthSequence = sequence
 	}
 }
 
