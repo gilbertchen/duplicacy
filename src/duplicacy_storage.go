@@ -89,7 +89,7 @@ func (storage *StorageBase) SetRateLimits(downloadRateLimit int, uploadRateLimit
 }
 
 // SetDefaultNestingLevels sets the default read and write levels.  This is usually called by
-// derived storages to set the levels with old values so that storages initialied by ealier versions
+// derived storages to set the levels with old values so that storages initialized by earlier versions
 // will continue to work.
 func (storage *StorageBase) SetDefaultNestingLevels(readLevels []int, writeLevel int) {
 	storage.readLevels = readLevels
@@ -626,7 +626,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	} else if matched[1] == "webdav" || matched[1] == "webdav-http" {
 		server := matched[3]
 		username := matched[2]
-		username = username[:len(username) - 1]
+		username = username[:len(username)-1]
 		storageDir := matched[5]
 		port := 0
 		useHTTP := matched[1] == "webdav-http"

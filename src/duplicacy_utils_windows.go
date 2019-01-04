@@ -7,10 +7,10 @@ package duplicacy
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"unsafe"
-	"path/filepath"
 )
 
 type symbolicLinkReparseBuffer struct {

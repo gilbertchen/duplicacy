@@ -71,7 +71,7 @@ func (storage *B2Storage) ListFiles(threadIndex int, dir string) (files []string
 			subDirs[subDir+"/"] = true
 		}
 
-		for subDir, _ := range subDirs {
+		for subDir := range subDirs {
 			files = append(files, subDir)
 		}
 	} else if dir == "chunks" {

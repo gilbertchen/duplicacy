@@ -34,7 +34,7 @@ func CreateFileReader(top string, files []*Entry) *FileReader {
 	return reader
 }
 
-// NextFile switchs to the next file in the file reader.
+// NextFile switches to the next file in the file reader.
 func (reader *FileReader) NextFile() bool {
 
 	if reader.CurrentFile != nil {

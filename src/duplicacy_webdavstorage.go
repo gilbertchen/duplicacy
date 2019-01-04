@@ -19,9 +19,9 @@ import (
 	"net/http"
 	//"net/http/httputil"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
-	"strings"
 )
 
 type WebDAVStorage struct {
@@ -42,10 +42,10 @@ type WebDAVStorage struct {
 
 var (
 	errWebDAVAuthorizationFailure = errors.New("Authentication failed")
-	errWebDAVMovedPermanently = errors.New("Moved permanently")
-	errWebDAVNotExist = errors.New("Path does not exist")
-	errWebDAVMaximumBackoff = errors.New("Maximum backoff reached")
-	errWebDAVMethodNotAllowed = errors.New("Method not allowed")
+	errWebDAVMovedPermanently     = errors.New("Moved permanently")
+	errWebDAVNotExist             = errors.New("Path does not exist")
+	errWebDAVMaximumBackoff       = errors.New("Maximum backoff reached")
+	errWebDAVMethodNotAllowed     = errors.New("Method not allowed")
 )
 
 func CreateWebDAVStorage(host string, port int, username string, password string, storageDir string, useHTTP bool, threads int) (storage *WebDAVStorage, err error) {
@@ -68,7 +68,7 @@ func CreateWebDAVStorage(host string, port int, username string, password string
 
 	// Make sure it doesn't follow redirect
 	storage.client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-        return http.ErrUseLastResponse
+		return http.ErrUseLastResponse
 	}
 
 	exist, isDir, _, err := storage.GetFileInfo(0, storageDir)
@@ -325,11 +325,11 @@ func (storage *WebDAVStorage) GetFileInfo(threadIndex int, filePath string) (exi
 		return false, false, 0, err
 	}
 
-	if m, exist := properties["/" + storage.storageDir + filePath]; !exist {
+	if m, exist := properties["/"+storage.storageDir+filePath]; !exist {
 		return false, false, 0, nil
 	} else if resourceType, exist := m["resourcetype"]; exist && strings.Contains(resourceType, "collection") {
 		return true, true, 0, nil
-	} else if length, exist := m["getcontentlength"]; exist && length != ""{
+	} else if length, exist := m["getcontentlength"]; exist && length != "" {
 		value, _ := strconv.Atoi(length)
 		return true, false, int64(value), nil
 	} else {

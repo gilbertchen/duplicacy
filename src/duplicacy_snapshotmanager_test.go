@@ -9,12 +9,12 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"path"
 	"strings"
 	"testing"
 	"time"
-	"io/ioutil"
 )
 
 func createDummySnapshot(snapshotID string, revision int, endTime int64) *Snapshot {
@@ -500,7 +500,7 @@ func TestPruneWithRetentionPolicyAndTag(t *testing.T) {
 	t.Logf("Creating 30 snapshots")
 	for i := 0; i < 30; i++ {
 		tag := "auto"
-		if i % 3 == 0 {
+		if i%3 == 0 {
 			tag = "manual"
 		}
 		createTestSnapshot(snapshotManager, "vm1@host1", i+1, now-int64(30-i)*day-3600, now-int64(30-i)*day-60, []string{chunkHashes[i]}, tag)
@@ -615,12 +615,12 @@ func TestPruneNewSnapshots(t *testing.T) {
 	// Create another snapshot of vm1 that brings back chunkHash1
 	createTestSnapshot(snapshotManager, "vm1@host1", 3, now-0*day-3600, now-0*day-60, []string{chunkHash1, chunkHash3}, "tag")
 	// Create another snapshot of vm2 so the fossil collection will be processed by next prune
-	createTestSnapshot(snapshotManager, "vm2@host1", 2, now + 3600, now + 3600 * 2, []string{chunkHash4, chunkHash5}, "tag")
+	createTestSnapshot(snapshotManager, "vm2@host1", 2, now+3600, now+3600*2, []string{chunkHash4, chunkHash5}, "tag")
 
 	// Now chunkHash1 wil be resurrected
 	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 4, 0)
-	snapshotManager.CheckSnapshots("vm1@host1", []int{2, 3}, "", false, false, false, false, false);
+	snapshotManager.CheckSnapshots("vm1@host1", []int{2, 3}, "", false, false, false, false, false)
 }
 
 // A fossil collection left by an aborted prune should be ignored if any supposedly deleted snapshot exists
@@ -664,12 +664,12 @@ func TestPruneGhostSnapshots(t *testing.T) {
 
 	// Create another snapshot of vm1 so the fossil collection becomes eligible for processing.
 	chunkHash4 := uploadRandomChunk(snapshotManager, chunkSize)
-	createTestSnapshot(snapshotManager, "vm1@host1", 3, now - day - 3600, now - day - 60, []string{chunkHash3, chunkHash4}, "tag")
+	createTestSnapshot(snapshotManager, "vm1@host1", 3, now-day-3600, now-day-60, []string{chunkHash3, chunkHash4}, "tag")
 
 	// Run the prune again but the fossil collection should be igored, since revision 1 still exists
 	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 3, 2)
-	snapshotManager.CheckSnapshots("vm1@host1", []int{1, 2, 3}, "", false, false, false, true /*searchFossils*/, false);
+	snapshotManager.CheckSnapshots("vm1@host1", []int{1, 2, 3}, "", false, false, false, true /*searchFossils*/, false)
 
 	// Prune snapshot 1 again
 	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{1}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
@@ -677,11 +677,11 @@ func TestPruneGhostSnapshots(t *testing.T) {
 
 	// Create another snapshot
 	chunkHash5 := uploadRandomChunk(snapshotManager, chunkSize)
-	createTestSnapshot(snapshotManager, "vm1@host1", 4, now + 3600, now + 3600 * 2, []string{chunkHash5, chunkHash5}, "tag")
+	createTestSnapshot(snapshotManager, "vm1@host1", 4, now+3600, now+3600*2, []string{chunkHash5, chunkHash5}, "tag")
 	checkTestSnapshots(snapshotManager, 3, 2)
 
 	// Run the prune again and this time the fossil collection will be processed and the fossils removed
 	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 3, 0)
-	snapshotManager.CheckSnapshots("vm1@host1", []int{2, 3, 4}, "", false, false, false, false, false);
+	snapshotManager.CheckSnapshots("vm1@host1", []int{2, 3, 4}, "", false, false, false, false, false)
 }

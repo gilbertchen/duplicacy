@@ -5,18 +5,18 @@
 package duplicacy
 
 import (
-	"os"
 	"bytes"
 	"compress/zlib"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/rand"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"hash"
 	"io"
+	"os"
 	"runtime"
 
 	"github.com/bkaradzic/go-lz4"
@@ -250,7 +250,7 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err err
 	// PKCS7 is used.  Compressed chunk sizes leaks information about the original chunks so we want the padding sizes
 	// to be the maximum allowed by PKCS7
 	dataLength := encryptedBuffer.Len() - offset
-	paddingLength := 256 - dataLength % 256
+	paddingLength := 256 - dataLength%256
 
 	encryptedBuffer.Write(bytes.Repeat([]byte{byte(paddingLength)}, paddingLength))
 	encryptedBuffer.Write(bytes.Repeat([]byte{0}, gcm.Overhead()))
@@ -267,7 +267,7 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err err
 
 }
 
-// This is to ensure compability with Vertical Backup, which still uses HMAC-SHA256 (instead of HMAC-BLAKE2) to
+// This is to ensure compatibility with Vertical Backup, which still uses HMAC-SHA256 (instead of HMAC-BLAKE2) to
 // derive the key used to encrypt/decrypt files and chunks.
 
 var DecryptWithHMACSHA256 = false
@@ -341,7 +341,6 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 		if err != nil {
 			return err
 		}
-
 
 		paddingLength := int(decryptedBytes[len(decryptedBytes)-1])
 		if paddingLength == 0 {

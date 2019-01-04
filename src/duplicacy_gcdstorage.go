@@ -25,7 +25,7 @@ import (
 )
 
 var (
-	GCDFileMimeType = "application/octet-stream"
+	GCDFileMimeType      = "application/octet-stream"
 	GCDDirectoryMimeType = "application/vnd.google-apps.folder"
 )
 
@@ -33,7 +33,7 @@ type GCDStorage struct {
 	StorageBase
 
 	service     *drive.Service
-	idCache     map[string]string  // only directories are saved in this cache
+	idCache     map[string]string // only directories are saved in this cache
 	idCacheLock sync.Mutex
 	backoffs    []int // desired backoff time in seconds for each thread
 	attempts    []int // number of failed attempts since last success for each thread
@@ -291,7 +291,7 @@ func (storage *GCDStorage) getIDFromPath(threadIndex int, filePath string, creat
 		} else if isDir {
 			storage.savePathID(current, fileID)
 		}
-		if i != len(names) - 1 && !isDir {
+		if i != len(names)-1 && !isDir {
 			return "", fmt.Errorf("Path '%s' is not a directory", current)
 		}
 	}
@@ -386,8 +386,8 @@ func (storage *GCDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 		subDirs := []string{}
 
 		for _, file := range files {
-			storage.savePathID("snapshots/" + file.Name, file.Id)
-			subDirs = append(subDirs, file.Name + "/")
+			storage.savePathID("snapshots/"+file.Name, file.Id)
+			subDirs = append(subDirs, file.Name+"/")
 		}
 		return subDirs, nil, nil
 	} else if strings.HasPrefix(dir, "snapshots/") || strings.HasPrefix(dir, "benchmark") {
@@ -438,8 +438,8 @@ func (storage *GCDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 					files = append(files, name)
 					sizes = append(sizes, entry.Size)
 				} else {
-					parents = append(parents, parent+ "/" + entry.Name)
-					storage.savePathID(parent + "/" + entry.Name, entry.Id)
+					parents = append(parents, parent+"/"+entry.Name)
+					storage.savePathID(parent+"/"+entry.Name, entry.Id)
 				}
 			}
 		}

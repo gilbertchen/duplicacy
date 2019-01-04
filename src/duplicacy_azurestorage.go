@@ -104,7 +104,7 @@ func (azureStorage *AzureStorage) ListFiles(threadIndex int, dir string) (files 
 
 	if dir == "snapshots/" {
 
-		for subDir, _ := range subDirs {
+		for subDir := range subDirs {
 			files = append(files, subDir)
 		}
 
