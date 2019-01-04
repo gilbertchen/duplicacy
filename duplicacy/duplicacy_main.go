@@ -1307,7 +1307,7 @@ func benchmark(context *cli.Context) {
 	if storage == nil {
 		return
 	}
-	duplicacy.Benchmark(repository, storage, int64(fileSize)*1000000, chunkSize*1024*1024, chunkCount, uploadThreads, downloadThreads)
+	duplicacy.Benchmark(repository, storage, int64(fileSize) * 1024 * 1024, chunkSize * 1024 * 1024, chunkCount, uploadThreads, downloadThreads)
 }
 
 func main() {

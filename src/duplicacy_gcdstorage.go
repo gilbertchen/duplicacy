@@ -624,13 +624,22 @@ func (storage *GCDStorage) DownloadFile(threadIndex int, filePath string, chunk 
 	var response *http.Response
 
 	for {
-		response, err = storage.service.Files.Get(fileID).Download()
-		if retry, err := storage.shouldRetry(threadIndex, err); err == nil && !retry {
+		// AcknowledgeAbuse(true) lets the download proceed even if GCD thinks that it contains malware.
+		// TODO: Should this prompt the user or log a warning?
+		req := storage.service.Files.Get(fileID)
+		if e, ok := err.(*googleapi.Error); ok {
+			if strings.Contains(err.Error(), "cannotDownloadAbusiveFile") || len(e.Errors) > 0 && e.Errors[0].Reason == "cannotDownloadAbusiveFile" {
+				LOG_WARN("GCD_STORAGE", "%s is marked as abusive, will download anyway.", filePath)
+				req = req.AcknowledgeAbuse(true)
+			}
+		}
+		response, err = req.Download()
+		if retry, retry_err := storage.shouldRetry(threadIndex, err); retry_err == nil && !retry {
 			break
 		} else if retry {
 			continue
 		} else {
-			return err
+			return retry_err
 		}
 	}
 

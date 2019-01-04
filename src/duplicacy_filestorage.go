@@ -190,7 +190,16 @@ func (storage *FileStorage) UploadFile(threadIndex int, filePath string, content
 		return err
 	}
 
-	file.Close()
+	err = file.Sync()
+	if err != nil {
+		file.Close()
+		return err
+	}
+
+	err = file.Close()
+	if err != nil {
+		return err
+	}
 
 	err = os.Rename(temporaryFile, fullPath)
 	if err != nil {
