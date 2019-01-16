@@ -78,6 +78,10 @@ func (storage *GCDStorage) shouldRetry(threadIndex int, err error) (bool, error)
 			// User Rate Limit Exceeded
 			message = e.Message
 			retry = true
+		} else if e.Code == 408 {
+			// Request timeout
+			message = e.Message
+			retry = true
 		} else if e.Code == 401 {
 			// Only retry on authorization error when storage has been connected before
 			if storage.isConnected {
