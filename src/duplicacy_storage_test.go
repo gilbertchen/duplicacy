@@ -107,7 +107,7 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
 	} else if testStorageName == "b2" {
-		storage, err := CreateB2Storage(config["account"], config["key"], config["bucket"], threads)
+		storage, err := CreateB2Storage(config["account"], config["key"], config["bucket"], threads, "")
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
 	} else if testStorageName == "gcs-s3" {

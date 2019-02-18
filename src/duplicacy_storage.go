@@ -530,7 +530,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		accountID := GetPassword(preference, "b2_id", "Enter Backblaze Account ID:", true, resetPassword)
 		applicationKey := GetPassword(preference, "b2_key", "Enter Backblaze Application Key:", true, resetPassword)
 
-		b2Storage, err := CreateB2Storage(accountID, applicationKey, bucket, threads)
+		b2Storage, err := CreateB2Storage(accountID, applicationKey, bucket, threads, preference.Keys["b2_public_url"])
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the Backblaze B2 storage at %s: %v", storageURL, err)
 			return nil

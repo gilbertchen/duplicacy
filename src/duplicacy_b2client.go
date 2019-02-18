@@ -54,11 +54,12 @@ type B2Client struct {
 	TestMode bool
 }
 
-func NewB2Client(applicationKeyID string, applicationKey string) *B2Client {
+func NewB2Client(applicationKeyID string, applicationKey string, publicURL string) *B2Client {
 	client := &B2Client{
 		HTTPClient:       http.DefaultClient,
 		ApplicationKeyID: applicationKeyID,
 		ApplicationKey:   applicationKey,
+		DownloadURL:      publicURL,
 	}
 	return client
 }
@@ -232,7 +233,10 @@ func (client *B2Client) AuthorizeAccount() (err error) {
 
 	client.AuthorizationToken = output.AuthorizationToken
 	client.APIURL = output.APIURL
-	client.DownloadURL = output.DownloadURL
+
+	if len(client.DownloadURL) == 0 {
+		client.DownloadURL = output.DownloadURL
+	}
 
 	return nil
 }
