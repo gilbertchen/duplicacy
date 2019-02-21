@@ -37,6 +37,9 @@ type Entry struct {
 	Link string
 	Hash string
 
+	// For local entries this will be the remote entry if there is a matching one.
+	RemoteEntry *Entry
+
 	UID int
 	GID int
 
