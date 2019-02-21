@@ -320,7 +320,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 				j++
 			} else if local.Path == remote.Path {
 				local.RemoteEntry = remote
-				if !quickMode && local.IsSameAs(remote) {
+				if quickMode && local.IsSameAs(remote) {
 					local.Hash = remote.Hash
 					local.StartChunk = remote.StartChunk
 					local.StartOffset = remote.StartOffset
