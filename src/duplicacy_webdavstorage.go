@@ -49,7 +49,7 @@ var (
 )
 
 func CreateWebDAVStorage(host string, port int, username string, password string, storageDir string, useHTTP bool, threads int) (storage *WebDAVStorage, err error) {
-	if len(storageDir) > 0 && storageDir[len(storageDir)-1] != '/' {
+	if storageDir[len(storageDir)-1] != '/' {
 		storageDir += "/"
 	}
 
@@ -59,7 +59,7 @@ func CreateWebDAVStorage(host string, port int, username string, password string
 		username:   username,
 		password:   password,
 		storageDir: "",
-		useHTTP:    useHTTP,
+		useHTTP:    false,
 
 		client:         http.DefaultClient,
 		threads:        threads,
@@ -313,7 +313,6 @@ func (storage *WebDAVStorage) ListFiles(threadIndex int, dir string) (files []st
 
 // GetFileInfo returns the information about the file or directory at 'filePath'.
 func (storage *WebDAVStorage) GetFileInfo(threadIndex int, filePath string) (exist bool, isDir bool, size int64, err error) {
-
 	properties, err := storage.getProperties(filePath, 0, "getcontentlength", "resourcetype")
 	if err != nil {
 		if err == errWebDAVNotExist {
@@ -326,14 +325,7 @@ func (storage *WebDAVStorage) GetFileInfo(threadIndex int, filePath string) (exi
 		return false, false, 0, err
 	}
 
-	m, exist := properties["/"+storage.storageDir+filePath]
-
-	// If no properties exist for the given filePath, remove the trailing / from filePath and search again
-	if !exist && filePath != "" && filePath[len(filePath) - 1] == '/' {
-		m, exist = properties["/"+storage.storageDir+filePath[:len(filePath) - 1]]
-	}
-
-	if !exist {
+	if m, exist := properties["/"+storage.storageDir+filePath]; !exist {
 		return false, false, 0, nil
 	} else if resourceType, exist := m["resourcetype"]; exist && strings.Contains(resourceType, "collection") {
 		return true, true, 0, nil
