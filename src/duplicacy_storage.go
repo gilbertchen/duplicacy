@@ -367,7 +367,33 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 				}
 			}
 
-			if key != nil {
+			certFile := GetPasswordFromPreference(preference, "ssh_cert_file")
+			var pubKey ssh.PublicKey
+			var certSigner ssh.Signer
+
+			if certFile != "" {
+				LOG_DEBUG("SSH_CERTIFICATE", "Attempting to use ssh certificate from file %s", certFile)
+				var content []byte
+				content, err = ioutil.ReadFile(certFile)
+				if err != nil {
+					LOG_INFO("SSH_CERTIFICATE", "Failed to read ssh certificate file: %v", err)
+				} else {
+					pubKey, _, _, _, err = ssh.ParseAuthorizedKey(content)
+					if err != nil {
+						LOG_INFO("SSH_CERTIFICATE", "Failed parse ssh certificate file: %v", err)
+					} else {
+						certSigner, err = ssh.NewCertSigner(pubKey.(*ssh.Certificate), key)
+						if err != nil {
+							LOG_INFO("SSH_CERTIFICATE", "Failed to create certificate signer: %v", err)
+						}
+					}
+				}
+			}
+
+			// if we have a valid cert signer use it instead of the normal private key
+			if certSigner != nil {
+				signers = append(signers, certSigner)
+			} else if key != nil {
 				signers = append(signers, key)
 			}
 
