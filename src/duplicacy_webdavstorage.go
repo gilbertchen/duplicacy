@@ -151,6 +151,10 @@ func (storage *WebDAVStorage) sendRequest(method string, uri string, depth int, 
 			request.Header.Set(key, value)
 		}
 
+		if method == "PUT" {
+			request.ContentLength = int64(len(data))
+		}
+
 		//requestDump, err := httputil.DumpRequest(request, true)
 		//LOG_INFO("debug", "Request: %s", requestDump)
 
