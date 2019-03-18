@@ -309,7 +309,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 			local := localSnapshot.Files[i]
 
-			if !local.IsFile() || local.Size == 0 {
+			if !local.IsFile() { // || local.Size == 0 <- process zero-length files so we can count them same as we did on the initial backup.
 				i++
 				continue
 			}
@@ -665,7 +665,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	if showStatistics {
 
 		LOG_INFO("BACKUP_STATS", "Files: %d total, %s bytes; %d new, %s bytes",
-			len(preservedEntries)+len(uploadedEntries),
+			localSnapshot.NumberOfFiles,
 			PrettyNumber(preservedFileSize+uploadedFileSize),
 			len(uploadedEntries), PrettyNumber(uploadedFileSize))
 

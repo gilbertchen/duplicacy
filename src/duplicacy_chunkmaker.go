@@ -152,7 +152,7 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
 
 				if err != nil {
 					if err != io.EOF {
-						LOG_ERROR("CHUNK_MAKER", "Failed to read %d bytes: %s", count, err.Error())
+						LOG_ERROR("CHUNK_MAKER", "Failed after read %d bytes: %s", fileSize+int64(count), err.Error())
 						return
 					} else {
 						isEOF = true
@@ -204,7 +204,7 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
 			count, err = reader.Read(maker.buffer[start : start+count])
 
 			if err != nil && err != io.EOF {
-				LOG_ERROR("CHUNK_MAKER", "Failed to read %d bytes: %s", count, err.Error())
+				LOG_ERROR("CHUNK_MAKER", "Failed after read %d bytes: %s", fileSize+int64(count), err.Error())
 				return
 			}
 

@@ -5,6 +5,7 @@
 package duplicacy
 
 import (
+	"io"
 	"os"
 )
 
@@ -55,6 +56,20 @@ func (reader *FileReader) NextFile() bool {
 
 		fullPath := joinPath(reader.top, reader.CurrentEntry.Path)
 		reader.CurrentFile, err = os.OpenFile(fullPath, os.O_RDONLY, 0)
+		if err == nil {
+			// read a few bytes, since Windows sometimes fails the read despite opening. (a partially locked file? even with -vss)
+			b := make([]byte, 64) // just a few bytes
+
+			_, err = reader.CurrentFile.Read(b)
+			if err == io.EOF {
+				err = nil
+			}
+			if err == nil {
+				//Success: rewind to start of file
+				reader.CurrentFile.Seek(0, 0)
+			}
+		}
+
 		if err != nil {
 			LOG_WARN("OPEN_FAILURE", "Failed to open file for reading: %v", err)
 			reader.CurrentEntry.Size = 0
