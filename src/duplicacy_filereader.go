@@ -45,6 +45,7 @@ func (reader *FileReader) NextFile() bool {
 	for reader.CurrentIndex < len(reader.files) {
 
 		reader.CurrentEntry = reader.files[reader.CurrentIndex]
+		// note: reader.CurrentEntry.Size == 0 doesn't work since Size was set to -1 before creating the filereader! (see backupmanager)
 		if !reader.CurrentEntry.IsFile() || reader.CurrentEntry.Size == 0 {
 			reader.CurrentIndex++
 			continue

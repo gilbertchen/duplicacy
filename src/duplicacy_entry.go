@@ -413,7 +413,9 @@ func (entries ByChunk) Len() int      { return len(entries) }
 func (entries ByChunk) Swap(i, j int) { entries[i], entries[j] = entries[j], entries[i] }
 func (entries ByChunk) Less(i, j int) bool {
 	return entries[i].StartChunk < entries[j].StartChunk ||
-		(entries[i].StartChunk == entries[j].StartChunk && entries[i].StartOffset < entries[j].StartOffset)
+		(entries[i].StartChunk == entries[j].StartChunk && entries[i].StartOffset < entries[j].StartOffset) ||
+		// sort zero-length files correctly
+		(entries[i].StartChunk == entries[j].StartChunk && entries[i].StartOffset == entries[j].StartOffset && entries[i].EndOffset < entries[j].EndOffset)
 }
 
 // This is used to sort FileInfo objects.
