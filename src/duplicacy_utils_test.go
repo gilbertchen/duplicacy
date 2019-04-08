@@ -92,6 +92,17 @@ func TestMatchPattern(t *testing.T) {
 		}
 	}
 
+	for _, pattern := range []string{ "+", "-", "i:", "e:", "+a", "-a", "i:a", "e:a"} {
+		if IsUnspecifiedFilter(pattern) {
+			t.Errorf("pattern %s has a specified filter", pattern)
+		}
+	}
+
+	for _, pattern := range []string{ "i", "e", "ia", "ib", "a", "b"} {
+		if !IsUnspecifiedFilter(pattern) {
+			t.Errorf("pattern %s does not have a specified filter", pattern)
+		}
+	}
 }
 
 func TestRateLimit(t *testing.T) {
