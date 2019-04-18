@@ -530,7 +530,7 @@ func (client *B2Client) UploadFile(filePath string, content []byte, rateLimit in
 	var response *http.Response
 
 	backoff := 0
-	for i := 0; i < 8; i++ {
+	for i := 0; i < 16; i++ {
 
 		if client.UploadURL == "" || client.UploadToken == "" {
 			err = client.getUploadURL()
