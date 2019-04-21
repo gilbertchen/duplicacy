@@ -998,7 +998,7 @@ func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string][]*
 		earliestSeenChunks := make(map[string]int)
 
 		for _, snapshot := range snapshotList {
-			for _, chunkID := range manager.GetSnapshotChunks(snapshot, true) {
+			for _, chunkID := range manager.GetSnapshotChunks(snapshot, false) {
 				if earliestSeenChunks[chunkID] == 0 {
 					earliestSeenChunks[chunkID] = math.MaxInt32
 				}
@@ -1009,7 +1009,7 @@ func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string][]*
 		for _, snapshot := range snapshotList {
 
 			chunks := make(map[string]bool)
-			for _, chunkID := range manager.GetSnapshotChunks(snapshot, true) {
+			for _, chunkID := range manager.GetSnapshotChunks(snapshot, false) {
 				chunks[chunkID] = true
 				snapshotChunks[chunkID] = true
 			}
