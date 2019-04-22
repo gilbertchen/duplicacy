@@ -860,6 +860,20 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 				_, found := chunkSizeMap[chunkID]
 
 				if !found {
+
+					// Look up the chunk again in case it actually exists, but only if there aren't
+					// too many missing chunks.
+					if missingChunks < 100 {
+						_, exist, _, err := manager.storage.FindChunk(0, chunkID, false)
+						if err != nil {
+							LOG_WARN("SNAPSHOT_VALIDATE", "Failed to check the existence of chunk %s: %v",
+							         chunkID, err)
+						} else if exist {
+							LOG_INFO("SNAPSHOT_VALIDATE", "Chunk %s is confirmed to exist", chunkID)
+							continue
+						}
+					}
+
 					if !searchFossils {
 						missingChunks += 1
 						LOG_WARN("SNAPSHOT_VALIDATE",
@@ -870,7 +884,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 
 					chunkPath, exist, size, err := manager.storage.FindChunk(0, chunkID, true)
 					if err != nil {
-						LOG_ERROR("SNAPSHOT_VALIDATE", "Failed to check the existence of chunk %s: %v",
+						LOG_ERROR("SNAPSHOT_VALIDATE", "Failed to check the existence of fossil %s: %v",
 							chunkID, err)
 						return false
 					}
