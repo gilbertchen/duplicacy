@@ -139,13 +139,15 @@ func ProcessFilters() (patterns []string) {
 }
 
 func ProcessFilterFile(patternFile string, includedFiles []string) (patterns []string) {
-	if Contains(includedFiles, patternFile) {
-		// cycle in include mechanism discovered.
-		LOG_WARN("SNAPSHOT_FILTER", "Cycle in filter includes: %s", strings.Join(includedFiles, " => "))
-		return patterns
+	for _, file := range includedFiles {
+		if file == patternFile {
+			// cycle in include mechanism discovered.
+			LOG_ERROR("SNAPSHOT_FILTER", "The filter file %s has already been included", patternFile)
+			return patterns
+		}
 	}
 	includedFiles = append(includedFiles, patternFile)
-	LOG_INFO("SNAPSHOT_FILTER", "Parsing filter file %s ...", patternFile)
+	LOG_INFO("SNAPSHOT_FILTER", "Parsing filter file %s", patternFile)
 	patternFileContent, err := ioutil.ReadFile(patternFile)
 	if err == nil {
 		patternFileLines := strings.Split(string(patternFileContent), "\n")

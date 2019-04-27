@@ -1016,7 +1016,9 @@ func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string][]*
 				if earliestSeenChunks[chunkID] == 0 {
 					earliestSeenChunks[chunkID] = math.MaxInt32
 				}
-				earliestSeenChunks[chunkID] = MinInt(earliestSeenChunks[chunkID], snapshot.Revision)
+				if earliestSeenChunks[chunkID] > snapshot.Revision {
+					earliestSeenChunks[chunkID] = snapshot.Revision
+				}
 			}
 		}
 
