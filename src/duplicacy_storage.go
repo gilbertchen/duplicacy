@@ -527,8 +527,8 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	} else if matched[1] == "b2" {
 		bucket := matched[3]
 
-		accountID := GetPassword(preference, "b2_id", "Enter Backblaze Account ID:", true, resetPassword)
-		applicationKey := GetPassword(preference, "b2_key", "Enter Backblaze Application Key:", true, resetPassword)
+		accountID := GetPassword(preference, "b2_id", "Enter Backblaze Account or Application ID:", true, resetPassword)
+		applicationKey := GetPassword(preference, "b2_key", "Enter Corresponding Backblaze Application Key:", true, resetPassword)
 
 		b2Storage, err := CreateB2Storage(accountID, applicationKey, bucket, threads)
 		if err != nil {
