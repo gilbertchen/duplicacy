@@ -526,11 +526,12 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		return dropboxStorage
 	} else if matched[1] == "b2" {
 		bucket := matched[3]
+		storageDir := matched[5]
 
-		accountID := GetPassword(preference, "b2_id", "Enter Backblaze Account or Application ID:", true, resetPassword)
-		applicationKey := GetPassword(preference, "b2_key", "Enter Corresponding Backblaze Application Key:", true, resetPassword)
+		accountID := GetPassword(preference, "b2_id", "Enter Backblaze account or application id:", true, resetPassword)
+		applicationKey := GetPassword(preference, "b2_key", "Enter corresponding Backblaze application key:", true, resetPassword)
 
-		b2Storage, err := CreateB2Storage(accountID, applicationKey, bucket, threads)
+		b2Storage, err := CreateB2Storage(accountID, applicationKey, bucket, storageDir, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the Backblaze B2 storage at %s: %v", storageURL, err)
 			return nil

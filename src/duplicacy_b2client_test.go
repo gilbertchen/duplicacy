@@ -37,7 +37,7 @@ func createB2ClientForTest(t *testing.T) (*B2Client, string) {
 		return nil, ""
 	}
 
-	return NewB2Client(b2["account"], b2["key"]), b2["bucket"]
+	return NewB2Client(b2["account"], b2["key"], b2["directory"], 1), b2["bucket"]
 
 }
 
@@ -50,7 +50,7 @@ func TestB2Client(t *testing.T) {
 
 	b2Client.TestMode = true
 
-	err := b2Client.AuthorizeAccount()
+	err := b2Client.AuthorizeAccount(0)
 	if err != nil {
 		t.Errorf("Failed to authorize the b2 account: %v", err)
 		return
@@ -64,14 +64,14 @@ func TestB2Client(t *testing.T) {
 
 	testDirectory := "b2client_test/"
 
-	files, err := b2Client.ListFileNames(testDirectory, false, false)
+	files, err := b2Client.ListFileNames(0, testDirectory, false, false)
 	if err != nil {
 		t.Errorf("Failed to list files: %v", err)
 		return
 	}
 
 	for _, file := range files {
-		err = b2Client.DeleteFile(file.FileName, file.FileID)
+		err = b2Client.DeleteFile(0, file.FileName, file.FileID)
 		if err != nil {
 			t.Errorf("Failed to delete file '%s': %v", file.FileName, err)
 		}
@@ -90,14 +90,14 @@ func TestB2Client(t *testing.T) {
 		hash := sha256.Sum256(content)
 		name := hex.EncodeToString(hash[:])
 
-		err = b2Client.UploadFile(testDirectory+name, content, 100)
+		err = b2Client.UploadFile(0, testDirectory+name, content, 100)
 		if err != nil {
 			t.Errorf("Error uploading file '%s': %v", name, err)
 			return
 		}
 	}
 
-	files, err = b2Client.ListFileNames(testDirectory, false, false)
+	files, err = b2Client.ListFileNames(0, testDirectory, false, false)
 	if err != nil {
 		t.Errorf("Failed to list files: %v", err)
 		return
@@ -105,7 +105,7 @@ func TestB2Client(t *testing.T) {
 
 	for _, file := range files {
 
-		readCloser, _, err := b2Client.DownloadFile(file.FileName)
+		readCloser, _, err := b2Client.DownloadFile(0, file.FileName)
 		if err != nil {
 			t.Errorf("Error downloading file '%s': %v", file.FileName, err)
 			return
@@ -125,7 +125,7 @@ func TestB2Client(t *testing.T) {
 	}
 
 	for _, file := range files {
-		err = b2Client.DeleteFile(file.FileName, file.FileID)
+		err = b2Client.DeleteFile(0, file.FileName, file.FileID)
 		if err != nil {
 			t.Errorf("Failed to delete file '%s': %v", file.FileName, err)
 		}

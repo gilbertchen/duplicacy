@@ -107,7 +107,7 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
 	} else if testStorageName == "b2" {
-		storage, err := CreateB2Storage(config["account"], config["key"], config["bucket"], threads)
+		storage, err := CreateB2Storage(config["account"], config["key"], config["bucket"], config["directory"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
 	} else if testStorageName == "gcs-s3" {
@@ -296,7 +296,8 @@ func TestStorage(t *testing.T) {
 
 	LOG_INFO("STORAGE_TEST", "storage: %s", testStorageName)
 
-	storage, err := loadStorage(testDir, 1)
+	threads := 8
+	storage, err := loadStorage(testDir, threads)
 	if err != nil {
 		t.Errorf("Failed to create storage: %v", err)
 		return
@@ -326,16 +327,16 @@ func TestStorage(t *testing.T) {
 	storage.CreateDirectory(0, "shared")
 
 	// Upload to the same directory by multiple goroutines
-	count := 8
+	count := threads
 	finished := make(chan int, count)
 	for i := 0; i < count; i++ {
-		go func(name string) {
-			err := storage.UploadFile(0, name, []byte("this is a test file"))
+		go func(threadIndex int, name string) {
+			err := storage.UploadFile(threadIndex, name, []byte("this is a test file"))
 			if err != nil {
 				t.Errorf("Error to upload '%s': %v", name, err)
 			}
 			finished <- 0
-		}(fmt.Sprintf("shared/a/b/c/%d", i))
+		}(i, fmt.Sprintf("shared/a/b/c/%d", i))
 	}
 
 	for i := 0; i < count; i++ {
@@ -384,7 +385,6 @@ func TestStorage(t *testing.T) {
 
 	snapshotIDs := []string{}
 	for _, snapshotDir := range snapshotDirs {
-		LOG_INFO("debug", "snapshot dir: %s", snapshotDir)
 		if len(snapshotDir) > 0 && snapshotDir[len(snapshotDir)-1] == '/' {
 			snapshotIDs = append(snapshotIDs, snapshotDir[:len(snapshotDir)-1])
 		}
