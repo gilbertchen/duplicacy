@@ -1285,14 +1285,13 @@ func (manager *SnapshotManager) PrintFile(snapshotID string, revision int, path 
 	}
 
 	file := manager.FindFile(snapshot, path, false)
-	var content []byte
-	if !manager.RetrieveFile(snapshot, file, func(chunk []byte) { content = append(content, chunk...) }) {
+	if !manager.RetrieveFile(snapshot, file, func(chunk []byte) {
+			fmt.Printf("%s", chunk)
+		}) {
 		LOG_ERROR("SNAPSHOT_RETRIEVE", "File %s is corrupted in snapshot %s at revision %d",
 			path, snapshot.ID, snapshot.Revision)
 		return false
 	}
-
-	fmt.Printf("%s", string(content))
 
 	return true
 }
