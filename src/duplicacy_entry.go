@@ -443,8 +443,10 @@ func (files FileInfoCompare) Less(i, j int) bool {
 
 // ListEntries returns a list of entries representing file and subdirectories under the directory 'path'.  Entry paths
 // are normalized as relative to 'top'.  'patterns' are used to exclude or include certain files.
-func ListEntries(top string, path string, fileList *[]*Entry, patterns []string, nobackupFile string, discardAttributes bool) (directoryList []*Entry,
+func ListEntries(top string, path string, fileList *[]*Entry, patterns []string, nobackupFile string, discardAttributes bool, noFollowLinks bool) (directoryList []*Entry,
 	skippedFiles []string, err error) {
+
+    LOG_DEBUG("LIST_ENTRIES", "noFollowLinks", noFollowLinks)
 
 	LOG_DEBUG("LIST_ENTRIES", "Listing %s", path)
 
@@ -499,7 +501,7 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 
 			if isRegular {
 				entry.Mode ^= uint32(os.ModeSymlink)
-			} else if path == "" && (filepath.IsAbs(entry.Link) || filepath.HasPrefix(entry.Link, `\\`)) && !strings.HasPrefix(entry.Link, normalizedTop) {
+			} else if !noFollowLinks && (path == "" && (filepath.IsAbs(entry.Link) || filepath.HasPrefix(entry.Link, `\\`)) && !strings.HasPrefix(entry.Link, normalizedTop)) {
 				stat, err := os.Stat(filepath.Join(top, entry.Path))
 				if err != nil {
 					LOG_WARN("LIST_LINK", "Failed to read the symlink: %v", err)
