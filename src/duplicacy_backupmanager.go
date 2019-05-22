@@ -807,6 +807,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 				if compare == 0 {
 					i++
 					if quickMode && local.IsSameAs(entry) {
+						LOG_TRACE("RESTORE_SKIP", "File %s unchanged (by size and timestamp)", local.Path)
 						skipped = true
 					}
 				}
