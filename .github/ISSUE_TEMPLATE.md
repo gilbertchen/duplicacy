@@ -1,5 +1,17 @@
-Please submit an issue for bug reports or feature requests.  If you have any questions please post them on https://forum.duplicacy.com.
+---
+name: Please use the official forum
+about: Please use the official forum instead of Github
+title: 'Please use the official forum'
+labels: ''
+assignees: ''
 
-When you're reporting a bug, please specify the OS, version, command line arguments, or any info that you think is helpful for the diagnosis.  If Duplicacy reports an error, please post the program output here.
+---
 
-Note that this repository hosts the CLI version of Duplicacy only.  If you're reporting anything related to the GUI version, please visit https://forum.duplicacy.com.
+
+Please **use the [Duplicacy Forum](https://forum.duplicacy.com/)** when reporting bugs, making feature requests, asking for help or simply praising Duplicacy for its ease of use.
+
+We strongly encourage you to create an account on the forum and use that platform for discussion as there is a higher chance that someone there will talk to you. 
+
+There is a handful of people watching the Github Issues and we are in the process of moving **all** of them to the forum as well.
+
+We have already created a comprehensive [Guide](https://forum.duplicacy.com/t/duplicacy-user-guide/1197), and a [How-To](https://forum.duplicacy.com/c/how-to) category which stores more wisdom than these issues on Github.
