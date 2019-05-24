@@ -12,6 +12,6 @@ Please **use the [Duplicacy Forum](https://forum.duplicacy.com/)** when reportin
 
 We strongly encourage you to create an account on the forum and use that platform for discussion as there is a higher chance that someone there will talk to you. 
 
-There is a handful of people watching the Github Issues and we are in the process of moving **all** of them to the forum as well.
+There is a handful of people watching the Github Issues and we are in the process of moving **all** of them to the forum as well. Most likely you will not receive an answer here or it will be very slow and you will be pointed to the forum.
 
 We have already created a comprehensive [Guide](https://forum.duplicacy.com/t/duplicacy-user-guide/1197), and a [How-To](https://forum.duplicacy.com/c/how-to) category which stores more wisdom than these issues on Github.
