@@ -899,7 +899,8 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 				continue
 			}
 		} else {
-			err = os.MkdirAll(path.Dir(fullPath), 0744)
+			parent, _ := SplitDir(fullPath)
+			err = os.MkdirAll(parent, 0744)
 			if err != nil {
 				LOG_ERROR("DOWNLOAD_MKDIR", "Failed to create directory: %v", err)
 			}

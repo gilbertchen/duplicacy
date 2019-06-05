@@ -88,3 +88,7 @@ func (entry *Entry) SetAttributesToFile(fullPath string) {
 func joinPath(components ...string) string {
 	return path.Join(components...)
 }
+
+func SplitDir(fullPath string) (dir string, file string) {
+	return path.Split(fullPath)
+}
