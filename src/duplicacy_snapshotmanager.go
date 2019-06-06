@@ -1482,7 +1482,11 @@ func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []
 						same = right.IsSameAs(left)
 					}
 				} else {
-					same = left.Hash == right.Hash
+					if left.Size == 0 && right.Size == 0 {
+						same = true
+					} else {
+						same = left.Hash == right.Hash
+					}
 				}
 
 				if !same {
