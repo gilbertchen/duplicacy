@@ -71,7 +71,7 @@
   branch = "master"
   name = "github.com/gilbertchen/go.dbus"
   packages = ["."]
-  revision = "9e442e6378618c083fd3b85b703ffd202721fb17"
+  revision = "8591994fa32f1dbe3fa9486bc6f4d4361ac16649"
 
 [[projects]]
   branch = "master"
