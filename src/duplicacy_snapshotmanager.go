@@ -1194,7 +1194,6 @@ func (manager *SnapshotManager) RetrieveFile(snapshot *Snapshot, file *Entry, ou
 	}
 
 	var chunk *Chunk
-	currentHash := ""
 
 	for i := file.StartChunk; i <= file.EndChunk; i++ {
 		start := 0
@@ -1207,10 +1206,12 @@ func (manager *SnapshotManager) RetrieveFile(snapshot *Snapshot, file *Entry, ou
 		}
 
 		hash := snapshot.ChunkHashes[i]
-		if currentHash != hash {
+		lastChunk, lastChunkHash := manager.chunkDownloader.GetLastDownloadedChunk()
+		if lastChunkHash != hash {
 			i := manager.chunkDownloader.AddChunk(hash)
 			chunk = manager.chunkDownloader.WaitForChunk(i)
-			currentHash = hash
+		} else {
+			chunk = lastChunk
 		}
 
 		output(chunk.GetBytes()[start:end])

@@ -197,6 +197,16 @@ func (downloader *ChunkDownloader) Reclaim(chunkIndex int) {
 	downloader.lastChunkIndex = chunkIndex
 }
 
+// Return the chunk last downloaded and its hash
+func (downloader *ChunkDownloader) GetLastDownloadedChunk() (chunk *Chunk, chunkHash string) {
+	if downloader.lastChunkIndex >= len(downloader.taskList) {
+		return nil, ""
+	}
+
+	task := downloader.taskList[downloader.lastChunkIndex]
+	return task.chunk, task.chunkHash
+}
+
 // WaitForChunk waits until the specified chunk is ready
 func (downloader *ChunkDownloader) WaitForChunk(chunkIndex int) (chunk *Chunk) {
 
