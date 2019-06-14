@@ -62,6 +62,8 @@ type B2Client struct {
 	Threads            int
 	MaximumRetries     int
 	TestMode           bool
+
+	LastAuthorizationTime int64
 }
 
 // URL encode the given path but keep the slashes intact
@@ -253,8 +255,12 @@ func (client *B2Client) call(threadIndex int, requestURL string, method string, 
 			if requestURL == B2AuthorizationURL {
 				return nil, nil, 0, fmt.Errorf("Authorization failure")
 			}
-			client.AuthorizeAccount(threadIndex)
-			continue
+
+			// Attempt authorization again.  If authorization is actually not done, run the random backoff
+			_, allowed := client.AuthorizeAccount(threadIndex)
+			if allowed {
+				continue
+			}
 		} else if response.StatusCode == 403 {
 			if !client.TestMode {
 				return nil, nil, 0, fmt.Errorf("B2 cap exceeded")
@@ -291,13 +297,18 @@ type B2AuthorizeAccountOutput struct {
 	DownloadURL        string
 }
 
-func (client *B2Client) AuthorizeAccount(threadIndex int) (err error) {
+func (client *B2Client) AuthorizeAccount(threadIndex int) (err error, allowed bool) {
 	client.Lock.Lock()
 	defer client.Lock.Unlock()
 
+	// Don't authorize if the previous one was done less than 30 seconds ago
+	if client.LastAuthorizationTime != 0 && client.LastAuthorizationTime > time.Now().Unix() - 30 {
+		return nil, false
+	}
+
 	readCloser, _, _, err := client.call(threadIndex, B2AuthorizationURL, http.MethodPost, nil, make(map[string]string))
 	if err != nil {
-		return err
+		return err, true
 	}
 
 	defer readCloser.Close()
@@ -305,7 +316,7 @@ func (client *B2Client) AuthorizeAccount(threadIndex int) (err error) {
 	output := &B2AuthorizeAccountOutput{}
 
 	if err = json.NewDecoder(readCloser).Decode(&output); err != nil {
-		return err
+		return err, true
 	}
 
 	// The account id may be different from the application key id so we're getting the account id from the returned
@@ -317,7 +328,9 @@ func (client *B2Client) AuthorizeAccount(threadIndex int) (err error) {
 	client.DownloadURL = output.DownloadURL
 	client.IsAuthorized = true
 
-	return nil
+	client.LastAuthorizationTime = time.Now().Unix()
+
+	return nil, true
 }
 
 type ListBucketOutput struct {

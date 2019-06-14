@@ -19,7 +19,7 @@ func CreateB2Storage(accountID string, applicationKey string, bucket string, sto
 
 	client := NewB2Client(accountID, applicationKey, storageDir, threads)
 
-	err = client.AuthorizeAccount(0)
+	err, _ = client.AuthorizeAccount(0)
 	if err != nil {
 		return nil, err
 	}

@@ -50,7 +50,7 @@ func TestB2Client(t *testing.T) {
 
 	b2Client.TestMode = true
 
-	err := b2Client.AuthorizeAccount(0)
+	err, _ := b2Client.AuthorizeAccount(0)
 	if err != nil {
 		t.Errorf("Failed to authorize the b2 account: %v", err)
 		return
