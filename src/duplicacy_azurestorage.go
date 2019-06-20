@@ -166,9 +166,21 @@ func (storage *AzureStorage) DownloadFile(threadIndex int, filePath string, chun
 
 // UploadFile writes 'content' to the file at 'filePath'.
 func (storage *AzureStorage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
-	reader := CreateRateLimitedReader(content, storage.UploadRateLimit/len(storage.containers))
-	blob := storage.containers[threadIndex].GetBlobReference(filePath)
-	return blob.CreateBlockBlobFromReader(reader, nil)
+
+	tries := 0
+
+	for {
+		reader := CreateRateLimitedReader(content, storage.UploadRateLimit/len(storage.containers))
+		blob := storage.containers[threadIndex].GetBlobReference(filePath)
+		err = blob.CreateBlockBlobFromReader(reader, nil)
+
+		if err == nil || !strings.Contains(err.Error(), "write: broken pipe") || tries >= 3 {
+			return err
+		}
+
+		LOG_INFO("AZURE_RETRY", "Connection unexpectedly terminated: %v; retrying", err)
+		tries++
+	}
 
 }
 
