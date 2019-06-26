@@ -14,3 +14,4 @@ Duplicacy is based on the following open source projects:
 |https://github.com/pcwizz/xattr            |  BSD-2-Clause |
 |https://github.com/minio/blake2b-simd      |  Apache-2.0 |
 |https://github.com/go-ole/go-ole           |  MIT |
+https://github.com/ncw/swift                |  MIT |
