@@ -344,6 +344,7 @@ func (client *B2Client) FindBucket(bucketName string) (err error) {
 
 	input := make(map[string]string)
 	input["accountId"] = client.AccountID
+	input["bucketName"] = bucketName
 
 	url := client.getAPIURL() + "/b2api/v1/b2_list_buckets"
 
