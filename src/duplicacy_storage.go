@@ -318,7 +318,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			signers := []ssh.Signer{}
 
 			agentSock := os.Getenv("SSH_AUTH_SOCK")
-			if agentSock != "" {
+			if agentSock != "" && !preference.NoAgent {
 				connection, err := net.Dial("unix", agentSock)
 				// TODO:  looks like we need to close the connection
 				if err == nil {

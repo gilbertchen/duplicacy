@@ -24,7 +24,7 @@ import (
 
 	"io/ioutil"
 
-	"github.com/gilbertchen/duplicacy/src"
+	duplicacy "github.com/gilbertchen/duplicacy/src"
 )
 
 const (
@@ -312,6 +312,7 @@ func configRepository(context *cli.Context, init bool) {
 		RepositoryPath: repositoryPath,
 		StorageURL:     storageURL,
 		Encrypted:      context.Bool("encrypt"),
+		NoAgent:        context.Bool("noagent"),
 	}
 
 	storage := duplicacy.CreateStorage(preference, true, 1)
@@ -783,8 +784,6 @@ func restoreRepository(context *cli.Context) {
 		}
 
 		patterns = append(patterns, pattern)
-
-	
 
 	}
 	patterns = duplicacy.ProcessFilterLines(patterns, make([]string, 0))
@@ -1297,7 +1296,7 @@ func benchmark(context *cli.Context) {
 	if storage == nil {
 		return
 	}
-	duplicacy.Benchmark(repository, storage, int64(fileSize) * 1024 * 1024, chunkSize * 1024 * 1024, chunkCount, uploadThreads, downloadThreads)
+	duplicacy.Benchmark(repository, storage, int64(fileSize)*1024*1024, chunkSize*1024*1024, chunkCount, uploadThreads, downloadThreads)
 }
 
 func main() {
@@ -1349,6 +1348,10 @@ func main() {
 					Name:     "repository",
 					Usage:    "initialize a new repository at the specified path rather than the current working directory",
 					Argument: "<path>",
+				},
+				cli.BoolFlag{
+					Name:  "noagent, na",
+					Usage: "Do not attempt to use ssh-agent for authentication.",
 				},
 			},
 			Usage:     "Initialize the storage if necessary and the current directory as the repository",
@@ -1768,6 +1771,10 @@ func main() {
 					Name:     "repository",
 					Usage:    "specify the path of the repository (instead of the current working directory)",
 					Argument: "<path>",
+				},
+				cli.BoolFlag{
+					Name:  "noagent, na",
+					Usage: "Do not attempt to use ssh-agent for authentication.",
 				},
 			},
 			Usage:     "Add an additional storage to be used for the existing repository",

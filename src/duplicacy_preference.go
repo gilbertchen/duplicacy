@@ -19,6 +19,7 @@ type Preference struct {
 	SnapshotID        string            `json:"id"`
 	RepositoryPath    string            `json:"repository"`
 	StorageURL        string            `json:"storage"`
+	NoAgent           bool              `json:no_agent`
 	Encrypted         bool              `json:"encrypted"`
 	BackupProhibited  bool              `json:"no_backup"`
 	RestoreProhibited bool              `json:"no_restore"`
