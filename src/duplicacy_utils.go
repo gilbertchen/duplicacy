@@ -20,6 +20,7 @@ import (
 )
 
 var RunInBackground bool = false
+var IdentitiesOnly bool = false
 
 type RateLimitedReader struct {
 	Content   []byte
@@ -55,7 +56,7 @@ func IsEmptyFilter(pattern string) bool {
 }
 
 func IsUnspecifiedFilter(pattern string) bool {
-	if pattern[0] != '+' && pattern[0] != '-' && !strings.HasPrefix(pattern, "i:") && !strings.HasPrefix(pattern, "e:")  {
+	if pattern[0] != '+' && pattern[0] != '-' && !strings.HasPrefix(pattern, "i:") && !strings.HasPrefix(pattern, "e:") {
 		return true
 	} else {
 		return false

@@ -24,7 +24,7 @@ import (
 
 	"io/ioutil"
 
-	"github.com/gilbertchen/duplicacy/src"
+	duplicacy "github.com/gilbertchen/duplicacy/src"
 )
 
 const (
@@ -160,6 +160,7 @@ func setGlobalOptions(context *cli.Context) {
 	}
 
 	duplicacy.RunInBackground = context.GlobalBool("background")
+	duplicacy.IdentitiesOnly = context.GlobalBool("identities-only")
 }
 
 func runScript(context *cli.Context, storageName string, phase string) bool {
@@ -784,8 +785,6 @@ func restoreRepository(context *cli.Context) {
 
 		patterns = append(patterns, pattern)
 
-	
-
 	}
 	patterns = duplicacy.ProcessFilterLines(patterns, make([]string, 0))
 
@@ -1297,7 +1296,7 @@ func benchmark(context *cli.Context) {
 	if storage == nil {
 		return
 	}
-	duplicacy.Benchmark(repository, storage, int64(fileSize) * 1024 * 1024, chunkSize * 1024 * 1024, chunkCount, uploadThreads, downloadThreads)
+	duplicacy.Benchmark(repository, storage, int64(fileSize)*1024*1024, chunkSize*1024*1024, chunkCount, uploadThreads, downloadThreads)
 }
 
 func main() {
@@ -1964,6 +1963,10 @@ func main() {
 		cli.BoolFlag{
 			Name:  "background",
 			Usage: "read passwords, tokens, or keys only from keychain/keyring or env",
+		},
+		cli.BoolFlag{
+			Name:  "identities-only",
+			Usage: "use only identities explicitly configured",
 		},
 		cli.StringFlag{
 			Name:     "profile",
