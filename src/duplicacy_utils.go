@@ -20,7 +20,7 @@ import (
 )
 
 var RunInBackground bool = false
-var IdentitiesOnly bool = true
+var IdentitiesOnly bool = false
 
 type RateLimitedReader struct {
 	Content   []byte
