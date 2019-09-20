@@ -20,6 +20,11 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
+	"io/ioutil"
+	"reflect"
 )
 
 // BackupManager performs the two major operations, backup and restore, and passes other operations, mostly related to
@@ -101,6 +106,81 @@ func (manager *BackupManager) SetupSnapshotCache(storageName string) bool {
 	manager.snapshotCache = storage
 	manager.SnapshotManager.snapshotCache = storage
 	return true
+}
+
+// SetupRSAPublicKey loads the specifed public key file for encrypting file chunks
+func (manager *BackupManager) SetupRSAPublicKey(keyFile string) {
+	encodedKey, err := ioutil.ReadFile(keyFile)
+	if err != nil {
+		LOG_ERROR("BACKUP_KEY", "Failed to read the public key file: %v", err)
+		return
+	}
+
+	decodedKey, _ := pem.Decode(encodedKey)
+	if decodedKey == nil {
+		LOG_ERROR("RESTORE_KEY", "unrecognized public key in %s", keyFile)
+		return
+	}
+	if decodedKey.Type != "PUBLIC KEY" {
+		LOG_ERROR("BACKUP_KEY", "Unsupported public key type %s in %s", decodedKey.Type, keyFile)
+		return
+	}
+
+	parsedKey, err := x509.ParsePKIXPublicKey(decodedKey.Bytes)
+	if err != nil {
+		LOG_ERROR("BACKUP_KEY", "Failed to parse the public key in %s: %v", keyFile, err)
+		return
+	}
+
+	key, ok := parsedKey.(*rsa.PublicKey)
+	if !ok {
+		LOG_ERROR("BACKUP_KEY", "Unsupported public key type %s in %s", reflect.TypeOf(parsedKey), keyFile)
+		return
+	}
+
+	manager.config.rsaPublicKey = key
+}
+
+// SetupRSAPrivateKey loads the specifed private key file for decrypting file chunks
+func (manager *BackupManager) SetupRSAPrivateKey(keyFile string, passphrase string) {
+
+	encodedKey, err := ioutil.ReadFile(keyFile)
+	if err != nil {
+		LOG_ERROR("RESTORE_KEY", "Failed to read the private key file: %v", err)
+	}
+
+	decodedKey, _ := pem.Decode(encodedKey)
+	if decodedKey == nil {
+		LOG_ERROR("RESTORE_KEY", "unrecognized private key in %s", keyFile)
+		return
+	}
+	if decodedKey.Type != "RSA PRIVATE KEY" {
+		LOG_ERROR("RESTORE_KEY", "Unsupported private key type %s in %s", decodedKey.Type, keyFile)
+		return
+	}
+
+	var decodedKeyBytes []byte
+	if passphrase != "" {
+		decodedKeyBytes, err = x509.DecryptPEMBlock(decodedKey, []byte(passphrase))
+	} else {
+		decodedKeyBytes = decodedKey.Bytes
+	}
+
+	var parsedKey interface{}
+	if parsedKey, err = x509.ParsePKCS1PrivateKey(decodedKeyBytes); err != nil {
+		if parsedKey, err = x509.ParsePKCS8PrivateKey(decodedKeyBytes); err != nil {
+			LOG_ERROR("RESTORE_KEY", "Failed to parse the private key in %s: %v", keyFile, err)
+			return
+		}
+	}
+
+	key, ok := parsedKey.(*rsa.PrivateKey)
+	if !ok {
+		LOG_ERROR("RESTORE_KEY", "Unsupported private key type %s in %s", reflect.TypeOf(parsedKey), keyFile)
+		return
+	}
+
+	manager.config.rsaPrivateKey = key
 }
 
 // setEntryContent sets the 4 content pointers for each entry in 'entries'.  'offset' indicates the value

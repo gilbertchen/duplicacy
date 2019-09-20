@@ -5,11 +5,21 @@
 package duplicacy
 
 import (
+	"flag"
 	"bytes"
 	crypto_rand "crypto/rand"
+	"crypto/rsa"
 	"math/rand"
 	"testing"
 )
+
+var testRSAEncryption bool
+
+func init() {
+	flag.BoolVar(&testRSAEncryption, "rsa", false, "enable RSA encryption")
+	flag.Parse()
+}
+
 
 func TestChunk(t *testing.T) {
 
@@ -21,6 +31,15 @@ func TestChunk(t *testing.T) {
 	config.MinimumChunkSize = 100
 	config.CompressionLevel = DEFAULT_COMPRESSION_LEVEL
 	maxSize := 1000000
+
+	if testRSAEncryption {
+		privateKey, err := rsa.GenerateKey(crypto_rand.Reader, 2048)
+		if err != nil {
+			t.Errorf("Failed to generate a random private key: %v", err)
+		}
+		config.rsaPrivateKey = privateKey
+		config.rsaPublicKey = privateKey.Public().(*rsa.PublicKey)
+	}
 
 	remainderLength := -1
 
@@ -37,7 +56,7 @@ func TestChunk(t *testing.T) {
 		hash := chunk.GetHash()
 		id := chunk.GetID()
 
-		err := chunk.Encrypt(key, "")
+		err := chunk.Encrypt(key, "", false)
 		if err != nil {
 			t.Errorf("Failed to encrypt the data: %v", err)
 			continue

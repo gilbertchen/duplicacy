@@ -8,11 +8,13 @@ import (
 	"bytes"
 	"compress/zlib"
 	"crypto/aes"
+	"crypto/rsa"
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/binary"
 	"fmt"
 	"hash"
 	"io"
@@ -64,6 +66,8 @@ type Chunk struct {
 
 // Magic word to identify a duplicacy format encrypted file, plus a version number.
 var ENCRYPTION_HEADER = "duplicacy\000"
+
+var ENCRYPTION_VERSION_RSA byte = 2
 
 // CreateChunk creates a new chunk.
 func CreateChunk(config *Config, bufferNeeded bool) *Chunk {
@@ -170,7 +174,7 @@ func (chunk *Chunk) VerifyID() {
 
 // Encrypt encrypts the plain data stored in the chunk buffer.  If derivationKey is not nil, the actual
 // encryption key will be HMAC-SHA256(encryptionKey, derivationKey).
-func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err error) {
+func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string, isSnapshot bool) (err error) {
 
 	var aesBlock cipher.Block
 	var gcm cipher.AEAD
@@ -186,8 +190,17 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err err
 	if len(encryptionKey) > 0 {
 
 		key := encryptionKey
-
-		if len(derivationKey) > 0 {
+		usingRSA := false
+		if !isSnapshot && chunk.config.rsaPublicKey != nil {
+			// If the chunk is not a snpashot chunk, we attempt to encrypt it with the RSA publick key if there is one
+			randomKey := make([]byte, 32)
+			_, err := rand.Read(randomKey)
+			if err != nil {
+				return err
+			}
+			key = randomKey
+			usingRSA = true
+		} else if len(derivationKey) > 0 {
 			hasher := chunk.config.NewKeyedHasher([]byte(derivationKey))
 			hasher.Write(encryptionKey)
 			key = hasher.Sum(nil)
@@ -204,7 +217,21 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err err
 		}
 
 		// Start with the magic number and the version number.
-		encryptedBuffer.Write([]byte(ENCRYPTION_HEADER))
+		if usingRSA {
+			// RSA encryption starts "duplicacy\002"
+			encryptedBuffer.Write([]byte(ENCRYPTION_HEADER)[:len(ENCRYPTION_HEADER) - 1])
+			encryptedBuffer.Write([]byte{ENCRYPTION_VERSION_RSA})
+
+			// Then the encrypted key
+			encryptedKey, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, chunk.config.rsaPublicKey, key, nil)
+			if err != nil {
+				return err
+			}
+			binary.Write(encryptedBuffer, binary.LittleEndian, uint16(len(encryptedKey)))
+			encryptedBuffer.Write(encryptedKey)
+		} else {
+			encryptedBuffer.Write([]byte(ENCRYPTION_HEADER))
+		}
 
 		// Followed by the nonce
 		nonce = make([]byte, gcm.NonceSize())
@@ -214,7 +241,6 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err err
 		}
 		encryptedBuffer.Write(nonce)
 		offset = encryptedBuffer.Len()
-
 	}
 
 	// offset is either 0 or the length of header + nonce
@@ -291,6 +317,7 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 	}()
 
 	chunk.buffer, encryptedBuffer = encryptedBuffer, chunk.buffer
+	headerLength := len(ENCRYPTION_HEADER)
 
 	if len(encryptionKey) > 0 {
 
@@ -308,6 +335,41 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 			key = hasher.Sum(nil)
 		}
 
+		if len(encryptedBuffer.Bytes()) < headerLength + 12 {
+			return fmt.Errorf("No enough encrypted data (%d bytes) provided", len(encryptedBuffer.Bytes()))
+		}
+
+		if string(encryptedBuffer.Bytes()[:headerLength-1]) != ENCRYPTION_HEADER[:headerLength-1] {
+			return fmt.Errorf("The storage doesn't seem to be encrypted")
+		}
+
+		version := encryptedBuffer.Bytes()[headerLength-1]
+		if version != 0 && version != ENCRYPTION_VERSION_RSA {
+			return fmt.Errorf("Unsupported encryption version %d", version)
+		}
+
+		if version == ENCRYPTION_VERSION_RSA {
+			if chunk.config.rsaPrivateKey == nil {
+				LOG_ERROR("CHUNK_DECRYPT", "An RSA private key is required to decrypt the chunk")
+				return fmt.Errorf("An RSA private key is required to decrypt the chunk")
+			}
+
+			encryptedKeyLength := binary.LittleEndian.Uint16(encryptedBuffer.Bytes()[headerLength:headerLength+2])
+
+			if len(encryptedBuffer.Bytes()) < headerLength + 14 + int(encryptedKeyLength) {
+				return fmt.Errorf("No enough encrypted data (%d bytes) provided", len(encryptedBuffer.Bytes()))
+			}
+
+			encryptedKey := encryptedBuffer.Bytes()[headerLength + 2:headerLength + 2 + int(encryptedKeyLength)]
+			headerLength += 2 + int(encryptedKeyLength)
+
+			decryptedKey, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, chunk.config.rsaPrivateKey, encryptedKey, nil)
+			if err != nil {
+				return err
+			}
+			key = decryptedKey
+		}
+
 		aesBlock, err := aes.NewCipher(key)
 		if err != nil {
 			return err
@@ -318,21 +380,7 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 			return err
 		}
 
-		headerLength := len(ENCRYPTION_HEADER)
 		offset = headerLength + gcm.NonceSize()
-
-		if len(encryptedBuffer.Bytes()) < offset {
-			return fmt.Errorf("No enough encrypted data (%d bytes) provided", len(encryptedBuffer.Bytes()))
-		}
-
-		if string(encryptedBuffer.Bytes()[:headerLength-1]) != ENCRYPTION_HEADER[:headerLength-1] {
-			return fmt.Errorf("The storage doesn't seem to be encrypted")
-		}
-
-		if encryptedBuffer.Bytes()[headerLength-1] != 0 {
-			return fmt.Errorf("Unsupported encryption version %d", encryptedBuffer.Bytes()[headerLength-1])
-		}
-
 		nonce := encryptedBuffer.Bytes()[headerLength:offset]
 
 		decryptedBytes, err := gcm.Open(encryptedBuffer.Bytes()[:offset], nonce,

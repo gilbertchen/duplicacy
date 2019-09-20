@@ -9,6 +9,7 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/rsa"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
@@ -64,6 +65,10 @@ type Config struct {
 
 	// for encrypting a non-chunk file
 	FileKey []byte `json:"-"`
+
+	// for RSA encryption
+	rsaPrivateKey *rsa.PrivateKey
+	rsaPublicKey *rsa.PublicKey
 
 	chunkPool      chan *Chunk
 	numberOfChunks int32
@@ -430,7 +435,7 @@ func UploadConfig(storage Storage, config *Config, password string, iterations i
 
 	if len(password) > 0 {
 		// Encrypt the config file with masterKey.  If masterKey is nil then no encryption is performed.
-		err = chunk.Encrypt(masterKey, "")
+		err = chunk.Encrypt(masterKey, "", true)
 		if err != nil {
 			LOG_ERROR("CONFIG_CREATE", "Failed to create the config file: %v", err)
 			return false
