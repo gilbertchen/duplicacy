@@ -62,6 +62,8 @@ type Chunk struct {
 
 	config *Config // Every chunk is associated with a Config object.  Which hashing algorithm to use is determined
 	// by the config
+
+	encryptionVersion byte // The version type in the encrytion header
 }
 
 // Magic word to identify a duplicacy format encrypted file, plus a version number.
@@ -191,7 +193,7 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string, isSnapsh
 
 		key := encryptionKey
 		usingRSA := false
-		if !isSnapshot && chunk.config.rsaPublicKey != nil {
+		if chunk.config.rsaPublicKey != nil && (!isSnapshot || chunk.encryptionVersion == ENCRYPTION_VERSION_RSA) {
 			// If the chunk is not a snpashot chunk, we attempt to encrypt it with the RSA publick key if there is one
 			randomKey := make([]byte, 32)
 			_, err := rand.Read(randomKey)
@@ -319,6 +321,8 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 	chunk.buffer, encryptedBuffer = encryptedBuffer, chunk.buffer
 	headerLength := len(ENCRYPTION_HEADER)
 
+	chunk.encryptionVersion = 0
+
 	if len(encryptionKey) > 0 {
 
 		key := encryptionKey
@@ -343,12 +347,12 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 			return fmt.Errorf("The storage doesn't seem to be encrypted")
 		}
 
-		version := encryptedBuffer.Bytes()[headerLength-1]
-		if version != 0 && version != ENCRYPTION_VERSION_RSA {
-			return fmt.Errorf("Unsupported encryption version %d", version)
+		chunk.encryptionVersion = encryptedBuffer.Bytes()[headerLength-1]
+		if chunk.encryptionVersion != 0 && chunk.encryptionVersion != ENCRYPTION_VERSION_RSA {
+			return fmt.Errorf("Unsupported encryption version %d", chunk.encryptionVersion)
 		}
 
-		if version == ENCRYPTION_VERSION_RSA {
+		if chunk.encryptionVersion == ENCRYPTION_VERSION_RSA {
 			if chunk.config.rsaPrivateKey == nil {
 				LOG_ERROR("CHUNK_DECRYPT", "An RSA private key is required to decrypt the chunk")
 				return fmt.Errorf("An RSA private key is required to decrypt the chunk")

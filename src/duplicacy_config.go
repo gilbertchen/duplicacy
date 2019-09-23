@@ -10,15 +10,19 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"crypto/rsa"
+	"crypto/x509"
 	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"hash"
 	"os"
 	"runtime"
 	"runtime/debug"
 	"sync/atomic"
+	"io/ioutil"
+	"reflect"
 
 	blake2 "github.com/minio/blake2b-simd"
 )
@@ -85,10 +89,15 @@ type jsonableConfig struct {
 	IDKey     string `json:"id-key"`
 	ChunkKey  string `json:"chunk-key"`
 	FileKey   string `json:"file-key"`
+	RSAPublicKey string `json:"rsa-public-key"`
 }
 
 func (config *Config) MarshalJSON() ([]byte, error) {
 
+	publicKey := []byte {}
+	if config.rsaPublicKey != nil {
+		publicKey, _ = x509.MarshalPKIXPublicKey(config.rsaPublicKey)
+	}
 	return json.Marshal(&jsonableConfig{
 		aliasedConfig: (*aliasedConfig)(config),
 		ChunkSeed:     hex.EncodeToString(config.ChunkSeed),
@@ -96,6 +105,7 @@ func (config *Config) MarshalJSON() ([]byte, error) {
 		IDKey:         hex.EncodeToString(config.IDKey),
 		ChunkKey:      hex.EncodeToString(config.ChunkKey),
 		FileKey:       hex.EncodeToString(config.FileKey),
+		RSAPublicKey:  hex.EncodeToString(publicKey),
 	})
 }
 
@@ -125,6 +135,19 @@ func (config *Config) UnmarshalJSON(description []byte) (err error) {
 		return fmt.Errorf("Invalid representation of the file key in the config")
 	}
 
+	if publicKey, err := hex.DecodeString(aliased.RSAPublicKey); err != nil {
+		return fmt.Errorf("Invalid hex encoding of the RSA public key in the config")
+	} else if len(publicKey) > 0 {
+		parsedKey, err := x509.ParsePKIXPublicKey(publicKey)
+		if err != nil {
+			return fmt.Errorf("Invalid RSA public key in the config: %v", err)
+		}
+		config.rsaPublicKey = parsedKey.(*rsa.PublicKey)
+		if config.rsaPublicKey == nil {
+			return fmt.Errorf("Unsupported public key type %s in the config", reflect.TypeOf(parsedKey))
+		}
+	}
+
 	return nil
 }
 
@@ -145,6 +168,29 @@ func (config *Config) Print() {
 	LOG_INFO("CONFIG_INFO", "Maximum chunk size: %d", config.MaximumChunkSize)
 	LOG_INFO("CONFIG_INFO", "Minimum chunk size: %d", config.MinimumChunkSize)
 	LOG_INFO("CONFIG_INFO", "Chunk seed: %x", config.ChunkSeed)
+
+	LOG_TRACE("CONFIG_INFO", "Hash key: %x", config.HashKey)
+	LOG_TRACE("CONFIG_INFO", "ID key: %x", config.IDKey)
+
+	if len(config.ChunkKey) >= 0 {
+		LOG_TRACE("CONFIG_INFO", "File chunks are encrypted")
+	}
+
+	if len(config.FileKey) >= 0 {
+		LOG_TRACE("CONFIG_INFO", "Metadata chunks are encrypted")
+	}
+
+	if config.rsaPublicKey != nil {
+		pkisPublicKey, _ := x509.MarshalPKIXPublicKey(config.rsaPublicKey)
+
+		publicKey := pem.EncodeToMemory(&pem.Block{
+			Type:  "PUBLIC KEY",
+			Bytes: pkisPublicKey,
+		})
+
+		LOG_TRACE("CONFIG_INFO", "RSA public key: %s", publicKey)
+	}
+
 }
 
 func CreateConfigFromParameters(compressionLevel int, averageChunkSize int, maximumChunkSize int, mininumChunkSize int,
@@ -482,7 +528,7 @@ func UploadConfig(storage Storage, config *Config, password string, iterations i
 // it simply creates a file named 'config' that stores various parameters as well as a set of keys if encryption
 // is enabled.
 func ConfigStorage(storage Storage, iterations int, compressionLevel int, averageChunkSize int, maximumChunkSize int,
-	minimumChunkSize int, password string, copyFrom *Config, bitCopy bool) bool {
+	minimumChunkSize int, password string, copyFrom *Config, bitCopy bool, keyFile string) bool {
 
 	exist, _, _, err := storage.GetFileInfo(0, "config")
 	if err != nil {
@@ -501,5 +547,108 @@ func ConfigStorage(storage Storage, iterations int, compressionLevel int, averag
 		return false
 	}
 
+	if keyFile != "" {
+		config.loadRSAPublicKey(keyFile)
+	}
 	return UploadConfig(storage, config, password, iterations)
+}
+
+func (config *Config) loadRSAPublicKey(keyFile string) {
+	encodedKey, err := ioutil.ReadFile(keyFile)
+	if err != nil {
+		LOG_ERROR("BACKUP_KEY", "Failed to read the public key file: %v", err)
+		return
+	}
+
+	decodedKey, _ := pem.Decode(encodedKey)
+	if decodedKey == nil {
+		LOG_ERROR("RSA_PUBLIC", "unrecognized public key in %s", keyFile)
+		return
+	}
+	if decodedKey.Type != "PUBLIC KEY" {
+		LOG_ERROR("RSA_PUBLIC", "Unsupported public key type %s in %s", decodedKey.Type, keyFile)
+		return
+	}
+
+	parsedKey, err := x509.ParsePKIXPublicKey(decodedKey.Bytes)
+	if err != nil {
+		LOG_ERROR("RSA_PUBLIC", "Failed to parse the public key in %s: %v", keyFile, err)
+		return
+	}
+
+	key, ok := parsedKey.(*rsa.PublicKey)
+	if !ok {
+		LOG_ERROR("RSA_PUBLIC", "Unsupported public key type %s in %s", reflect.TypeOf(parsedKey), keyFile)
+		return
+	}
+
+	config.rsaPublicKey = key
+}
+
+// loadRSAPrivateKey loads the specifed private key file for decrypting file chunks
+func (config *Config) loadRSAPrivateKey(keyFile string, passphrase string) {
+
+	encodedKey, err := ioutil.ReadFile(keyFile)
+	if err != nil {
+		LOG_ERROR("RSA_PRIVATE", "Failed to read the private key file: %v", err)
+		return
+	}
+
+	decodedKey, _ := pem.Decode(encodedKey)
+	if decodedKey == nil {
+		LOG_ERROR("RSA_PRIVATE", "unrecognized private key in %s", keyFile)
+		return
+	}
+	if decodedKey.Type != "RSA PRIVATE KEY" {
+		LOG_ERROR("RSA_PRIVATE", "Unsupported private key type %s in %s", decodedKey.Type, keyFile)
+		return
+	}
+
+	var decodedKeyBytes []byte
+	if passphrase != "" {
+		decodedKeyBytes, err = x509.DecryptPEMBlock(decodedKey, []byte(passphrase))
+	} else {
+		decodedKeyBytes = decodedKey.Bytes
+	}
+
+	var parsedKey interface{}
+	if parsedKey, err = x509.ParsePKCS1PrivateKey(decodedKeyBytes); err != nil {
+		if parsedKey, err = x509.ParsePKCS8PrivateKey(decodedKeyBytes); err != nil {
+			LOG_ERROR("RSA_PRIVATE", "Failed to parse the private key in %s: %v", keyFile, err)
+			return
+		}
+	}
+
+	key, ok := parsedKey.(*rsa.PrivateKey)
+	if !ok {
+		LOG_ERROR("RSA_PRIVATE", "Unsupported private key type %s in %s", reflect.TypeOf(parsedKey), keyFile)
+		return
+	}
+
+	data := make([]byte, 32)
+	_, err = rand.Read(data)
+	if err != nil {
+		LOG_ERROR("RSA_PRIVATE", "Failed to generate random data for testing the private key: %v", err)
+		return
+	}
+
+	// Now test if the private key matches the public key
+	encryptedData, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, config.rsaPublicKey, data, nil)
+	if err != nil {
+		LOG_ERROR("RSA_PRIVATE", "Failed to encrypt random data with the public key: %v", err)
+		return
+	}
+
+	decryptedData, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, key, encryptedData, nil)
+	if err != nil {
+		LOG_ERROR("RSA_PRIVATE", "Incorrect private key: %v", err)
+		return
+	}
+
+	if !bytes.Equal(data, decryptedData) {
+		LOG_ERROR("RSA_PRIVATE", "Decrypted data do not match the original data")
+		return
+	}
+
+	config.rsaPrivateKey = key
 }
