@@ -15,6 +15,7 @@ import (
 	"path"
 	"runtime/debug"
 	"strconv"
+	"sync"
 	"testing"
 	"time"
 
@@ -629,4 +630,87 @@ func TestCleanStorage(t *testing.T) {
 		}
 	}
 
+}
+
+func TestRetryStorage(t *testing.T) {
+	setTestingT(t)
+	SetLoggingLevel(INFO)
+
+	defer func() {
+		if r := recover(); r != nil {
+			switch e := r.(type) {
+			case Exception:
+				t.Errorf("%s %s", e.LogID, e.Message)
+				debug.PrintStack()
+			default:
+				t.Errorf("%v", e)
+				debug.PrintStack()
+			}
+		}
+	}()
+
+	testDir := path.Join(os.TempDir(), "duplicacy_test", "storage_test")
+	os.RemoveAll(testDir)
+	os.MkdirAll(testDir, 0700)
+
+	LOG_INFO("STORAGE_TEST", "storage: %s", testStorageName)
+
+	retryThreads := 50
+	storage, err := loadStorage(testDir, retryThreads)
+	if err != nil {
+		t.Errorf("Failed to create storage: %v", err)
+		return
+	}
+
+	rStorage, ok := storage.(RetryableStorage)
+	if !ok {
+		LOG_INFO("STORAGE_TEST", "storage: %s skipped, does not provide RetryableStorage interface", testStorageName)
+		t.SkipNow()
+	}
+
+	rStorage.SetRateLimits(testRateLimit, testRateLimit)
+
+	rStorage.CreateDirectory(0, "retry")
+	defer func() {
+		rStorage.DeleteFile(0, "retry")
+	}()
+
+	// Set a long but reasonable retry
+	rStorage.SetRetryTimeout(time.Minute*2)
+
+	// Force rate limiting with too many concurrent uploads,
+	// but retry should make them all succeed eventually
+	var uploads sync.WaitGroup
+	count := retryThreads
+	toDelete := make(chan string, count)
+	for i := 0; i < count; i++ {
+		uploads.Add(1)
+		go func(threadIndex int, name string) {
+			defer uploads.Done()
+			if err := rStorage.UploadFile(threadIndex, name, []byte("this is a test file")); err != nil {
+				t.Errorf("Could not successfully create file %s", name)
+			} else {
+				toDelete <- name
+			}
+		}(i, fmt.Sprintf("retry/%d", i))
+	}
+
+	go func() {
+		uploads.Wait()
+		close(toDelete)
+	}()
+
+	var deletes sync.WaitGroup
+	i := 0
+	for name := range toDelete {
+		deletes.Add(1)
+		go func(threadIndex int, name string) {
+			defer deletes.Done()
+
+			rStorage.DeleteFile(threadIndex, name)
+		}(i, name)
+		i += 1
+	}
+
+	deletes.Wait()
 }

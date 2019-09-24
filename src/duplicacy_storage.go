@@ -15,7 +15,9 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
+	"github.com/cenkalti/backoff"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 )
@@ -71,10 +73,24 @@ type Storage interface {
 	SetRateLimits(downloadRateLimit int, uploadRateLimit int)
 }
 
+type RetryableStorage interface {
+	// Inline all methods of storage
+	Storage
+
+	// If a particular error should result in a retry
+	ShouldRetryAfter(err error) bool
+
+	// Set the longest amount of time to be spent
+	// retrying a single operation
+	SetRetryTimeout(timeout time.Duration)
+	RetryTimeout() time.Duration
+}
+
 // StorageBase is the base struct from which all storages are derived from
 type StorageBase struct {
 	DownloadRateLimit int // Maximum download rate (bytes/seconds)
 	UploadRateLimit   int // Maximum upload reate (bytes/seconds)
+	retryTimeout      time.Duration // Longest amount of time to be spent retrying a single operation; zero is no retries
 
 	DerivedStorage Storage // Used as the pointer to the derived storage class
 
@@ -94,6 +110,55 @@ func (storage *StorageBase) SetRateLimits(downloadRateLimit int, uploadRateLimit
 func (storage *StorageBase) SetDefaultNestingLevels(readLevels []int, writeLevel int) {
 	storage.readLevels = readLevels
 	storage.writeLevel = writeLevel
+}
+
+// Set the longest amount of time to be spent
+// retrying a single operation
+func (storage *StorageBase) SetRetryTimeout(timeout time.Duration) {
+	storage.retryTimeout = timeout
+}
+func (storage *StorageBase) RetryTimeout() time.Duration {
+	return storage.retryTimeout
+}
+
+func TryStorageOperation(storage RetryableStorage, operation func() error) error {
+	if err := operation(); err != nil {
+		if storage.RetryTimeout() == 0 {
+			// if retry disabled
+			LOG_DEBUG("TRY_STORAGE", "Retry disabled, exiting on first error")
+			return err
+		}
+
+		if storage.ShouldRetryAfter(err) {
+			// Initialize ExponentialBackOff timer values
+			backoffTimer := backoff.NewExponentialBackOff()
+			backoffTimer.MaxElapsedTime = storage.RetryTimeout()
+			LOG_DEBUG("TRY_STORAGE", "Retrying with timeout %s", storage.RetryTimeout().String())
+
+			// Wrap the operation to check if
+			// the error is permanent
+			retryableOperation := func() error {
+				if err := operation(); err != nil {
+					if storage.ShouldRetryAfter(err) {
+						LOG_DEBUG("TRY_STORAGE", "Retryable error: %s", err)
+						return err
+					}
+					LOG_DEBUG("TRY_STORAGE", "Permanent error: %s", err)
+					return backoff.Permanent(err)
+				}
+				return nil
+			}
+
+			return backoff.Retry(retryableOperation, backoffTimer)
+		}
+
+		LOG_DEBUG("TRY_STORAGE", "First try failed with permanent error: %s", err)
+		return err
+	}
+
+	// operation() returned no error
+	LOG_DEBUG("TRY_STORAGE", "Succeeded on first try without error")
+	return nil
 }
 
 // SetNestingLevels sets the new read and write levels (normally both at 1) if the 'config' file has

@@ -102,7 +102,7 @@ func (storage *DropboxStorage) ListFiles(threadIndex int, dir string) (files []s
 }
 
 // DeleteFile deletes the file or directory at 'filePath'.
-func (storage *DropboxStorage) DeleteFile(threadIndex int, filePath string) (err error) {
+func (storage *DropboxStorage) DeleteFile(threadIndex int, filePath string) error {
 	if filePath != "" && filePath[0] != '/' {
 		filePath = "/" + filePath
 	}
@@ -110,14 +110,17 @@ func (storage *DropboxStorage) DeleteFile(threadIndex int, filePath string) (err
 	input := &dropbox.DeleteInput{
 		Path: storage.storageDir + filePath,
 	}
-	_, err = storage.clients[threadIndex].Delete(input)
-	if err != nil {
-		if e, ok := err.(*dropbox.Error); ok && strings.HasPrefix(e.Summary, "path_lookup/not_found/") {
-			return nil
+
+	operation := func() (err error) {
+		if _, err = storage.clients[threadIndex].Delete(input); err != nil {
+			if e, ok := err.(*dropbox.Error); ok && strings.HasPrefix(e.Summary, "path_lookup/not_found/") {
+				err = nil
+			}
 		}
+		return
 	}
 
-	return err
+	return TryStorageOperation(storage, operation)
 }
 
 // MoveFile renames the file.
@@ -221,8 +224,12 @@ func (storage *DropboxStorage) UploadFile(threadIndex int, filePath string, cont
 		Reader:     CreateRateLimitedReader(content, storage.UploadRateLimit/len(storage.clients)),
 	}
 
-	_, err = storage.clients[threadIndex].Upload(input)
-	return err
+	operation := func() error {
+		_, err = storage.clients[threadIndex].Upload(input)
+		return err
+	}
+
+	return TryStorageOperation(storage, operation)
 }
 
 // If a local snapshot cache is needed for the storage to avoid downloading/uploading chunks too often when
@@ -237,6 +244,12 @@ func (storage *DropboxStorage) IsStrongConsistent() bool { return false }
 
 // If the storage supports fast listing of files names.
 func (storage *DropboxStorage) IsFastListing() bool { return false }
+
+// If a particular error should result in a retry
+func (storage *DropboxStorage) ShouldRetryAfter(err error) bool {
+	dropboxErr := err.(*dropbox.Error)
+	return dropboxErr.StatusCode == 429 || dropboxErr.StatusCode == 503
+}
 
 // Enable the test mode.
 func (storage *DropboxStorage) EnableTestMode() {}
