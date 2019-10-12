@@ -1858,7 +1858,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 				if _, found := newChunks[chunk]; found {
 					// The fossil is referenced so it can't be deleted.
 					if dryRun {
-						LOG_INFO("FOSSIL_RESURRECT", "Fossil %s would be resurrected: %v", chunk)
+						LOG_INFO("FOSSIL_RESURRECT", "Fossil %s would be resurrected", chunk)
 						continue
 					}
 
@@ -2466,7 +2466,7 @@ func (manager *SnapshotManager) UploadFile(path string, derivationKey string, co
 		derivationKey = derivationKey[len(derivationKey)-64:]
 	}
 
-	err := manager.fileChunk.Encrypt(manager.config.FileKey, derivationKey)
+	err := manager.fileChunk.Encrypt(manager.config.FileKey, derivationKey, true)
 	if err != nil {
 		LOG_ERROR("UPLOAD_File", "Failed to encrypt the file %s: %v", path, err)
 		return false

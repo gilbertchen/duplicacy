@@ -76,6 +76,11 @@ func CreateBackupManager(snapshotID string, storage Storage, top string, passwor
 	return backupManager
 }
 
+// loadRSAPrivateKey loads the specifed private key file for decrypting file chunks
+func (manager *BackupManager) LoadRSAPrivateKey(keyFile string, passphrase string) {
+	manager.config.loadRSAPrivateKey(keyFile, passphrase)
+}
+
 // SetupSnapshotCache creates the snapshot cache, which is merely a local storage under the default .duplicacy
 // directory
 func (manager *BackupManager) SetupSnapshotCache(storageName string) bool {
@@ -102,6 +107,7 @@ func (manager *BackupManager) SetupSnapshotCache(storageName string) bool {
 	manager.SnapshotManager.snapshotCache = storage
 	return true
 }
+
 
 // setEntryContent sets the 4 content pointers for each entry in 'entries'.  'offset' indicates the value
 // to be added to the StartChunk and EndChunk points, used when intending to append 'entries' to the
@@ -175,6 +181,10 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	startTime := time.Now().Unix()
 
 	LOG_DEBUG("BACKUP_PARAMETERS", "top: %s, quick: %t, tag: %s", top, quickMode, tag)
+
+	if manager.config.rsaPublicKey != nil && len(manager.config.FileKey) > 0 {
+		LOG_INFO("BACKUP_KEY", "RSA encryption is enabled" )
+	}
 
 	remoteSnapshot := manager.SnapshotManager.downloadLatestSnapshot(manager.snapshotID)
 	if remoteSnapshot == nil {
@@ -1716,6 +1726,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 			newChunk := otherManager.config.GetChunk()
 			newChunk.Reset(true)
 			newChunk.Write(chunk.GetBytes())
+			newChunk.encryptionVersion = chunk.encryptionVersion
 			chunkUploader.StartChunk(newChunk, chunkIndex)
 			totalCopied++
 		} else {

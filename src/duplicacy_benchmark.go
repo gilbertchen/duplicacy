@@ -41,7 +41,7 @@ func benchmarkSplit(reader *bytes.Reader, fileSize int64, chunkSize int, compres
 				if encryption {
 					key = "0123456789abcdef0123456789abcdef"
 				}
-				err := chunk.Encrypt([]byte(key), "")
+				err := chunk.Encrypt([]byte(key), "", false)
 				if err != nil {
 					LOG_ERROR("BENCHMARK_ENCRYPT", "Failed to encrypt the chunk: %v", err)
 				}
