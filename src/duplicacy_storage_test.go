@@ -131,7 +131,7 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
 	} else if testStorageName == "gcd" {
-		storage, err := CreateGCDStorage(config["token_file"], config["storage_path"], threads)
+		storage, err := CreateGCDStorage(config["token_file"], "", config["storage_path"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
 	} else if testStorageName == "one" {
