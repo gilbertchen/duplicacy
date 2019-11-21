@@ -490,7 +490,8 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 		}
 		if entry.IsLink() {
 			isRegular := false
-			isRegular, entry.Link, err = Readlink(filepath.Join(top, entry.Path))
+			LOG_INFO("debug", "readlink: %s %s", top, entry.Path)
+			isRegular, entry.Link, err = Readlink(joinPath(top, entry.Path))
 			if err != nil {
 				LOG_WARN("LIST_LINK", "Failed to read the symlink %s: %v", entry.Path, err)
 				skippedFiles = append(skippedFiles, entry.Path)
@@ -500,7 +501,7 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 			if isRegular {
 				entry.Mode ^= uint32(os.ModeSymlink)
 			} else if path == "" && (filepath.IsAbs(entry.Link) || filepath.HasPrefix(entry.Link, `\\`)) && !strings.HasPrefix(entry.Link, normalizedTop) {
-				stat, err := os.Stat(filepath.Join(top, entry.Path))
+				stat, err := os.Stat(joinPath(top, entry.Path))
 				if err != nil {
 					LOG_WARN("LIST_LINK", "Failed to read the symlink: %v", err)
 					skippedFiles = append(skippedFiles, entry.Path)
