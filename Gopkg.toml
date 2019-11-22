@@ -75,7 +75,7 @@
 
 [[constraint]]
   name = "github.com/pkg/sftp"
-  version = "1.0.0"
+  version = "1.10.1"
 
 [[constraint]]
   branch = "master"

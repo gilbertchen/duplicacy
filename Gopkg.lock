@@ -153,8 +153,8 @@
 [[projects]]
   name = "github.com/pkg/sftp"
   packages = ["."]
-  revision = "98203f5a8333288eb3163b7c667d4260fe1333e9"
-  version = "1.0.0"
+  revision = "3edd153f213d8d4191a0ee4577c61cca19436632"
+  version = "v1.10.1"
 
 [[projects]]
   name = "github.com/satori/go.uuid"
@@ -225,6 +225,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "eff5ae2d9507f0d62cd2e5bdedebb5c59d64f70f476b087c01c35d4a5e1be72d"
+  inputs-digest = "8636a9db1eb54be5374f9914687693122efdde511f11c47d10c22f9e245e7f70"
   solver-name = "gps-cdcl"
   solver-version = 1
