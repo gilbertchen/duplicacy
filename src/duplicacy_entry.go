@@ -513,6 +513,9 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 					// path from f.Name(); note that a "/" is append assuming a symbolic link is always a directory
 					newEntry.Path = filepath.Join(normalizedPath, f.Name()) + "/"
 				}
+				if len(patterns) > 0 && !MatchPath(newEntry.Path, patterns) {
+					continue
+				}
 				entry = newEntry
 			}
 		}
