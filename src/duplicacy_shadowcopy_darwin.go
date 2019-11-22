@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -156,9 +157,24 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 	}
 	snapshotDate = strings.TrimSpace(tmutilOutput[colonPos+1:])
 
+	tmutilOutput, err = CommandWithTimeout(timeoutInSeconds, "tmutil", "listlocalsnapshots", ".")
+	if err != nil {
+		LOG_ERROR("VSS_CREATE", "Error while calling 'tmutil listlocalsnapshots': ", err)
+		return top
+	}
+	snapshotName := "com.apple.TimeMachine." + snapshotDate
+ 
+	r := regexp.MustCompile(`(?m)^(.+` + snapshotDate + `.*)$`)
+	snapshotNames := r.FindStringSubmatch(tmutilOutput)
+	if len(snapshotNames) > 0 {
+		snapshotName = snapshotNames[0]
+	} else {
+		LOG_WARN("VSS_CREATE", "Error while using 'tmutil listlocalsnapshots' to find snapshot name. Will fallback to 'com.apple.TimeMachine.SNAPSHOT_DATE'")
+	}
+ 
 	// Mount snapshot as readonly and hide from GUI i.e. Finder
 	_, err = CommandWithTimeout(timeoutInSeconds,
-		"/sbin/mount", "-t", "apfs", "-o", "nobrowse,-r,-s=com.apple.TimeMachine."+snapshotDate, "/", snapshotPath)
+		"/sbin/mount", "-t", "apfs", "-o", "nobrowse,-r,-s="+snapshotName, "/", snapshotPath)
 	if err != nil {
 		LOG_ERROR("VSS_CREATE", "Error while mounting snapshot: ", err)
 		return top
