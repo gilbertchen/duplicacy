@@ -490,7 +490,6 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 		}
 		if entry.IsLink() {
 			isRegular := false
-			LOG_INFO("debug", "readlink: %s %s", top, entry.Path)
 			isRegular, entry.Link, err = Readlink(joinPath(top, entry.Path))
 			if err != nil {
 				LOG_WARN("LIST_LINK", "Failed to read the symlink %s: %v", entry.Path, err)
