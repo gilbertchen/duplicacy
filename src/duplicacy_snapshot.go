@@ -58,7 +58,7 @@ func CreateEmptySnapshot(id string) (snapshto *Snapshot) {
 
 // CreateSnapshotFromDirectory creates a snapshot from the local directory 'top'.  Only 'Files'
 // will be constructed, while 'ChunkHashes' and 'ChunkLengths' can only be populated after uploading.
-func CreateSnapshotFromDirectory(id string, top string, nobackupFile string) (snapshot *Snapshot, skippedDirectories []string,
+func CreateSnapshotFromDirectory(id string, top string, nobackupFile string, filtersFile string) (snapshot *Snapshot, skippedDirectories []string,
 	skippedFiles []string, err error) {
 
 	snapshot = &Snapshot{
@@ -69,7 +69,10 @@ func CreateSnapshotFromDirectory(id string, top string, nobackupFile string) (sn
 
 	var patterns []string
 
-	patterns = ProcessFilters()
+	if filtersFile == "" {
+		filtersFile = joinPath(GetDuplicacyPreferencePath(), "filters")
+	}
+	patterns = ProcessFilters(filtersFile)
 
 	directories := make([]*Entry, 0, 256)
 	directories = append(directories, CreateEntry("", 0, 0, 0))
@@ -121,8 +124,8 @@ func AppendPattern(patterns []string, new_pattern string) (new_patterns []string
 	new_patterns = append(patterns, new_pattern)
 	return new_patterns
 }
-func ProcessFilters() (patterns []string) {
-	patterns = ProcessFilterFile(joinPath(GetDuplicacyPreferencePath(), "filters"), make([]string, 0))
+func ProcessFilters(filtersFile string) (patterns []string) {
+	patterns = ProcessFilterFile(filtersFile, make([]string, 0))
 
 	LOG_DEBUG("REGEX_DEBUG", "There are %d compiled regular expressions stored", len(RegexMap))
 
