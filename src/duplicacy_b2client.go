@@ -85,7 +85,7 @@ func NewB2Client(applicationKeyID string, applicationKey string, storageDir stri
 		storageDir += "/"
 	}
 
-	maximumRetries := 10
+	maximumRetries := 15
 	if value, found := os.LookupEnv("DUPLICACY_B2_RETRIES"); found && value != "" {
 		maximumRetries, _ = strconv.Atoi(value)
 		LOG_INFO("B2_RETRIES", "Setting maximum retries for B2 to %d", maximumRetries)
