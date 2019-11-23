@@ -227,11 +227,11 @@ func TestBackupManager(t *testing.T) {
 
 	time.Sleep(time.Duration(delay) * time.Second)
 	if testFixedChunkSize {
-		if !ConfigStorage(storage, 16384, 100, 64*1024, 64*1024, 64*1024, password, nil, false) {
+		if !ConfigStorage(storage, 16384, 100, 64*1024, 64*1024, 64*1024, password, nil, false, "") {
 			t.Errorf("Failed to initialize the storage")
 		}
 	} else {
-		if !ConfigStorage(storage, 16384, 100, 64*1024, 256*1024, 16*1024, password, nil, false) {
+		if !ConfigStorage(storage, 16384, 100, 64*1024, 256*1024, 16*1024, password, nil, false, "") {
 			t.Errorf("Failed to initialize the storage")
 		}
 	}
