@@ -27,6 +27,7 @@ var testRateLimit int
 var testQuickMode bool
 var testThreads int
 var testFixedChunkSize bool
+var testRSAEncryption bool
 
 func init() {
 	flag.StringVar(&testStorageName, "storage", "", "the test storage to use")
@@ -34,6 +35,7 @@ func init() {
 	flag.BoolVar(&testQuickMode, "quick", false, "quick test")
 	flag.IntVar(&testThreads, "threads", 1, "number of downloading/uploading threads")
 	flag.BoolVar(&testFixedChunkSize, "fixed-chunk-size", false, "fixed chunk size")
+	flag.BoolVar(&testRSAEncryption, "rsa", false, "enable RSA encryption")
 	flag.Parse()
 }
 

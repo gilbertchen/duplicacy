@@ -5,21 +5,12 @@
 package duplicacy
 
 import (
-	"flag"
 	"bytes"
 	crypto_rand "crypto/rand"
 	"crypto/rsa"
 	"math/rand"
 	"testing"
 )
-
-var testRSAEncryption bool
-
-func init() {
-	flag.BoolVar(&testRSAEncryption, "rsa", false, "enable RSA encryption")
-	flag.Parse()
-}
-
 
 func TestChunk(t *testing.T) {
 
