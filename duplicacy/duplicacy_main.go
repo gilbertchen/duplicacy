@@ -2059,7 +2059,7 @@ func main() {
 	app.Name = "duplicacy"
 	app.HelpName = "duplicacy"
 	app.Usage = "A new generation cloud backup tool based on lock-free deduplication"
-	app.Version = "2.2.3" + " (" + GitCommit + ")"
+	app.Version = "2.3.0" + " (" + GitCommit + ")"
 
 	// If the program is interrupted, call the RunAtError function.
 	c := make(chan os.Signal, 1)
