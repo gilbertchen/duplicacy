@@ -201,7 +201,7 @@ func runScript(context *cli.Context, storageName string, phase string) bool {
 	}
 
 	if err != nil {
-		duplicacy.LOG_WARN("SCRIPT_ERROR", "Failed to run script: %v", err)
+		duplicacy.LOG_ERROR("SCRIPT_ERROR", "Failed to run %s script: %v", script, err)
 		return false
 	}
 
