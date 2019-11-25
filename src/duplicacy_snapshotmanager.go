@@ -759,8 +759,8 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToCheck []int, tag string, showStatistics bool, showTabular bool,
 	checkFiles bool, searchFossils bool, resurrect bool) bool {
 
-	LOG_DEBUG("LIST_PARAMETERS", "id: %s, revisions: %v, tag: %s, showStatistics: %t, checkFiles: %t, searchFossils: %t, resurrect: %t",
-		snapshotID, revisionsToCheck, tag, showStatistics, checkFiles, searchFossils, resurrect)
+	LOG_DEBUG("LIST_PARAMETERS", "id: %s, revisions: %v, tag: %s, showStatistics: %t, showTabular: %t, checkFiles: %t, searchFossils: %t, resurrect: %t",
+		snapshotID, revisionsToCheck, tag, showStatistics, showTabular, checkFiles, searchFossils, resurrect)
 
 	snapshotMap := make(map[string][]*Snapshot)
 	var err error
@@ -790,7 +790,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 		chunkSizeMap[chunk] = allSizes[i]
 	}
 
-	if snapshotID == "" || showStatistics {
+	if snapshotID == "" || showStatistics || showTabular {
 		snapshotIDs, err := manager.ListSnapshotIDs()
 		if err != nil {
 			LOG_ERROR("SNAPSHOT_LIST", "Failed to list all snapshots: %v", err)
@@ -810,7 +810,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	for snapshotID = range snapshotMap {
 
 		revisions := revisionsToCheck
-		if len(revisions) == 0 || showStatistics {
+		if len(revisions) == 0 || showStatistics || showTabular {
 			revisions, err = manager.ListSnapshotRevisions(snapshotID)
 			if err != nil {
 				LOG_ERROR("SNAPSHOT_LIST", "Failed to list all revisions for snapshot %s: %v", snapshotID, err)
