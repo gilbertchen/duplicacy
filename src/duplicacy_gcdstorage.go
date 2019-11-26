@@ -264,6 +264,11 @@ func (storage *GCDStorage) getIDFromPath(threadIndex int, filePath string, creat
 		fileID = rootID
 	}
 
+	// Write directly to the root of the drive
+	if filePath == "" {
+		return fileID, nil
+	}
+
 	names := strings.Split(filePath, "/")
 	current := ""
 	for i, name := range names {

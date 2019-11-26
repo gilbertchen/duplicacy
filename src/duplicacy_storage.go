@@ -582,8 +582,13 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		SavePassword(preference, "gcs_token", tokenFile)
 		return gcsStorage
 	} else if matched[1] == "gcd" {
+		// Handle writing directly to the root of the drive
+		// For gcd://driveid@/, driveid@ is match[3] not match[2]
+		if matched[2] == "" && strings.HasSuffix(matched[3], "@") {
+			matched[2], matched[3]  = matched[3], matched[2]
+		}
 		driveID := matched[2]
-		if len(driveID) != 0 {
+		if driveID != "" {
 			driveID = driveID[:len(driveID)-1]
 		}
 		storagePath := matched[3] + matched[4]
