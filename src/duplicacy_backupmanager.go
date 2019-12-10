@@ -1668,6 +1668,8 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 				chunks[chunkHash] = true
 			}
 		}
+
+		snapshot.ChunkHashes = nil
 	}
 
 	otherChunkFiles, otherChunkSizes := otherManager.SnapshotManager.ListAllFiles(otherManager.storage, "chunks/")
