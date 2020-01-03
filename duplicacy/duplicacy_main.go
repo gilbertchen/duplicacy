@@ -1707,7 +1707,7 @@ func main() {
 			Flags: []cli.Flag{
 				cli.StringFlag{
 					Name:     "id",
-					Usage:    "delete snapshots with the specified id instead of the default one",
+					Usage:    "delete revisions with the specified snapshot ID instead of the default one",
 					Argument: "<snapshot id>",
 				},
 				cli.BoolFlag{
@@ -1716,17 +1716,17 @@ func main() {
 				},
 				cli.StringSliceFlag{
 					Name:     "r",
-					Usage:    "delete snapshots with the specified revisions",
+					Usage:    "delete the specified revisions",
 					Argument: "<revision>",
 				},
 				cli.StringSliceFlag{
 					Name:     "t",
-					Usage:    "delete snapshots with the specified tags",
+					Usage:    "delete revisions with the specified tags",
 					Argument: "<tag>",
 				},
 				cli.StringSliceFlag{
 					Name:     "keep",
-					Usage:    "keep 1 snapshot every n days for snapshots older than m days",
+					Usage:    "keep 1 revision every n days for revisions older than m days",
 					Argument: "<n:m>",
 				},
 				cli.BoolFlag{
@@ -1751,12 +1751,12 @@ func main() {
 				},
 				cli.StringSliceFlag{
 					Name:     "ignore",
-					Usage:    "ignore snapshots with the specified id when deciding if fossils can be deleted",
+					Usage:    "ignore revisions with the specified snapshot ID when deciding if fossils can be deleted",
 					Argument: "<id>",
 				},
 				cli.StringFlag{
 					Name:     "storage",
-					Usage:    "prune snapshots from the specified storage",
+					Usage:    "prune revisions from the specified storage",
 					Argument: "<storage name>",
 				},
 				cli.IntFlag{
@@ -1766,7 +1766,7 @@ func main() {
 					Argument: "<n>",
 				},
 			},
-			Usage:     "Prune snapshots by revision, tag, or retention policy",
+			Usage:     "Prune revisions by number, tag, or retention policy",
 			ArgsUsage: " ",
 			Action:    pruneSnapshots,
 		},
