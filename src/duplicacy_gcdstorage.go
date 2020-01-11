@@ -264,11 +264,6 @@ func (storage *GCDStorage) getIDFromPath(threadIndex int, filePath string, creat
 		fileID = rootID
 	}
 
-	// Write directly to the root of the drive
-	if filePath == "" {
-		return fileID, nil
-	}
-
 	names := strings.Split(filePath, "/")
 	current := ""
 	for i, name := range names {
@@ -361,6 +356,7 @@ func CreateGCDStorage(tokenFile string, driveID string, storagePath string, thre
 		storage.attempts[i] = 0
 	}
 
+	storage.savePathID("", driveID)
 	storagePathID, err := storage.getIDFromPath(0, storagePath, true)
 	if err != nil {
 		return nil, err
