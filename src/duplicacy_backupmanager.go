@@ -1732,7 +1732,11 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 			newChunk := otherManager.config.GetChunk()
 			newChunk.Reset(true)
 			newChunk.Write(chunk.GetBytes())
-			newChunk.encryptionVersion = chunk.encryptionVersion
+			if chunk.encryptionVersion == ENCRYPTION_VERSION_RSA {
+				newChunk.encryptionVersion = CHUNK_RSA_ENCRYPTION_ENABLED
+			} else {
+				newChunk.encryptionVersion = CHUNK_RSA_ENCRYPTION_DISABLED
+			}
 			chunkUploader.StartChunk(newChunk, chunkIndex)
 			totalCopied++
 		} else {

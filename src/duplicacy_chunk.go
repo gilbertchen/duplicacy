@@ -63,13 +63,20 @@ type Chunk struct {
 	config *Config // Every chunk is associated with a Config object.  Which hashing algorithm to use is determined
 	// by the config
 
-	encryptionVersion byte // The version type in the encrytion header
+	encryptionVersion byte // The version type in the encrytion header; for a chunk to be copied, this field contains
+	// one of the CHUNK_RSA_ENCRYPTION_* constants to indicate how the new chunk should be encrypted
 }
 
 // Magic word to identify a duplicacy format encrypted file, plus a version number.
 var ENCRYPTION_HEADER = "duplicacy\000"
 
+// RSA encrypted chunks start with "duplicacy\002"
 var ENCRYPTION_VERSION_RSA byte = 2
+
+// These constants are used to control how a new chunk should be encrypted by the copy command
+var CHUNK_RSA_ENCRYPTION_DEFAULT byte = 0   // No RSA encryption explicitly requested
+var CHUNK_RSA_ENCRYPTION_DISABLED byte = 1  // The RSA encryption should be turned off
+var CHUNK_RSA_ENCRYPTION_ENABLED byte = 2   // The RSA encryption should be forced on
 
 // CreateChunk creates a new chunk.
 func CreateChunk(config *Config, bufferNeeded bool) *Chunk {
@@ -193,7 +200,10 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string, isSnapsh
 
 		key := encryptionKey
 		usingRSA := false
-		if chunk.config.rsaPublicKey != nil && (!isSnapshot || chunk.encryptionVersion == ENCRYPTION_VERSION_RSA) {
+		// If encryptionVersion is not set, use the default setting (RSA for file chunks only);
+		// otherwise, enable RSA encryption only when explicitly requested
+		if chunk.config.rsaPublicKey != nil &&
+		    ((!isSnapshot && chunk.encryptionVersion == CHUNK_RSA_ENCRYPTION_DEFAULT) || chunk.encryptionVersion == CHUNK_RSA_ENCRYPTION_ENABLED) {
 			// If the chunk is not a snpashot chunk, we attempt to encrypt it with the RSA publick key if there is one
 			randomKey := make([]byte, 32)
 			_, err := rand.Read(randomKey)
