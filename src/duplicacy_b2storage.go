@@ -15,9 +15,9 @@ type B2Storage struct {
 }
 
 // CreateB2Storage creates a B2 storage object.
-func CreateB2Storage(accountID string, applicationKey string, bucket string, storageDir string, threads int) (storage *B2Storage, err error) {
+func CreateB2Storage(accountID string, applicationKey string, downloadURL string, bucket string, storageDir string, threads int) (storage *B2Storage, err error) {
 
-	client := NewB2Client(accountID, applicationKey, storageDir, threads)
+	client := NewB2Client(accountID, applicationKey, downloadURL, storageDir, threads)
 
 	err, _ = client.AuthorizeAccount(0)
 	if err != nil {
