@@ -329,6 +329,7 @@ func (client *B2Client) AuthorizeAccount(threadIndex int) (err error, allowed bo
 	if client.DownloadURL == "" {
 		client.DownloadURL = output.DownloadURL
 	}
+	LOG_INFO("BACKBLAZE_URL", "download URL is: %s", client.DownloadURL)
 	client.IsAuthorized = true
 
 	client.LastAuthorizationTime = time.Now().Unix()
