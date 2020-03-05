@@ -204,7 +204,6 @@ func (storage *B2Storage) GetFileInfo(threadIndex int, filePath string) (exist b
 // DownloadFile reads the file at 'filePath' into the chunk.
 func (storage *B2Storage) DownloadFile(threadIndex int, filePath string, chunk *Chunk) (err error) {
 
-	filePath = strings.Replace(filePath, " ", "%20", -1)
 	readCloser, _, err := storage.client.DownloadFile(threadIndex, filePath)
 	if err != nil {
 		return err
@@ -218,7 +217,6 @@ func (storage *B2Storage) DownloadFile(threadIndex int, filePath string, chunk *
 
 // UploadFile writes 'content' to the file at 'filePath'.
 func (storage *B2Storage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
-	filePath = strings.Replace(filePath, " ", "%20", -1)
 	return storage.client.UploadFile(threadIndex, filePath, content, storage.UploadRateLimit/storage.client.Threads)
 }
 

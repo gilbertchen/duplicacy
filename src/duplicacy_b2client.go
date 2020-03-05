@@ -413,16 +413,16 @@ func (client *B2Client) ListFileNames(threadIndex int, startFileName string, sin
 	input["prefix"] = client.StorageDir
 
 	for {
-		url := client.getAPIURL() + "/b2api/v1/b2_list_file_names"
+		apiURL := client.getAPIURL() + "/b2api/v1/b2_list_file_names"
 		requestHeaders := map[string]string{}
 		requestMethod := http.MethodPost
 		var requestInput interface{}
 		requestInput = input
 		if includeVersions {
-			url = client.getAPIURL() + "/b2api/v1/b2_list_file_versions"
+			apiURL = client.getAPIURL() + "/b2api/v1/b2_list_file_versions"
 		} else if singleFile {
 			// handle a single file with no versions as a special case to download the last byte of the file
-			url = client.getDownloadURL() + "/file/" + client.BucketName + "/" + B2Escape(client.StorageDir + startFileName)
+			apiURL = client.getDownloadURL() + "/file/" + client.BucketName + "/" + B2Escape(client.StorageDir + startFileName)
 			// requesting byte -1 works for empty files where 0-0 fails with a 416 error
 			requestHeaders["Range"] = "bytes=-1"
 			// HEAD request
@@ -432,7 +432,7 @@ func (client *B2Client) ListFileNames(threadIndex int, startFileName string, sin
 		var readCloser io.ReadCloser
 		var responseHeader http.Header
 		var err error
-		readCloser, responseHeader, _, err = client.call(threadIndex, url, requestMethod, requestHeaders, requestInput)
+		readCloser, responseHeader, _, err = client.call(threadIndex, apiURL, requestMethod, requestHeaders, requestInput)
 		if err != nil {
 			return nil, err
 		}
@@ -445,7 +445,7 @@ func (client *B2Client) ListFileNames(threadIndex int, startFileName string, sin
 
 		if singleFile && !includeVersions {
 			if responseHeader == nil {
-				LOG_DEBUG("BACKBLAZE_LIST", "%s did not return headers", url)
+				LOG_DEBUG("BACKBLAZE_LIST", "%s did not return headers", apiURL)
 				return []*B2Entry{}, nil
 			}
 			requiredHeaders := []string{
@@ -459,11 +459,17 @@ func (client *B2Client) ListFileNames(threadIndex int, startFileName string, sin
 				}
 			}
 			if len(missingKeys) > 0 {
-				return nil, fmt.Errorf("%s missing headers: %s", url, missingKeys)
+				return nil, fmt.Errorf("%s missing headers: %s", apiURL, missingKeys)
 			}
 			// construct the B2Entry from the response headers of the download request
 			fileID := responseHeader.Get("x-bz-file-id")
 			fileName := responseHeader.Get("x-bz-file-name")
+			unescapedFileName, err := url.QueryUnescape(fileName)
+			if err == nil {
+				fileName = unescapedFileName
+			} else {
+				LOG_WARN("BACKBLAZE_UNESCAPE", "Failed to unescape the file name %s", fileName)
+			}
 			fileAction := "upload"
 			// byte range that is returned: "bytes #-#/#
 			rangeString := responseHeader.Get("Content-Range")
@@ -476,10 +482,10 @@ func (client *B2Client) ListFileNames(threadIndex int, startFileName string, sin
 				// this should only execute if the requested file is empty and the range request didn't result in a Content-Range header
 				fileSize, _ = strconv.ParseInt(lengthString, 0, 64)
 				if fileSize != 0 {
-					return nil, fmt.Errorf("%s returned non-zero file length", url)
+					return nil, fmt.Errorf("%s returned non-zero file length", apiURL)
 				}
 			} else {
-				return nil, fmt.Errorf("could not parse headers returned by %s", url)
+				return nil, fmt.Errorf("could not parse headers returned by %s", apiURL)
 			}
 			fileUploadTimestamp, _ := strconv.ParseInt(responseHeader.Get("X-Bz-Upload-Timestamp"), 0, 64)
 
