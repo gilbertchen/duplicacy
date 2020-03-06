@@ -37,7 +37,7 @@ func createB2ClientForTest(t *testing.T) (*B2Client, string) {
 		return nil, ""
 	}
 
-	return NewB2Client(b2["account"], b2["key"], b2["directory"], 1), b2["bucket"]
+	return NewB2Client(b2["account"], b2["key"], "", b2["directory"], 1), b2["bucket"]
 
 }
 

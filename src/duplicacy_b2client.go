@@ -75,7 +75,7 @@ func B2Escape(path string) string {
 	return strings.Join(components, "/")
 }
 
-func NewB2Client(applicationKeyID string, applicationKey string, storageDir string, threads int) *B2Client {
+func NewB2Client(applicationKeyID string, applicationKey string, downloadURL string, storageDir string, threads int) *B2Client {
 
 	for storageDir != "" && storageDir[0] == '/' {
 		storageDir = storageDir[1:]
@@ -95,6 +95,7 @@ func NewB2Client(applicationKeyID string, applicationKey string, storageDir stri
 		HTTPClient:       http.DefaultClient,
 		ApplicationKeyID: applicationKeyID,
 		ApplicationKey:   applicationKey,
+		DownloadURL:      downloadURL,
 		StorageDir:       storageDir,
 		UploadURLs:       make([]string, threads),
 		UploadTokens:     make([]string, threads),
@@ -325,7 +326,10 @@ func (client *B2Client) AuthorizeAccount(threadIndex int) (err error, allowed bo
 
 	client.AuthorizationToken = output.AuthorizationToken
 	client.APIURL = output.APIURL
-	client.DownloadURL = output.DownloadURL
+	if client.DownloadURL == "" {
+		client.DownloadURL = output.DownloadURL
+	}
+	LOG_INFO("BACKBLAZE_URL", "download URL is: %s", client.DownloadURL)
 	client.IsAuthorized = true
 
 	client.LastAuthorizationTime = time.Now().Unix()
