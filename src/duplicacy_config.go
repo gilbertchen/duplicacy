@@ -588,6 +588,11 @@ func (config *Config) loadRSAPublicKey(keyFile string) {
 // loadRSAPrivateKey loads the specifed private key file for decrypting file chunks
 func (config *Config) loadRSAPrivateKey(keyFile string, passphrase string) {
 
+	if config.rsaPublicKey == nil {
+		LOG_ERROR("RSA_PUBLIC", "The storage was not encrypted by an RSA key")
+		return
+	}
+
 	encodedKey, err := ioutil.ReadFile(keyFile)
 	if err != nil {
 		LOG_ERROR("RSA_PRIVATE", "Failed to read the private key file: %v", err)
