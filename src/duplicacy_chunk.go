@@ -63,8 +63,8 @@ type Chunk struct {
 	config *Config // Every chunk is associated with a Config object.  Which hashing algorithm to use is determined
 	// by the config
 
-	encryptionVersion byte // The version type in the encrytion header; for a chunk to be copied, this field contains
-	// one of the CHUNK_RSA_ENCRYPTION_* constants to indicate how the new chunk should be encrypted
+	isSnapshot bool // Indicates if the chunk is a snapshot chunk (instead of a file chunk).  This is only used by RSA
+	                // encryption, where a snapshot chunk is not encrypted by RSA
 }
 
 // Magic word to identify a duplicacy format encrypted file, plus a version number.
@@ -72,11 +72,6 @@ var ENCRYPTION_HEADER = "duplicacy\000"
 
 // RSA encrypted chunks start with "duplicacy\002"
 var ENCRYPTION_VERSION_RSA byte = 2
-
-// These constants are used to control how a new chunk should be encrypted by the copy command
-var CHUNK_RSA_ENCRYPTION_DEFAULT byte = 0   // No RSA encryption explicitly requested
-var CHUNK_RSA_ENCRYPTION_DISABLED byte = 1  // The RSA encryption should be turned off
-var CHUNK_RSA_ENCRYPTION_ENABLED byte = 2   // The RSA encryption should be forced on
 
 // CreateChunk creates a new chunk.
 func CreateChunk(config *Config, bufferNeeded bool) *Chunk {
@@ -126,6 +121,7 @@ func (chunk *Chunk) Reset(hashNeeded bool) {
 	chunk.hash = nil
 	chunk.id = ""
 	chunk.size = 0
+	chunk.isSnapshot = false
 }
 
 // Write implements the Writer interface.
@@ -200,11 +196,8 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string, isSnapsh
 
 		key := encryptionKey
 		usingRSA := false
-		// If encryptionVersion is not set, use the default setting (RSA for file chunks only);
-		// otherwise, enable RSA encryption only when explicitly requested
-		if chunk.config.rsaPublicKey != nil &&
-		    ((!isSnapshot && chunk.encryptionVersion == CHUNK_RSA_ENCRYPTION_DEFAULT) || chunk.encryptionVersion == CHUNK_RSA_ENCRYPTION_ENABLED) {
-			// If the chunk is not a snpashot chunk, we attempt to encrypt it with the RSA publick key if there is one
+		// Enable RSA encryption only when the chunk is not a snapshot chunk
+		if chunk.config.rsaPublicKey != nil && !isSnapshot && !chunk.isSnapshot {
 			randomKey := make([]byte, 32)
 			_, err := rand.Read(randomKey)
 			if err != nil {
@@ -331,8 +324,6 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 	chunk.buffer, encryptedBuffer = encryptedBuffer, chunk.buffer
 	headerLength := len(ENCRYPTION_HEADER)
 
-	chunk.encryptionVersion = 0
-
 	if len(encryptionKey) > 0 {
 
 		key := encryptionKey
@@ -357,12 +348,12 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 			return fmt.Errorf("The storage doesn't seem to be encrypted")
 		}
 
-		chunk.encryptionVersion = encryptedBuffer.Bytes()[headerLength-1]
-		if chunk.encryptionVersion != 0 && chunk.encryptionVersion != ENCRYPTION_VERSION_RSA {
-			return fmt.Errorf("Unsupported encryption version %d", chunk.encryptionVersion)
+		encryptionVersion := encryptedBuffer.Bytes()[headerLength-1]
+		if encryptionVersion != 0 && encryptionVersion != ENCRYPTION_VERSION_RSA {
+			return fmt.Errorf("Unsupported encryption version %d", encryptionVersion)
 		}
 
-		if chunk.encryptionVersion == ENCRYPTION_VERSION_RSA {
+		if encryptionVersion == ENCRYPTION_VERSION_RSA {
 			if chunk.config.rsaPrivateKey == nil {
 				LOG_ERROR("CHUNK_DECRYPT", "An RSA private key is required to decrypt the chunk")
 				return fmt.Errorf("An RSA private key is required to decrypt the chunk")

@@ -1626,6 +1626,9 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 		return true
 	}
 
+	// These two maps store hashes of chunks in the source and destination storages, respectively.  Note that
+	// the value of 'chunks' is used to indicated if the chunk is a snapshot chunk, while the value of 'otherChunks' 
+	// is not used.
 	chunks := make(map[string]bool)
 	otherChunks := make(map[string]bool)
 
@@ -1638,21 +1641,15 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 		LOG_TRACE("SNAPSHOT_COPY", "Copying snapshot %s at revision %d", snapshot.ID, snapshot.Revision)
 
 		for _, chunkHash := range snapshot.FileSequence {
-			if _, found := chunks[chunkHash]; !found {
-				chunks[chunkHash] = true
-			}
+			chunks[chunkHash] = true  // The chunk is a snapshot chunk
 		}
 
 		for _, chunkHash := range snapshot.ChunkSequence {
-			if _, found := chunks[chunkHash]; !found {
-				chunks[chunkHash] = true
-			}
+			chunks[chunkHash] = true  // The chunk is a snapshot chunk
 		}
 
 		for _, chunkHash := range snapshot.LengthSequence {
-			if _, found := chunks[chunkHash]; !found {
-				chunks[chunkHash] = true
-			}
+			chunks[chunkHash] = true  // The chunk is a snapshot chunk
 		}
 
 		description := manager.SnapshotManager.DownloadSequence(snapshot.ChunkSequence)
@@ -1665,7 +1662,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 
 		for _, chunkHash := range snapshot.ChunkHashes {
 			if _, found := chunks[chunkHash]; !found {
-				chunks[chunkHash] = true
+				chunks[chunkHash] = false  // The chunk is a file chunk
 			}
 		}
 
@@ -1721,7 +1718,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 	totalSkipped := 0
 	chunkIndex := 0
 
-	for chunkHash := range chunks {
+	for chunkHash, isSnapshot := range chunks {
 		chunkIndex++
 		chunkID := manager.config.GetChunkIDFromHash(chunkHash)
 		newChunkID := otherManager.config.GetChunkIDFromHash(chunkHash)
@@ -1732,11 +1729,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 			newChunk := otherManager.config.GetChunk()
 			newChunk.Reset(true)
 			newChunk.Write(chunk.GetBytes())
-			if chunk.encryptionVersion == ENCRYPTION_VERSION_RSA {
-				newChunk.encryptionVersion = CHUNK_RSA_ENCRYPTION_ENABLED
-			} else {
-				newChunk.encryptionVersion = CHUNK_RSA_ENCRYPTION_DISABLED
-			}
+			newChunk.isSnapshot = isSnapshot
 			chunkUploader.StartChunk(newChunk, chunkIndex)
 			totalCopied++
 		} else {
