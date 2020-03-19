@@ -17,7 +17,7 @@ import (
 
 func TestOneDriveClient(t *testing.T) {
 
-	oneDriveClient, err := NewOneDriveClient("one-token.json")
+	oneDriveClient, err := NewOneDriveClient("one-token.json", false)
 	if err != nil {
 		t.Errorf("Failed to create the OneDrive client: %v", err)
 		return

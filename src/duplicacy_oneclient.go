@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"path/filepath"
 
 	"golang.org/x/oauth2"
 )
@@ -32,9 +33,6 @@ type OneDriveErrorResponse struct {
 	Error OneDriveError `json:"error"`
 }
 
-var OneDriveRefreshTokenURL = "https://duplicacy.com/one_refresh"
-var OneDriveAPIURL = "https://api.onedrive.com/v1.0"
-
 type OneDriveClient struct {
 	HTTPClient *http.Client
 
@@ -44,9 +42,13 @@ type OneDriveClient struct {
 
 	IsConnected bool
 	TestMode    bool
+
+	IsBusiness bool
+	RefreshTokenURL string
+	APIURL string
 }
 
-func NewOneDriveClient(tokenFile string) (*OneDriveClient, error) {
+func NewOneDriveClient(tokenFile string, isBusiness bool) (*OneDriveClient, error) {
 
 	description, err := ioutil.ReadFile(tokenFile)
 	if err != nil {
@@ -63,6 +65,15 @@ func NewOneDriveClient(tokenFile string) (*OneDriveClient, error) {
 		TokenFile:  tokenFile,
 		Token:      token,
 		TokenLock:  &sync.Mutex{},
+		IsBusiness: isBusiness,
+	}
+
+	if isBusiness {
+		client.RefreshTokenURL = "https://duplicacy.com/odb_refresh"
+		client.APIURL = "https://graph.microsoft.com/v1.0/me"
+	} else {
+		client.RefreshTokenURL = "https://duplicacy.com/one_refresh"
+		client.APIURL = "https://api.onedrive.com/v1.0"
 	}
 
 	client.RefreshToken(false)
@@ -106,9 +117,10 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 
 		if reader, ok := inputReader.(*RateLimitedReader); ok {
 			request.ContentLength = reader.Length()
+			request.Header.Set("Content-Range", fmt.Sprintf("bytes 0-%d/%d", reader.Length() - 1, reader.Length()))
 		}
 
-		if url != OneDriveRefreshTokenURL {
+		if url != client.RefreshTokenURL {
 			client.TokenLock.Lock()
 			request.Header.Set("Authorization", "Bearer "+client.Token.AccessToken)
 			client.TokenLock.Unlock()
@@ -152,7 +164,7 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 
 		if response.StatusCode == 401 {
 
-			if url == OneDriveRefreshTokenURL {
+			if url == client.RefreshTokenURL {
 				return nil, 0, OneDriveError{Status: response.StatusCode, Message: "Authorization error when refreshing token"}
 			}
 
@@ -161,6 +173,8 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 				return nil, 0, err
 			}
 			continue
+		} else if response.StatusCode == 409 {
+			return nil, 0, OneDriveError{Status: response.StatusCode, Message: "Conflict"}
 		} else if response.StatusCode > 401 && response.StatusCode != 404 {
 			retryAfter := time.Duration(rand.Float32() * 1000.0 * float32(backoff))
 			LOG_INFO("ONEDRIVE_RETRY", "Response code: %d; retry after %d milliseconds", response.StatusCode, retryAfter)
@@ -188,7 +202,7 @@ func (client *OneDriveClient) RefreshToken(force bool) (err error) {
 		return nil
 	}
 
-	readCloser, _, err := client.call(OneDriveRefreshTokenURL, "POST", client.Token, "")
+	readCloser, _, err := client.call(client.RefreshTokenURL, "POST", client.Token, "")
 	if err != nil {
 		return fmt.Errorf("failed to refresh the access token: %v", err)
 	}
@@ -228,9 +242,9 @@ func (client *OneDriveClient) ListEntries(path string) ([]OneDriveEntry, error) 
 
 	entries := []OneDriveEntry{}
 
-	url := OneDriveAPIURL + "/drive/root:/" + path + ":/children"
+	url := client.APIURL + "/drive/root:/" + path + ":/children"
 	if path == "" {
-		url = OneDriveAPIURL + "/drive/root/children"
+		url = client.APIURL + "/drive/root/children"
 	}
 	if client.TestMode {
 		url += "?top=8"
@@ -266,7 +280,7 @@ func (client *OneDriveClient) ListEntries(path string) ([]OneDriveEntry, error) 
 
 func (client *OneDriveClient) GetFileInfo(path string) (string, bool, int64, error) {
 
-	url := OneDriveAPIURL + "/drive/root:/" + path
+	url := client.APIURL + "/drive/root:/" + path
 	url += "?select=id,name,size,folder"
 
 	readCloser, _, err := client.call(url, "GET", 0, "")
@@ -291,19 +305,86 @@ func (client *OneDriveClient) GetFileInfo(path string) (string, bool, int64, err
 
 func (client *OneDriveClient) DownloadFile(path string) (io.ReadCloser, int64, error) {
 
-	url := OneDriveAPIURL + "/drive/items/root:/" + path + ":/content"
+	url := client.APIURL + "/drive/items/root:/" + path + ":/content"
 
 	return client.call(url, "GET", 0, "")
 }
 
 func (client *OneDriveClient) UploadFile(path string, content []byte, rateLimit int) (err error) {
 
-	url := OneDriveAPIURL + "/drive/root:/" + path + ":/content"
+	// Upload file using the simple method; this is only possible for OneDrive Personal or if the file
+	// is smaller than 4MB for OneDrive Business
+	if !client.IsBusiness || len(content) < 4 * 1024 * 1024 || (client.TestMode && rand.Int() % 2 == 0) {
+		url := client.APIURL + "/drive/root:/" + path + ":/content"
 
-	readCloser, _, err := client.call(url, "PUT", CreateRateLimitedReader(content, rateLimit), "application/octet-stream")
+		readCloser, _, err := client.call(url, "PUT", CreateRateLimitedReader(content, rateLimit), "application/octet-stream")
+		if err != nil {
+			return err
+		}
 
+		readCloser.Close()
+		return nil
+	}
+
+	// For large files, create an upload session first
+	uploadURL, err := client.CreateUploadSession(path)
 	if err != nil {
 		return err
+	}
+
+	return client.UploadFileSession(uploadURL, content, rateLimit)
+}
+
+func (client *OneDriveClient) CreateUploadSession(path string) (uploadURL string, err error) {
+
+	type CreateUploadSessionItem struct {
+		ConflictBehavior string `json:"@microsoft.graph.conflictBehavior"`
+		Name string `json:"name"`
+	}
+
+	input := map[string]interface{} {
+		"item": CreateUploadSessionItem {
+			ConflictBehavior: "replace",
+			Name: filepath.Base(path),
+		},
+	}
+
+	readCloser, _, err := client.call(client.APIURL + "/drive/root:/" + path + ":/createUploadSession", "POST", input, "application/json")
+	if err != nil {
+		return "", err
+	}
+
+	type CreateUploadSessionOutput struct {
+		UploadURL string `json:"uploadUrl"`
+	}
+
+	output := &CreateUploadSessionOutput{}
+
+	if err = json.NewDecoder(readCloser).Decode(&output); err != nil {
+		return "", err
+	}
+
+	readCloser.Close()
+	return output.UploadURL, nil
+}
+
+func (client *OneDriveClient) UploadFileSession(uploadURL string, content []byte, rateLimit int) (err error) {
+
+	readCloser, _, err := client.call(uploadURL, "PUT", CreateRateLimitedReader(content, rateLimit), "")
+	if err != nil {
+		return err
+	}
+	type UploadFileSessionOutput struct {
+		Size int `json:"size"`
+	}
+	output := &UploadFileSessionOutput{}
+
+	if err = json.NewDecoder(readCloser).Decode(&output); err != nil {
+		return fmt.Errorf("Failed to complete the file upload session: %v", err)
+	}
+
+	if output.Size != len(content) {
+		return fmt.Errorf("Uploaded %d bytes out of %d bytes", output.Size, len(content))
 	}
 
 	readCloser.Close()
@@ -312,7 +393,7 @@ func (client *OneDriveClient) UploadFile(path string, content []byte, rateLimit 
 
 func (client *OneDriveClient) DeleteFile(path string) error {
 
-	url := OneDriveAPIURL + "/drive/root:/" + path
+	url := client.APIURL + "/drive/root:/" + path
 
 	readCloser, _, err := client.call(url, "DELETE", 0, "")
 	if err != nil {
@@ -325,7 +406,7 @@ func (client *OneDriveClient) DeleteFile(path string) error {
 
 func (client *OneDriveClient) MoveFile(path string, parent string) error {
 
-	url := OneDriveAPIURL + "/drive/root:/" + path
+	url := client.APIURL + "/drive/root:/" + path
 
 	parentReference := make(map[string]string)
 	parentReference["path"] = "/drive/root:/" + parent
@@ -335,6 +416,20 @@ func (client *OneDriveClient) MoveFile(path string, parent string) error {
 
 	readCloser, _, err := client.call(url, "PATCH", parameters, "application/json")
 	if err != nil {
+		if e, ok := err.(OneDriveError); ok && e.Status == 400 {
+			// The destination directory doesn't exist; trying to create it...
+			dir := filepath.Dir(parent)
+			if dir == "." {
+				dir = ""
+			}
+			client.CreateDirectory(dir, filepath.Base(parent))
+			readCloser, _, err = client.call(url, "PATCH", parameters, "application/json")
+			if err != nil {
+				return nil
+			}
+
+		}
+
 		return err
 	}
 
@@ -344,24 +439,29 @@ func (client *OneDriveClient) MoveFile(path string, parent string) error {
 
 func (client *OneDriveClient) CreateDirectory(path string, name string) error {
 
-	url := OneDriveAPIURL + "/root/children"
+	url := client.APIURL + "/root/children"
 
 	if path != "" {
 
-		parentID, isDir, _, err := client.GetFileInfo(path)
+		pathID, isDir, _, err := client.GetFileInfo(path)
 		if err != nil {
 			return err
 		}
 
-		if parentID == "" {
-			return fmt.Errorf("The path '%s' does not exist", path)
+		if pathID == "" {
+			dir := filepath.Dir(path)
+			if dir != "." {
+				// The parent directory doesn't exist; trying to create it...
+				client.CreateDirectory(dir, filepath.Base(path))
+				isDir = true
+			}
 		}
 
 		if !isDir {
 			return fmt.Errorf("The path '%s' is not a directory", path)
 		}
 
-		url = OneDriveAPIURL + "/drive/items/" + parentID + "/children"
+		url = client.APIURL + "/drive/root:/" + path + ":/children"
 	}
 
 	parameters := make(map[string]interface{})
@@ -370,6 +470,11 @@ func (client *OneDriveClient) CreateDirectory(path string, name string) error {
 
 	readCloser, _, err := client.call(url, "POST", parameters, "application/json")
 	if err != nil {
+		if e, ok := err.(OneDriveError); ok && e.Status == 409 {
+			// This error usually means the directory already exists
+			LOG_TRACE("ONEDRIVE_MKDIR", "The directory '%s/%s' already exists", path, name)
+			return nil
+		}
 		return err
 	}
 

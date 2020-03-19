@@ -137,7 +137,15 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
 	} else if testStorageName == "one" {
-		storage, err := CreateOneDriveStorage(config["token_file"], config["storage_path"], threads)
+		storage, err := CreateOneDriveStorage(config["token_file"], false, config["storage_path"], threads)
+		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
+		return storage, err
+	} else if testStorageName == "odb" {
+		storage, err := CreateOneDriveStorage(config["token_file"], true, config["storage_path"], threads)
+		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
+		return storage, err
+	} else if testStorageName == "one" {
+		storage, err := CreateOneDriveStorage(config["token_file"], false, config["storage_path"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
 	} else if testStorageName == "hubic" {
