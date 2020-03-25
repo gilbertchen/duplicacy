@@ -126,6 +126,7 @@ func (downloader *ChunkDownloader) AddFiles(snapshot *Snapshot, files []*Entry) 
 
 // AddChunk adds a single chunk the download list.
 func (downloader *ChunkDownloader) AddChunk(chunkHash string) int {
+
 	task := ChunkDownloadTask{
 		chunkIndex:    len(downloader.taskList),
 		chunkHash:     chunkHash,
@@ -251,6 +252,47 @@ func (downloader *ChunkDownloader) WaitForChunk(chunkIndex int) (chunk *Chunk) {
 		downloader.numberOfDownloadingChunks--
 	}
 	return downloader.taskList[chunkIndex].chunk
+}
+
+// WaitForCompletion waits until all chunks have been downloaded
+func (downloader *ChunkDownloader) WaitForCompletion() {
+
+	// Tasks in completedTasks have not been counted by numberOfActiveChunks
+	downloader.numberOfActiveChunks -= len(downloader.completedTasks)
+
+	// find the completed task with the largest index; we'll start from the next index
+	for index := range downloader.completedTasks {
+		if downloader.lastChunkIndex < index {
+			downloader.lastChunkIndex = index
+		}
+	}
+
+	// Looping until there isn't a download task in progress
+	for downloader.numberOfActiveChunks > 0 || downloader.lastChunkIndex + 1 < len(downloader.taskList) {
+
+		// Wait for a completion event first
+		if downloader.numberOfActiveChunks > 0 {
+			completion := <-downloader.completionChannel
+			downloader.config.PutChunk(completion.chunk)
+			downloader.numberOfActiveChunks--
+			downloader.numberOfDownloadedChunks++
+			downloader.numberOfDownloadingChunks--
+		}
+
+		// Pass the tasks one by one to the download queue
+		if downloader.lastChunkIndex + 1 < len(downloader.taskList) {
+			task := &downloader.taskList[downloader.lastChunkIndex + 1]
+			if task.isDownloading {
+				downloader.lastChunkIndex++
+				continue
+			}
+			downloader.taskQueue <- *task
+			task.isDownloading = true
+			downloader.numberOfDownloadingChunks++
+			downloader.numberOfActiveChunks++
+			downloader.lastChunkIndex++
+		}
+	}
 }
 
 // Stop terminates all downloading goroutines

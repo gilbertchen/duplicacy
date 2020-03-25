@@ -894,7 +894,12 @@ func checkSnapshots(context *cli.Context) {
 
 	runScript(context, preference.Name, "pre")
 
-	storage := duplicacy.CreateStorage(*preference, false, 1)
+	threads := context.Int("threads")
+	if threads < 1 {
+		threads = 1
+	}
+
+	storage := duplicacy.CreateStorage(*preference, false, threads)
 	if storage == nil {
 		return
 	}
@@ -922,11 +927,12 @@ func checkSnapshots(context *cli.Context) {
 	showStatistics := context.Bool("stats")
 	showTabular := context.Bool("tabular")
 	checkFiles := context.Bool("files")
+	checkChunks := context.Bool("chunks")
 	searchFossils := context.Bool("fossils")
 	resurrect := context.Bool("resurrect")
 
 	backupManager.SetupSnapshotCache(preference.Name)
-	backupManager.SnapshotManager.CheckSnapshots(id, revisions, tag, showStatistics, showTabular, checkFiles, searchFossils, resurrect)
+	backupManager.SnapshotManager.CheckSnapshots(id, revisions, tag, showStatistics, showTabular, checkFiles, checkChunks, searchFossils, resurrect, threads)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1590,6 +1596,10 @@ func main() {
 					Usage: "verify the integrity of every file",
 				},
 				cli.BoolFlag{
+					Name:  "chunks",
+					Usage: "verify the integrity of every chunk",
+				},
+				cli.BoolFlag{
 					Name:  "stats",
 					Usage: "show deduplication statistics (imply -all and all revisions)",
 				},
@@ -1606,6 +1616,12 @@ func main() {
 					Name:     "key",
 					Usage:    "the RSA private key to decrypt file chunks",
 					Argument: "<private key>",
+				},
+				cli.IntFlag{
+					Name:     "threads",
+					Value:    1,
+					Usage:    "number of threads used to verify chunks",
+					Argument: "<n>",
 				},
 			},
 			Usage:     "Check the integrity of snapshots",
