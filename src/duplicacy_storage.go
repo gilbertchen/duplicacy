@@ -336,7 +336,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			keyFile = GetPassword(preference, "ssh_key_file", "Enter the path of the private key file:",
 				true, resetPassword)
 
-			var key ssh.Signer
+			var keySigner ssh.Signer
 			var err error
 
 			if keyFile == "" {
@@ -347,7 +347,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 				if err != nil {
 					LOG_INFO("SSH_PUBLICKEY", "Failed to read the private key file: %v", err)
 				} else {
-					key, err = ssh.ParsePrivateKey(content)
+					keySigner, err = ssh.ParsePrivateKey(content)
 					if err != nil {
 						if strings.Contains(err.Error(), "cannot decode encrypted private keys") {
 							LOG_TRACE("SSH_PUBLICKEY", "The private key file is encrypted")
@@ -355,7 +355,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 							if len(passphrase) == 0 {
 								LOG_INFO("SSH_PUBLICKEY", "No passphrase to descrypt the private key file %s", keyFile)
 							} else {
-								key, err = ssh.ParsePrivateKeyWithPassphrase(content, []byte(passphrase))
+								keySigner, err = ssh.ParsePrivateKeyWithPassphrase(content, []byte(passphrase))
 								if err != nil {
 									LOG_INFO("SSH_PUBLICKEY", "Failed to parse the encrypted private key file %s: %v", keyFile, err)
 								}
@@ -364,37 +364,35 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 							LOG_INFO("SSH_PUBLICKEY", "Failed to parse the private key file %s: %v", keyFile, err)
 						}
 					}
-				}
-			}
 
-			certFile := GetPasswordFromPreference(preference, "ssh_cert_file")
-			var pubKey ssh.PublicKey
-			var certSigner ssh.Signer
-
-			if certFile != "" {
-				LOG_DEBUG("SSH_CERTIFICATE", "Attempting to use ssh certificate from file %s", certFile)
-				var content []byte
-				content, err = ioutil.ReadFile(certFile)
-				if err != nil {
-					LOG_INFO("SSH_CERTIFICATE", "Failed to read ssh certificate file: %v", err)
-				} else {
-					pubKey, _, _, _, err = ssh.ParseAuthorizedKey(content)
-					if err != nil {
-						LOG_INFO("SSH_CERTIFICATE", "Failed parse ssh certificate file: %v", err)
-					} else {
-						certSigner, err = ssh.NewCertSigner(pubKey.(*ssh.Certificate), key)
-						if err != nil {
-							LOG_INFO("SSH_CERTIFICATE", "Failed to create certificate signer: %v", err)
+					if keySigner != nil {
+						certFile := keyFile + "-cert.pub"
+						if stat, err := os.Stat(certFile); err == nil && !stat.IsDir() {
+							LOG_DEBUG("SSH_CERTIFICATE", "Attempting to use ssh certificate from file %s", certFile)
+							var content []byte
+							content, err = ioutil.ReadFile(certFile)
+							if err != nil {
+								LOG_INFO("SSH_CERTIFICATE", "Failed to read ssh certificate file %s: %v", certFile, err)
+							} else {
+								pubKey, _, _, _, err := ssh.ParseAuthorizedKey(content)
+								if err != nil {
+									LOG_INFO("SSH_CERTIFICATE", "Failed parse ssh certificate file %s: %v", certFile, err)
+								} else {
+									certSigner, err := ssh.NewCertSigner(pubKey.(*ssh.Certificate), keySigner)
+									if err != nil {
+										LOG_INFO("SSH_CERTIFICATE", "Failed to create certificate signer: %v", err)
+									} else {
+										keySigner = certSigner
+									}
+								}
+							}
 						}
 					}
 				}
 			}
 
-			// if we have a valid cert signer use it instead of the normal private key
-			if certSigner != nil {
-				signers = append(signers, certSigner)
-			} else if key != nil {
-				signers = append(signers, key)
+			if keySigner != nil {
+				signers = append(signers, keySigner)
 			}
 
 			if len(signers) > 0 {
