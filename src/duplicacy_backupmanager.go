@@ -211,6 +211,11 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 		return true
 	}
 
+	if len(localSnapshot.Files) == 0 {
+		LOG_ERROR("SNAPSHOT_EMPTY", "No files under the repository to be backed up")
+		return false
+	}
+
 	// This cache contains all chunks referenced by last snasphot. Any other chunks will lead to a call to
 	// UploadChunk.
 	chunkCache := make(map[string]bool)
