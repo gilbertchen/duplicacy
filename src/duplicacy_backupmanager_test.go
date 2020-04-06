@@ -341,7 +341,7 @@ func TestBackupManager(t *testing.T) {
 		t.Errorf("Expected 3 snapshots but got %d", numberOfSnapshots)
 	}
 	backupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1" /*revisions*/, []int{1, 2, 3} /*tag*/, "",
-		/*showStatistics*/ false /*showTabular*/, false /*checkFiles*/, false /*searchFossils*/, false /*resurrect*/, false)
+		/*showStatistics*/ false /*showTabular*/, false /*checkFiles*/, false /*checkChunks*/, false /*searchFossils*/, false /*resurrect*/, false, 1)
 	backupManager.SnapshotManager.PruneSnapshots("host1", "host1" /*revisions*/, []int{1} /*tags*/, nil /*retentions*/, nil,
 		/*exhaustive*/ false /*exclusive=*/, false /*ignoredIDs*/, nil /*dryRun*/, false /*deleteOnly*/, false /*collectOnly*/, false, 1)
 	numberOfSnapshots = backupManager.SnapshotManager.ListSnapshots( /*snapshotID*/ "host1" /*revisionsToList*/, nil /*tag*/, "" /*showFiles*/, false /*showChunks*/, false)
@@ -349,7 +349,7 @@ func TestBackupManager(t *testing.T) {
 		t.Errorf("Expected 2 snapshots but got %d", numberOfSnapshots)
 	}
 	backupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1" /*revisions*/, []int{2, 3} /*tag*/, "",
-		/*showStatistics*/ false /*showTabular*/, false /*checkFiles*/, false /*searchFossils*/, false /*resurrect*/, false)
+		/*showStatistics*/ false /*showTabular*/, false /*checkFiles*/, false /*checkChunks*/, false /*searchFossils*/, false /*resurrect*/, false, 1)
 	backupManager.Backup(testDir+"/repository1" /*quickMode=*/, false, threads, "fourth", false, false, 0, false)
 	backupManager.SnapshotManager.PruneSnapshots("host1", "host1" /*revisions*/, nil /*tags*/, nil /*retentions*/, nil,
 		/*exhaustive*/ false /*exclusive=*/, true /*ignoredIDs*/, nil /*dryRun*/, false /*deleteOnly*/, false /*collectOnly*/, false, 1)
@@ -358,7 +358,7 @@ func TestBackupManager(t *testing.T) {
 		t.Errorf("Expected 3 snapshots but got %d", numberOfSnapshots)
 	}
 	backupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1" /*revisions*/, []int{2, 3, 4} /*tag*/, "",
-		/*showStatistics*/ false /*showTabular*/, false /*checkFiles*/, false /*searchFossils*/, false /*resurrect*/, false)
+		/*showStatistics*/ false /*showTabular*/, false /*checkFiles*/, false /*checkChunks*/, false /*searchFossils*/, false /*resurrect*/, false, 1)
 
 	/*buf := make([]byte, 1<<16)
 	  runtime.Stack(buf, true)
