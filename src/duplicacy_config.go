@@ -172,11 +172,11 @@ func (config *Config) Print() {
 	LOG_TRACE("CONFIG_INFO", "Hash key: %x", config.HashKey)
 	LOG_TRACE("CONFIG_INFO", "ID key: %x", config.IDKey)
 
-	if len(config.ChunkKey) >= 0 {
+	if len(config.ChunkKey) > 0 {
 		LOG_TRACE("CONFIG_INFO", "File chunks are encrypted")
 	}
 
-	if len(config.FileKey) >= 0 {
+	if len(config.FileKey) > 0 {
 		LOG_TRACE("CONFIG_INFO", "Metadata chunks are encrypted")
 	}
 
