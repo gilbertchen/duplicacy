@@ -7,10 +7,12 @@ package duplicacy
 import (
 	"fmt"
 	"os"
+	"log"
 	"runtime/debug"
 	"sync"
 	"testing"
 	"time"
+	"regexp"
 )
 
 const (
@@ -159,6 +161,32 @@ func logf(level int, logID string, format string, v ...interface{}) {
 			Message: message,
 		})
 	}
+}
+
+// Set up logging for libraries that Duplicacy depends on.  They can call 'log.Printf("[ID] message")'
+// to produce logs in Duplicacy's format
+type Logger struct {
+	formatRegex *regexp.Regexp
+}
+
+func (logger *Logger) Write(line []byte) (n int, err error) {
+	n = len(line)
+	for len(line) > 0 && line[len(line) - 1] == '\n' {
+		line = line[:len(line) - 1]
+	}
+	matched := logger.formatRegex.FindStringSubmatch(string(line))
+	if matched != nil {
+		LOG_INFO(matched[1], "%s", matched[2])
+	} else {
+		LOG_INFO("LOG_DEFAULT", "%s", line)
+	}
+
+    return
+}
+
+func init() {
+	log.SetFlags(0)
+	log.SetOutput(&Logger{ formatRegex: regexp.MustCompile(`^\[(.+)\]\s*(.+)`) })
 }
 
 const (
