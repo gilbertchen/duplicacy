@@ -1959,7 +1959,7 @@ func main() {
 				cli.StringFlag{
 					Name:     "key",
 					Usage:    "the RSA private key to decrypt file chunks from the source storage",
-					Argument: "<public key>",
+					Argument: "<private key>",
 				},
 			},
 			Usage:     "Copy snapshots between compatible storages",
