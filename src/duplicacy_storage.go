@@ -624,10 +624,19 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		SavePassword(preference, "gcs_token", tokenFile)
 		return gcsStorage
 	} else if matched[1] == "gcd" {
+		// Handle writing directly to the root of the drive
+		// For gcd://driveid@/, driveid@ is match[3] not match[2]
+		if matched[2] == "" && strings.HasSuffix(matched[3], "@") {
+			matched[2], matched[3]  = matched[3], matched[2]
+		}
+		driveID := matched[2]
+		if driveID != "" {
+			driveID = driveID[:len(driveID)-1]
+		}
 		storagePath := matched[3] + matched[4]
 		prompt := fmt.Sprintf("Enter the path of the Google Drive token file (downloadable from https://duplicacy.com/gcd_start):")
 		tokenFile := GetPassword(preference, "gcd_token", prompt, true, resetPassword)
-		gcdStorage, err := CreateGCDStorage(tokenFile, storagePath, threads)
+		gcdStorage, err := CreateGCDStorage(tokenFile, driveID, storagePath, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the Google Drive storage at %s: %v", storageURL, err)
 			return nil
