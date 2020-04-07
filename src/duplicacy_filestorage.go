@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -190,10 +191,13 @@ func (storage *FileStorage) UploadFile(threadIndex int, filePath string, content
 		return err
 	}
 
-	err = file.Sync()
-	if err != nil {
-		file.Close()
-		return err
+	if err = file.Sync(); err != nil {
+		pathErr, ok := err.(*os.PathError)
+		isNotSupported := ok && pathErr.Op == "sync" && pathErr.Err == syscall.ENOTSUP
+		if !isNotSupported {
+			_ = file.Close()
+			return err
+		}
 	}
 
 	err = file.Close()
