@@ -20,8 +20,10 @@ import (
 
 	"golang.org/x/net/context"
 	"golang.org/x/oauth2"
+	"golang.org/x/oauth2/google"
 	"google.golang.org/api/drive/v3"
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/option"
 )
 
 var (
@@ -315,25 +317,50 @@ func (storage *GCDStorage) getIDFromPath(threadIndex int, filePath string, creat
 // CreateGCDStorage creates a GCD storage object.
 func CreateGCDStorage(tokenFile string, driveID string, storagePath string, threads int) (storage *GCDStorage, err error) {
 
+	ctx := context.Background()
+
 	description, err := ioutil.ReadFile(tokenFile)
 	if err != nil {
 		return nil, err
 	}
 
-	gcdConfig := &GCDConfig{}
-	if err := json.Unmarshal(description, gcdConfig); err != nil {
+	var object map[string]interface{}
+
+	err = json.Unmarshal(description, &object)
+	if err != nil {
 		return nil, err
 	}
 
-	oauth2Config := oauth2.Config{
-		ClientID:     gcdConfig.ClientID,
-		ClientSecret: gcdConfig.ClientSecret,
-		Endpoint:     gcdConfig.Endpoint,
+	isServiceAccount := false
+	if value, ok := object["type"]; ok {
+		if authType, ok := value.(string); ok && authType == "service_account" {
+			isServiceAccount = true
+		}
 	}
 
-	authClient := oauth2Config.Client(context.Background(), &gcdConfig.Token)
+	var tokenSource oauth2.TokenSource
 
-	service, err := drive.New(authClient)
+	if isServiceAccount {
+		config, err := google.JWTConfigFromJSON(description, drive.DriveScope)
+		if err != nil {
+			return nil, err
+		}
+		tokenSource = config.TokenSource(ctx)
+	} else {
+		gcdConfig := &GCDConfig{}
+		if err := json.Unmarshal(description, gcdConfig); err != nil {
+			return nil, err
+		}
+
+		config := oauth2.Config{
+			ClientID:     gcdConfig.ClientID,
+			ClientSecret: gcdConfig.ClientSecret,
+			Endpoint:     gcdConfig.Endpoint,
+		}
+		tokenSource = config.TokenSource(ctx, &gcdConfig.Token)
+	}
+
+	service, err := drive.NewService(ctx, option.WithTokenSource(tokenSource))
 	if err != nil {
 		return nil, err
 	}
