@@ -6,6 +6,7 @@ package duplicacy
 
 import (
 	"fmt"
+	"io/ioutil"
 	"strings"
 
 	"github.com/gilbertchen/go-dropbox"
@@ -199,6 +200,7 @@ func (storage *DropboxStorage) DownloadFile(threadIndex int, filePath string, ch
 	}
 
 	defer output.Body.Close()
+	defer ioutil.ReadAll(output.Body)
 
 	_, err = RateLimitedCopy(chunk, output.Body, storage.DownloadRateLimit/len(storage.clients))
 	return err
