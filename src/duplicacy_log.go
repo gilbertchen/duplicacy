@@ -45,6 +45,13 @@ func setTestingT(t *testing.T) {
 	testingT = t
 }
 
+// Contains the ids of logs that won't be displayed
+var suppressedLogs map[string]bool = map[string]bool{}
+
+func SuppressLog(id string) {
+	suppressedLogs[id] = true
+}
+
 func getLevelName(level int) string {
 	switch level {
 	case DEBUG:
@@ -145,6 +152,12 @@ func logf(level int, logID string, format string, v ...interface{}) {
 		defer logMutex.Unlock()
 
 		if level >= loggingLevel {
+			if level <= ERROR && len(suppressedLogs) > 0 {
+				if _, found := suppressedLogs[logID]; found {
+					return
+				}
+			}
+
 			if printLogHeader {
 				fmt.Printf("%s %s %s %s\n",
 					now.Format("2006-01-02 15:04:05.000"), getLevelName(level), logID, message)

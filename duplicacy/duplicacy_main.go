@@ -159,6 +159,10 @@ func setGlobalOptions(context *cli.Context) {
 		}()
 	}
 
+	for _, logID := range context.GlobalStringSlice("suppress") {
+		duplicacy.SuppressLog(logID)
+	}
+
 	duplicacy.RunInBackground = context.GlobalBool("background")
 }
 
@@ -2068,6 +2072,11 @@ func main() {
 		cli.StringFlag{
 			Name:  "comment",
 			Usage: "add a comment to identify the process",
+		},
+		cli.StringSliceFlag{
+			Name:  "suppress, s",
+			Usage: "suppress logs with the specified id",
+			Argument: "<id>",
 		},
 	}
 
