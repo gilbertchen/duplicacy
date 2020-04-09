@@ -367,6 +367,24 @@ func CreateGCDStorage(tokenFile string, driveID string, storagePath string, thre
 
 	if len(driveID) == 0 {
 		driveID = GCDUserDrive
+	} else {
+		driveList, err := drive.NewTeamdrivesService(service).List().Do()
+		if err != nil {
+			return nil, fmt.Errorf("Failed to look up the drive id: %v", err)
+		}
+
+		found := false
+		for _, teamDrive := range driveList.TeamDrives {
+			if teamDrive.Id == driveID || teamDrive.Name == driveID {
+				driveID = teamDrive.Id
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return nil, fmt.Errorf("%s is not the id or name of a shared drive", driveID)
+		}
 	}
 
 	storage = &GCDStorage{
