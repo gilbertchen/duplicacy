@@ -31,7 +31,7 @@
 
 [[constraint]]
   name = "github.com/aws/aws-sdk-go"
-  version = "1.12.31"
+  version = "1.30.7"
 
 [[constraint]]
   name = "github.com/bkaradzic/go-lz4"
@@ -86,9 +86,13 @@
   name = "golang.org/x/net"
 
 [[constraint]]
-  branch = "master"
   name = "golang.org/x/oauth2"
+  revision = "bf48bf16ab8d622ce64ec6ce98d2c98f916b6303"
 
 [[constraint]]
-  branch = "master"
   name = "google.golang.org/api"
+  version = "0.21.0"
+
+[[constraint]]
+  name = "google.golang.org/grpc"
+  version = "1.28.0"
