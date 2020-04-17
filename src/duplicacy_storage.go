@@ -349,7 +349,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 				} else {
 					keySigner, err = ssh.ParsePrivateKey(content)
 					if err != nil {
-						if strings.Contains(err.Error(), "cannot decode encrypted private keys") {
+						if _, ok := err.(*ssh.PassphraseMissingError); ok {
 							LOG_TRACE("SSH_PUBLICKEY", "The private key file is encrypted")
 							passphrase = GetPassword(preference, "ssh_passphrase", "Enter the passphrase to decrypt the private key file:", false, resetPassword)
 							if len(passphrase) == 0 {
