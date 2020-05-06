@@ -794,6 +794,7 @@ func restoreRepository(context *cli.Context) {
 	setOwner := !context.Bool("ignore-owner")
 
 	showStatistics := context.Bool("stats")
+	persist := context.Bool("persist")
 
 	var patterns []string
 	for _, pattern := range context.Args() {
@@ -824,7 +825,7 @@ func restoreRepository(context *cli.Context) {
 	loadRSAPrivateKey(context.String("key"), preference, backupManager, false)
 
 	backupManager.SetupSnapshotCache(preference.Name)
-	backupManager.Restore(repository, revision, true, quickMode, threads, overwrite, deleteMode, setOwner, showStatistics, patterns)
+	backupManager.Restore(repository, revision, true, quickMode, threads, overwrite, deleteMode, setOwner, showStatistics, patterns, persist)
 
 	runScript(context, preference.Name, "post")
 }
@@ -934,9 +935,10 @@ func checkSnapshots(context *cli.Context) {
 	checkChunks := context.Bool("chunks")
 	searchFossils := context.Bool("fossils")
 	resurrect := context.Bool("resurrect")
+	persist := context.Bool("persist")
 
 	backupManager.SetupSnapshotCache(preference.Name)
-	backupManager.SnapshotManager.CheckSnapshots(id, revisions, tag, showStatistics, showTabular, checkFiles, checkChunks, searchFossils, resurrect, threads)
+	backupManager.SnapshotManager.CheckSnapshots(id, revisions, tag, showStatistics, showTabular, checkFiles, checkChunks, searchFossils, resurrect, threads, persist)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1510,6 +1512,10 @@ func main() {
 					Usage:    "the RSA private key to decrypt file chunks",
 					Argument: "<private key>",
 				},
+				cli.BoolFlag{
+					Name:  "persist",
+					Usage: "continue processing despite chunk errors or existing files (without -overwrite), reporting any affected files",
+				},
 			},
 			Usage:     "Restore the repository to a previously saved snapshot",
 			ArgsUsage: "[--] [pattern] ...",
@@ -1626,6 +1632,10 @@ func main() {
 					Value:    1,
 					Usage:    "number of threads used to verify chunks",
 					Argument: "<n>",
+				},
+				cli.BoolFlag{
+					Name:  "persist",
+					Usage: "continue processing despite chunk errors, reporting any affected (corrupted) files",
 				},
 			},
 			Usage:     "Check the integrity of snapshots",
