@@ -998,6 +998,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	}
 
 	if checkChunks && !checkFiles {
+		manager.chunkDownloader.snapshotCache = nil
 		LOG_INFO("SNAPSHOT_VERIFY", "Verifying %d chunks", len(*allChunkHashes))
 		for chunkHash := range *allChunkHashes {
 			manager.chunkDownloader.AddChunk(chunkHash)
