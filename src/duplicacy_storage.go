@@ -652,7 +652,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the OneDrive storage at %s: %v", storageURL, err)
 			return nil
 		}
-		SavePassword(preference, "one_token", tokenFile)
+		SavePassword(preference, matched[1] + "_token", tokenFile)
 		return oneDriveStorage
 	} else if matched[1] == "hubic" {
 		storagePath := matched[3] + matched[4]
