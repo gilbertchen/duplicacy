@@ -821,6 +821,8 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	// Store the index of the snapshot that references each chunk; if the chunk is shared by multiple chunks, the index is -1
 	chunkSnapshotMap := make(map[string]int)
 
+	emptyChunks := 0
+
 	LOG_INFO("SNAPSHOT_CHECK", "Listing all chunks")
 	allChunks, allSizes := manager.ListAllFiles(manager.storage, chunkDir)
 
@@ -835,6 +837,11 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 
 		chunk = strings.Replace(chunk, "/", "", -1)
 		chunkSizeMap[chunk] = allSizes[i]
+
+		if allSizes[i] == 0 {
+			LOG_WARN("SNAPSHOT_CHECK", "Chunk %s has a size of 0", chunk)
+			emptyChunks++
+		}
 	}
 
 	if snapshotID == "" || showStatistics || showTabular {
@@ -988,6 +995,11 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 
 	if totalMissingChunks > 0 {
 		LOG_ERROR("SNAPSHOT_CHECK", "Some chunks referenced by some snapshots do not exist in the storage")
+		return false
+	}
+
+	if emptyChunks > 0 {
+		LOG_ERROR("SNAPSHOT_CHECK", "%d chunks have a size of 0", emptyChunks)
 		return false
 	}
 
