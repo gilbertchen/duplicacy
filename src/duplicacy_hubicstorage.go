@@ -175,7 +175,7 @@ func (storage *HubicStorage) DownloadFile(threadIndex int, filePath string, chun
 }
 
 // UploadFile writes 'content' to the file at 'filePath'.
-func (storage *HubicStorage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
+func (storage *HubicStorage) UploadFile(threadIndex int, filePath string, content []byte, storageOption StorageOption) (err error) {
 	return storage.client.UploadFile(storage.storageDir+"/"+filePath, content, storage.UploadRateLimit/storage.numberOfThreads)
 }
 

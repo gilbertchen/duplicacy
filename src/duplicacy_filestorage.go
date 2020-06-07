@@ -147,7 +147,7 @@ func (storage *FileStorage) DownloadFile(threadIndex int, filePath string, chunk
 }
 
 // UploadFile writes 'content' to the file at 'filePath'
-func (storage *FileStorage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
+func (storage *FileStorage) UploadFile(threadIndex int, filePath string, content []byte, storageOption StorageOption) (err error) {
 
 	fullPath := path.Join(storage.storageDir, filePath)
 

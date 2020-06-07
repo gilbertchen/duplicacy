@@ -186,7 +186,7 @@ func Benchmark(localDirectory string, storage Storage, fileSize int64, chunkSize
 
 	startTime = float64(time.Now().UnixNano()) / 1e9
 	benchmarkRun(uploadThreads, chunkCount, func(threadIndex int, chunkIndex int) {
-		err := storage.UploadFile(threadIndex, fmt.Sprintf("benchmark/chunk%d", chunkIndex), chunks[chunkIndex])
+		err := storage.UploadFile(threadIndex, fmt.Sprintf("benchmark/chunk%d", chunkIndex), chunks[chunkIndex], nil)
 		if err != nil {
 			LOG_ERROR("BENCHMARK_UPLOAD", "Failed to upload the chunk: %v", err)
 			return

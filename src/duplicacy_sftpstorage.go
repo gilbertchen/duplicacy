@@ -13,8 +13,8 @@ import (
 	"path"
 	"runtime"
 	"strings"
-	"time"
 	"sync"
+	"time"
 
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
@@ -119,9 +119,9 @@ func (storage *SFTPStorage) getSFTPClient() *sftp.Client {
 	return storage.client
 }
 
-func (storage *SFTPStorage) retry(f func () error) error {
+func (storage *SFTPStorage) retry(f func() error) error {
 	delay := time.Second
-	for i := 0;; i++ {
+	for i := 0; ; i++ {
 		err := f()
 		if err != nil && strings.Contains(err.Error(), "EOF") && i < storage.numberOfTries {
 			LOG_WARN("SFTP_RETRY", "Encountered an error (%v); retry after %d second(s)", err, delay/time.Second)
@@ -150,6 +150,7 @@ func (storage *SFTPStorage) retry(f func () error) error {
 		return err
 	}
 }
+
 // ListFiles return the list of files and subdirectories under 'file' (non-recursively)
 func (storage *SFTPStorage) ListFiles(threadIndex int, dirPath string) (files []string, sizes []int64, err error) {
 
@@ -207,8 +208,10 @@ func (storage *SFTPStorage) MoveFile(threadIndex int, from string, to string) (e
 	if fileInfo != nil {
 		return fmt.Errorf("The destination file %s already exists", toPath)
 	}
-	err = storage.retry(func() error { return storage.getSFTPClient().Rename(path.Join(storage.storageDir, from),
-		path.Join(storage.storageDir, to)) })
+	err = storage.retry(func() error {
+		return storage.getSFTPClient().Rename(path.Join(storage.storageDir, from),
+			path.Join(storage.storageDir, to))
+	})
 	return err
 }
 
@@ -267,7 +270,7 @@ func (storage *SFTPStorage) DownloadFile(threadIndex int, filePath string, chunk
 }
 
 // UploadFile writes 'content' to the file at 'filePath'.
-func (storage *SFTPStorage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
+func (storage *SFTPStorage) UploadFile(threadIndex int, filePath string, content []byte, storageOption StorageOption) (err error) {
 
 	fullPath := path.Join(storage.storageDir, filePath)
 

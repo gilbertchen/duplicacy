@@ -216,7 +216,7 @@ func (storage *OneDriveStorage) DownloadFile(threadIndex int, filePath string, c
 }
 
 // UploadFile writes 'content' to the file at 'filePath'.
-func (storage *OneDriveStorage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
+func (storage *OneDriveStorage) UploadFile(threadIndex int, filePath string, content []byte, storageOption StorageOption) (err error) {
 	err = storage.client.UploadFile(storage.storageDir+"/"+filePath, content, storage.UploadRateLimit/storage.numberOfThread)
 
 	if e, ok := err.(OneDriveError); ok && e.Status == 409 {

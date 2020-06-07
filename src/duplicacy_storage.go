@@ -46,7 +46,7 @@ type Storage interface {
 	DownloadFile(threadIndex int, filePath string, chunk *Chunk) (err error)
 
 	// UploadFile writes 'content' to the file at 'filePath'.
-	UploadFile(threadIndex int, filePath string, content []byte) (err error)
+	UploadFile(threadIndex int, filePath string, content []byte, storageOption StorageOption) (err error)
 
 	// SetNestingLevels sets up the chunk nesting structure.
 	SetNestingLevels(config *Config)
@@ -71,6 +71,10 @@ type Storage interface {
 	SetRateLimits(downloadRateLimit int, uploadRateLimit int)
 }
 
+// StorageOption is a flatten options for all kind of storage
+type StorageOption interface {
+}
+
 // StorageBase is the base struct from which all storages are derived from
 type StorageBase struct {
 	DownloadRateLimit int // Maximum download rate (bytes/seconds)
@@ -80,6 +84,7 @@ type StorageBase struct {
 
 	readLevels []int // At which nesting level to find the chunk with the given id
 	writeLevel int   // Store the uploaded chunk to this level
+
 }
 
 // SetRateLimits sets the maximum download and upload rates
@@ -484,11 +489,13 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		var err error
 
 		if matched[1] == "s3c" {
-			storage, err = CreateS3CStorage(region, endpoint, bucket, storageDir, accessKey, secretKey, threads)
+			s3cstorage, err := CreateS3CStorage(region, endpoint, bucket, storageDir, accessKey, secretKey, threads)
 			if err != nil {
 				LOG_ERROR("STORAGE_CREATE", "Failed to load the S3C storage at %s: %v", storageURL, err)
 				return nil
 			}
+			s3cstorage.stOptionData.StorageClass = preference.StorageClass
+			storage = s3cstorage
 		} else {
 			isMinioCompatible := (matched[1] == "minio" || matched[1] == "minios")
 			isSSLSupported := (matched[1] == "s3" || matched[1] == "minios")
@@ -627,7 +634,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		// Handle writing directly to the root of the drive
 		// For gcd://driveid@/, driveid@ is match[3] not match[2]
 		if matched[2] == "" && strings.HasSuffix(matched[3], "@") {
-			matched[2], matched[3]  = matched[3], matched[2]
+			matched[2], matched[3] = matched[3], matched[2]
 		}
 		driveID := matched[2]
 		if driveID != "" {
@@ -646,13 +653,13 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	} else if matched[1] == "one" || matched[1] == "odb" {
 		storagePath := matched[3] + matched[4]
 		prompt := fmt.Sprintf("Enter the path of the OneDrive token file (downloadable from https://duplicacy.com/one_start):")
-		tokenFile := GetPassword(preference, matched[1] + "_token", prompt, true, resetPassword)
+		tokenFile := GetPassword(preference, matched[1]+"_token", prompt, true, resetPassword)
 		oneDriveStorage, err := CreateOneDriveStorage(tokenFile, matched[1] == "odb", storagePath, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the OneDrive storage at %s: %v", storageURL, err)
 			return nil
 		}
-		SavePassword(preference, matched[1] + "_token", tokenFile)
+		SavePassword(preference, matched[1]+"_token", tokenFile)
 		return oneDriveStorage
 	} else if matched[1] == "hubic" {
 		storagePath := matched[3] + matched[4]

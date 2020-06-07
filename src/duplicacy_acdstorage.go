@@ -408,7 +408,7 @@ func (storage *ACDStorage) DownloadFile(threadIndex int, filePath string, chunk 
 }
 
 // UploadFile writes 'content' to the file at 'filePath'.
-func (storage *ACDStorage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
+func (storage *ACDStorage) UploadFile(threadIndex int, filePath string, content []byte, storageOption StorageOption) (err error) {
 	parent := path.Dir(filePath)
 	if parent == "." {
 		parent = ""

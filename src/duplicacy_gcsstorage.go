@@ -251,7 +251,7 @@ func (storage *GCSStorage) DownloadFile(threadIndex int, filePath string, chunk 
 }
 
 // UploadFile writes 'content' to the file at 'filePath'.
-func (storage *GCSStorage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
+func (storage *GCSStorage) UploadFile(threadIndex int, filePath string, content []byte, storageOption StorageOption) (err error) {
 
 	backoff := 1
 	for {

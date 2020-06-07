@@ -44,6 +44,7 @@ Duplicacy currently provides the following storage backends:
 * WebDAV (under beta testing)
 * pcloud (via WebDAV)
 * Box.com (via WebDAV)
+* Scaleway with initial [Glacier](Glacier.md) support
 
 Please consult the [wiki page](https://github.com/gilbertchen/duplicacy/wiki/Storage-Backends) on how to set up Duplicacy to work with each cloud storage.
 
