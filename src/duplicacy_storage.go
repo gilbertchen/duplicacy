@@ -268,7 +268,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	if matched == nil {
 		LOG_ERROR("STORAGE_CREATE", "Unrecognizable storage URL: %s", storageURL)
 		return nil
-	} else if matched[1] == "sftp" {
+	} else if matched[1] == "sftp" || matched[1] == "sftpc" {
 		server := matched[3]
 		username := matched[2]
 		storageDir := matched[5]
@@ -440,7 +440,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			return checkHostKey(hostname, remote, key)
 		}
 
-		sftpStorage, err := CreateSFTPStorage(server, port, username, storageDir, 2, authMethods, hostKeyChecker, threads)
+		sftpStorage, err := CreateSFTPStorage(matched[1] == "sftpc", server, port, username, storageDir, 2, authMethods, hostKeyChecker, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the SFTP storage at %s: %v", storageURL, err)
 			return nil
