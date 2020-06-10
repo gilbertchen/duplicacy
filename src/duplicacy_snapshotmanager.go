@@ -381,6 +381,13 @@ func (manager *SnapshotManager) DownloadSnapshotContents(snapshot *Snapshot, pat
 	return true
 }
 
+// ClearSnapshotContents removes contents loaded by DownloadSnapshotContents
+func (manager *SnapshotManager) ClearSnapshotContents(snapshot *Snapshot) {
+	snapshot.ChunkHashes = nil
+	snapshot.ChunkLengths = nil
+	snapshot.Files = nil
+}
+
 // CleanSnapshotCache removes all files not referenced by the specified 'snapshot' in the snapshot cache.
 func (manager *SnapshotManager) CleanSnapshotCache(latestSnapshot *Snapshot, allSnapshots map[string][]*Snapshot) bool {
 
@@ -906,6 +913,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 			if checkFiles {
 				manager.DownloadSnapshotContents(snapshot, nil, false)
 				manager.VerifySnapshot(snapshot)
+				manager.ClearSnapshotContents(snapshot)
 				continue
 			}
 
