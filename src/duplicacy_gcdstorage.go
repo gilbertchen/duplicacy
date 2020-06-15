@@ -86,6 +86,10 @@ func (storage *GCDStorage) shouldRetry(threadIndex int, err error) (bool, error)
 			// Request timeout
 			message = e.Message
 			retry = true
+		} else if e.Code == 400 && strings.Contains(e.Message, "failedPrecondition") {
+			// Daily quota exceeded
+			message = e.Message
+			retry = true
 		} else if e.Code == 401 {
 			// Only retry on authorization error when storage has been connected before
 			if storage.isConnected {
@@ -476,39 +480,76 @@ func (storage *GCDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 		}
 		return files, nil, nil
 	} else {
-		files := []string{}
-		sizes := []int64{}
+		lock := sync.Mutex {}
+		allFiles := []string{}
+		allSizes := []int64{}
+
+		errorChannel := make(chan error)
+		directoryChannel := make(chan string)
+		activeWorkers := 0
 
 		parents := []string{"chunks", "fossils"}
-		for i := 0; i < len(parents); i++ {
-			parent := parents[i]
-			pathID, ok := storage.findPathID(parent)
-			if !ok {
-				continue
-			}
-			entries, err := storage.listFiles(threadIndex, pathID, true, true)
-			if err != nil {
-				return nil, nil, err
-			}
-			for _, entry := range entries {
-				if entry.MimeType != GCDDirectoryMimeType {
-					name := entry.Name
-					if strings.HasPrefix(parent, "fossils") {
-						name = parent + "/" + name + ".fsl"
-						name = name[len("fossils/"):]
-					} else {
-						name = parent + "/" + name
-						name = name[len("chunks/"):]
+		for len(parents) > 0 || activeWorkers > 0 {
+
+			if len(parents) > 0 && activeWorkers < storage.numberOfThreads {
+				parent := parents[0]
+				parents = parents[1:]
+				activeWorkers++
+				go func(parent string) {
+					pathID, ok := storage.findPathID(parent)
+					if !ok {
+						return
 					}
-					files = append(files, name)
-					sizes = append(sizes, entry.Size)
-				} else {
-					parents = append(parents, parent+"/"+entry.Name)
-					storage.savePathID(parent+"/"+entry.Name, entry.Id)
+					entries, err := storage.listFiles(threadIndex, pathID, true, true)
+					if err != nil {
+						errorChannel <- err
+						return
+					}
+
+					LOG_DEBUG("GCD_STORAGE", "Listing %s; %d items returned", parent, len(entries))
+
+					files := []string {}
+					sizes := []int64 {}
+					for _, entry := range entries {
+						if entry.MimeType != GCDDirectoryMimeType {
+							name := entry.Name
+							if strings.HasPrefix(parent, "fossils") {
+								name = parent + "/" + name + ".fsl"
+								name = name[len("fossils/"):]
+							} else {
+								name = parent + "/" + name
+								name = name[len("chunks/"):]
+							}
+							files = append(files, name)
+							sizes = append(sizes, entry.Size)
+						} else {
+							directoryChannel <- parent+"/"+entry.Name
+							storage.savePathID(parent+"/"+entry.Name, entry.Id)
+						}
+					}
+					lock.Lock()
+					allFiles = append(allFiles, files...)
+					allSizes = append(allSizes, sizes...)
+					lock.Unlock()
+					directoryChannel <- ""
+				} (parent)
+			}
+
+			if activeWorkers > 0 {
+				select {
+				case err := <- errorChannel:
+					return nil, nil, err
+				case directory := <- directoryChannel:
+					if directory == "" {
+						activeWorkers--
+					} else {
+						parents = append(parents, directory)
+					}
 				}
 			}
 		}
-		return files, sizes, nil
+
+		return allFiles, allSizes, nil
 	}
 
 }
