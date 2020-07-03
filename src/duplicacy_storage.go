@@ -698,6 +698,18 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		}
 		SavePassword(preference, "webdav_password", password)
 		return webDAVStorage
+	} else if matched[1] == "fabric" {
+		endpoint := matched[3]
+		storageDir := matched[5]
+		prompt := fmt.Sprintf("Enter the token for accessing the Storage Made Easy File Fabric storage:")
+		token := GetPassword(preference, "fabric_token", prompt, true, resetPassword)
+		smeStorage, err := CreateFileFabricStorage(endpoint, token, storageDir, threads)
+		if err != nil {
+			LOG_ERROR("STORAGE_CREATE", "Failed to load the File Fabric storage at %s: %v", storageURL, err)
+			return nil
+		}
+		SavePassword(preference, "fabric_token", token)
+		return smeStorage
 	} else {
 		LOG_ERROR("STORAGE_CREATE", "The storage type '%s' is not supported", matched[1])
 		return nil
