@@ -14,7 +14,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	//"net/http/httputil"
@@ -214,53 +213,56 @@ type WebDAVMultiStatus struct {
 
 func (storage *WebDAVStorage) getProperties(uri string, depth int, properties ...string) (map[string]WebDAVProperties, error) {
 
-	propfind := "<prop>"
-	for _, p := range properties {
-		propfind += fmt.Sprintf("<%s/>", p)
-	}
-	propfind += "</prop>"
+	maxTries := 3
+	for tries := 0; ; tries++ {
+		propfind := "<prop>"
+		for _, p := range properties {
+			propfind += fmt.Sprintf("<%s/>", p)
+		}
+		propfind += "</prop>"
 
-	body := fmt.Sprintf(`<?xml version="1.0" encoding="utf-8" ?><propfind xmlns="DAV:">%s</propfind>`, propfind)
+		body := fmt.Sprintf(`<?xml version="1.0" encoding="utf-8" ?><propfind xmlns="DAV:">%s</propfind>`, propfind)
 
-	readCloser, _, err := storage.sendRequest("PROPFIND", uri, depth, []byte(body))
-	if err != nil {
-		return nil, err
-	}
-	defer readCloser.Close()
-	content, err := ioutil.ReadAll(readCloser)
-	if err != nil {
-		return nil, err
-	}
+		readCloser, _, err := storage.sendRequest("PROPFIND", uri, depth, []byte(body))
+		if err != nil {
+			return nil, err
+		}
+		defer readCloser.Close()
 
-	object := WebDAVMultiStatus{}
-	err = xml.Unmarshal(content, &object)
-	if err != nil {
-		return nil, err
-	}
-
-	if object.Responses == nil || len(object.Responses) == 0 {
-		return nil, errors.New("no WebDAV responses")
-	}
-
-	responses := make(map[string]WebDAVProperties)
-
-	for _, responseTag := range object.Responses {
-
-		if responseTag.PropStat == nil || responseTag.PropStat.Prop == nil || responseTag.PropStat.Prop.PropList == nil {
-			return nil, errors.New("no WebDAV properties")
+		object := WebDAVMultiStatus{}
+		err = xml.NewDecoder(readCloser).Decode(&object)
+		if err != nil {
+			if strings.Contains(err.Error(), "unexpected EOF") && tries < maxTries {
+				LOG_WARN("WEBDAV_RETRY", "Retrying on %v", err)
+				continue
+			}
+			return nil, err
 		}
 
-		properties := make(WebDAVProperties)
-		for _, prop := range responseTag.PropStat.Prop.PropList {
-			properties[prop.XMLName.Local] = prop.Value
+		if object.Responses == nil || len(object.Responses) == 0 {
+			return nil, errors.New("no WebDAV responses")
 		}
 
-		responseKey := responseTag.Href
-		responses[responseKey] = properties
+		responses := make(map[string]WebDAVProperties)
 
+		for _, responseTag := range object.Responses {
+
+			if responseTag.PropStat == nil || responseTag.PropStat.Prop == nil || responseTag.PropStat.Prop.PropList == nil {
+				return nil, errors.New("no WebDAV properties")
+			}
+
+			properties := make(WebDAVProperties)
+			for _, prop := range responseTag.PropStat.Prop.PropList {
+				properties[prop.XMLName.Local] = prop.Value
+			}
+
+			responseKey := responseTag.Href
+			responses[responseKey] = properties
+
+		}
+
+		return responses, nil
 	}
-
-	return responses, nil
 }
 
 // ListFiles return the list of files and subdirectories under 'dir'.  A subdirectories returned must have a trailing '/', with
