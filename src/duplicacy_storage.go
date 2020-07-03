@@ -678,6 +678,10 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	} else if matched[1] == "webdav" || matched[1] == "webdav-http" {
 		server := matched[3]
 		username := matched[2]
+		if username == "" {
+			LOG_ERROR("STORAGE_CREATE", "No username is provided to access the WebDAV storage")
+			return nil
+		}
 		username = username[:len(username)-1]
 		storageDir := matched[5]
 		port := 0
