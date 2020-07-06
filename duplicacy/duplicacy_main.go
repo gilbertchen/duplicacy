@@ -212,15 +212,20 @@ func runScript(context *cli.Context, storageName string, phase string) bool {
 	return true
 }
 
-func loadRSAPrivateKey(keyFile string, preference *duplicacy.Preference, backupManager *duplicacy.BackupManager, resetPasswords bool) {
+func loadRSAPrivateKey(keyFile string, passphrase string, preference *duplicacy.Preference, backupManager *duplicacy.BackupManager, resetPasswords bool) {
 	if keyFile == "" {
 		return
 	}
 
 	prompt := fmt.Sprintf("Enter the passphrase for %s:", keyFile)
-	passphrase := duplicacy.GetPassword(*preference, "rsa_passphrase", prompt, false, resetPasswords)
-	backupManager.LoadRSAPrivateKey(keyFile, passphrase)
-	duplicacy.SavePassword(*preference, "rsa_passphrase", passphrase)
+	if passphrase == "" {
+		passphrase = duplicacy.GetPassword(*preference, "rsa_passphrase", prompt, false, resetPasswords)
+		backupManager.LoadRSAPrivateKey(keyFile, passphrase)
+		duplicacy.SavePassword(*preference, "rsa_passphrase", passphrase)
+	} else {
+		backupManager.LoadRSAPrivateKey(keyFile, passphrase)
+	}
+
 }
 
 func initRepository(context *cli.Context) {
@@ -821,7 +826,7 @@ func restoreRepository(context *cli.Context) {
 	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.FiltersFile)
 	duplicacy.SavePassword(*preference, "password", password)
 
-	loadRSAPrivateKey(context.String("key"), preference, backupManager, false)
+	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), preference, backupManager, false)
 
 	backupManager.SetupSnapshotCache(preference.Name)
 	backupManager.Restore(repository, revision, true, quickMode, threads, overwrite, deleteMode, setOwner, showStatistics, patterns)
@@ -874,7 +879,7 @@ func listSnapshots(context *cli.Context) {
 	showChunks := context.Bool("chunks")
 
 	// list doesn't need to decrypt file chunks; but we need -key here so we can reset the passphrase for the private key
-	loadRSAPrivateKey(context.String("key"), preference, backupManager, resetPassword)
+	loadRSAPrivateKey(context.String("key"), "", preference, backupManager, resetPassword)
 
 	backupManager.SetupSnapshotCache(preference.Name)
 	backupManager.SnapshotManager.ListSnapshots(id, revisions, tag, showFiles, showChunks)
@@ -919,7 +924,7 @@ func checkSnapshots(context *cli.Context) {
 	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "")
 	duplicacy.SavePassword(*preference, "password", password)
 
-	loadRSAPrivateKey(context.String("key"), preference, backupManager, false)
+	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), preference, backupManager, false)
 
 	id := preference.SnapshotID
 	if context.Bool("all") {
@@ -977,7 +982,7 @@ func printFile(context *cli.Context) {
 	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "")
 	duplicacy.SavePassword(*preference, "password", password)
 
-	loadRSAPrivateKey(context.String("key"), preference, backupManager, false)
+	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), preference, backupManager, false)
 
 	backupManager.SetupSnapshotCache(preference.Name)
 
@@ -1035,7 +1040,7 @@ func diff(context *cli.Context) {
 	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "")
 	duplicacy.SavePassword(*preference, "password", password)
 
-	loadRSAPrivateKey(context.String("key"), preference, backupManager, false)
+	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), preference, backupManager, false)
 
 	backupManager.SetupSnapshotCache(preference.Name)
 	backupManager.SnapshotManager.Diff(repository, snapshotID, revisions, path, compareByHash, preference.NobackupFile, preference.FiltersFile)
@@ -1184,7 +1189,7 @@ func copySnapshots(context *cli.Context) {
 	sourceManager.SetupSnapshotCache(source.Name)
 	duplicacy.SavePassword(*source, "password", sourcePassword)
 
-	loadRSAPrivateKey(context.String("key"), source, sourceManager, false)
+	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), source, sourceManager, false)
 
 	_, destination := getRepositoryPreference(context, context.String("to"))
 
@@ -1510,6 +1515,11 @@ func main() {
 					Usage:    "the RSA private key to decrypt file chunks",
 					Argument: "<private key>",
 				},
+				cli.StringFlag{
+					Name:     "key-passphrase",
+					Usage:    "the passphrase to decrypt the RSA private key",
+					Argument: "<private key passphrase>",
+				},
 			},
 			Usage:     "Restore the repository to a previously saved snapshot",
 			ArgsUsage: "[--] [pattern] ...",
@@ -1621,6 +1631,11 @@ func main() {
 					Usage:    "the RSA private key to decrypt file chunks",
 					Argument: "<private key>",
 				},
+				cli.StringFlag{
+					Name:     "key-passphrase",
+					Usage:    "the passphrase to decrypt the RSA private key",
+					Argument: "<private key passphrase>",
+				},
 				cli.IntFlag{
 					Name:     "threads",
 					Value:    1,
@@ -1655,6 +1670,11 @@ func main() {
 					Usage:    "the RSA private key to decrypt file chunks",
 					Argument: "<private key>",
 				},
+				cli.StringFlag{
+					Name:     "key-passphrase",
+					Usage:    "the passphrase to decrypt the RSA private key",
+					Argument: "<private key passphrase>",
+				},
 			},
 			Usage:     "Print to stdout the specified file, or the snapshot content if no file is specified",
 			ArgsUsage: "[<file>]",
@@ -1687,6 +1707,11 @@ func main() {
 					Name:     "key",
 					Usage:    "the RSA private key to decrypt file chunks",
 					Argument: "<private key>",
+				},
+				cli.StringFlag{
+					Name:     "key-passphrase",
+					Usage:    "the passphrase to decrypt the RSA private key",
+					Argument: "<private key passphrase>",
 				},
 			},
 			Usage:     "Compare two snapshots or two revisions of a file",
@@ -1964,6 +1989,11 @@ func main() {
 					Name:     "key",
 					Usage:    "the RSA private key to decrypt file chunks from the source storage",
 					Argument: "<private key>",
+				},
+				cli.StringFlag{
+					Name:     "key-passphrase",
+					Usage:    "the passphrase to decrypt the RSA private key",
+					Argument: "<private key passphrase>",
 				},
 			},
 			Usage:     "Copy snapshots between compatible storages",
