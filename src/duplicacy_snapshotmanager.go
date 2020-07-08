@@ -845,7 +845,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 		chunk = strings.Replace(chunk, "/", "", -1)
 		chunkSizeMap[chunk] = allSizes[i]
 
-		if allSizes[i] == 0 {
+		if allSizes[i] == 0 && !strings.HasSuffix(chunk, ".tmp") {
 			LOG_WARN("SNAPSHOT_CHECK", "Chunk %s has a size of 0", chunk)
 			emptyChunks++
 		}
