@@ -318,7 +318,11 @@ func (storage *SFTPStorage) UploadFile(threadIndex int, filePath string, content
 			file.Close()
 			return err
 		}
-		file.Close()
+
+		err = file.Close()
+		if err != nil {
+			return err
+		}
 
 		err = storage.getSFTPClient().Rename(temporaryFile, fullPath)
 		if err != nil {
