@@ -38,8 +38,8 @@ type GCDStorage struct {
 	service     *drive.Service
 	idCache     map[string]string // only directories are saved in this cache
 	idCacheLock sync.Mutex
-	backoffs    []int // desired backoff time in seconds for each thread
-	attempts    []int // number of failed attempts since last success for each thread
+	backoffs    []int  // desired backoff time in seconds for each thread
+	attempts    []int  // number of failed attempts since last success for each thread
 	driveID     string // the ID of the shared drive or 'root' (GCDUserDrive) if the user's drive
 
 	createDirectoryLock sync.Mutex
@@ -756,7 +756,7 @@ func (storage *GCDStorage) DownloadFile(threadIndex int, filePath string, chunk 
 }
 
 // UploadFile writes 'content' to the file at 'filePath'.
-func (storage *GCDStorage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
+func (storage *GCDStorage) UploadFile(threadIndex int, filePath string, content []byte, storageOption StorageOption) (err error) {
 
 	// We never upload a fossil so there is no need to convert the path
 	parent := path.Dir(filePath)

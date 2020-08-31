@@ -8,6 +8,8 @@ import (
 	"io"
 	"sync/atomic"
 	"time"
+
+	"github.com/gilbertchen/goamz/s3"
 )
 
 // ChunkDownloadTask encapsulates information need to download a chunk.
@@ -268,7 +270,7 @@ func (downloader *ChunkDownloader) WaitForCompletion() {
 	}
 
 	// Looping until there isn't a download task in progress
-	for downloader.numberOfActiveChunks > 0 || downloader.lastChunkIndex + 1 < len(downloader.taskList) {
+	for downloader.numberOfActiveChunks > 0 || downloader.lastChunkIndex+1 < len(downloader.taskList) {
 
 		// Wait for a completion event first
 		if downloader.numberOfActiveChunks > 0 {
@@ -280,8 +282,8 @@ func (downloader *ChunkDownloader) WaitForCompletion() {
 		}
 
 		// Pass the tasks one by one to the download queue
-		if downloader.lastChunkIndex + 1 < len(downloader.taskList) {
-			task := &downloader.taskList[downloader.lastChunkIndex + 1]
+		if downloader.lastChunkIndex+1 < len(downloader.taskList) {
+			task := &downloader.taskList[downloader.lastChunkIndex+1]
 			if task.isDownloading {
 				downloader.lastChunkIndex++
 				continue
@@ -358,6 +360,7 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 	chunk.Reset(false)
 
 	const MaxDownloadAttempts = 3
+	const GlacierDelay = 1
 	for downloadAttempt := 0; ; downloadAttempt++ {
 
 		// Find the chunk by ID first.
@@ -417,15 +420,35 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 		err = downloader.storage.DownloadFile(threadIndex, chunkPath, chunk)
 		if err != nil {
 			_, isHubic := downloader.storage.(*HubicStorage)
+			s3c, isArgo := downloader.storage.(*S3CStorage)
 			// Retry on EOF or if it is a Hubic backend as it may return 404 even when the chunk exists
 			if (err == io.ErrUnexpectedEOF || isHubic) && downloadAttempt < MaxDownloadAttempts {
 				LOG_WARN("DOWNLOAD_RETRY", "Failed to download the chunk %s: %v; retrying", chunkID, err)
 				chunk.Reset(false)
 				continue
-			} else {
-				LOG_ERROR("DOWNLOAD_CHUNK", "Failed to download the chunk %s: %v", chunkID, err)
-				return false
 			}
+			if s3err, ok := err.(*s3.Error); ok {
+				// Hit by glacier
+				if s3err.StatusCode == 403 && isArgo {
+					if downloadAttempt == 0 {
+						LOG_DEBUG("TITANIC", "Requestion restore %v from GLACIER", chunkID)
+						err = s3c.RestoreFile(threadIndex, chunkPath, 1) // XXX FIXME : hardcoded 1 day retention
+						if err != nil {
+							LOG_WARN("DOWNLOAD_RETRY", "Restore %v from GLACIER failed: %v", chunkID, err)
+							return false
+						}
+					}
+					// retry up to 3 * 3 times
+					if downloadAttempt <= MaxDownloadAttempts*3 {
+						LOG_WARN("DOWNLOAD_RETRY", "Unable get chunk %s from GLACIER; retry in %v minte", chunkID, GlacierDelay)
+						chunk.Reset(false)
+						time.Sleep(GlacierDelay * time.Minute) // XXX : Will bloc here!
+						continue
+					}
+				}
+			}
+			LOG_ERROR("DOWNLOAD_CHUNK", "Failed to download the chunk %s: %v", chunkID, err)
+			return false
 		}
 
 		err = chunk.Decrypt(downloader.config.ChunkKey, task.chunkHash)
@@ -457,7 +480,7 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 
 	if len(cachedPath) > 0 {
 		// Save a copy to the local snapshot cache
-		err := downloader.snapshotCache.UploadFile(threadIndex, cachedPath, chunk.GetBytes())
+		err := downloader.snapshotCache.UploadFile(threadIndex, cachedPath, chunk.GetBytes(), nil)
 		if err != nil {
 			LOG_WARN("DOWNLOAD_CACHE", "Failed to add the chunk %s to the snapshot cache: %v", chunkID, err)
 		}

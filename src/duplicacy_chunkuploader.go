@@ -91,10 +91,20 @@ func (uploader *ChunkUploader) Upload(threadIndex int, task ChunkUploadTask) boo
 	chunk := task.chunk
 	chunkSize := chunk.GetLength()
 	chunkID := chunk.GetID()
+	var stropt StorageOption
 
 	// For a snapshot chunk, verify that its chunk id is correct
 	if uploader.snapshotCache != nil {
 		chunk.VerifyID()
+		// initialize StorageClass for meta chunk
+		if st, ok := uploader.storage.(*S3CStorage); ok {
+			stropt = st.stOptionMeta
+		}
+	} else {
+		// initialize StorageClass for data chunk
+		if st, ok := uploader.storage.(*S3CStorage); ok {
+			stropt = st.stOptionData
+		}
 	}
 
 	if uploader.snapshotCache != nil && uploader.storage.IsCacheNeeded() {
@@ -104,7 +114,7 @@ func (uploader *ChunkUploader) Upload(threadIndex int, task ChunkUploadTask) boo
 			LOG_WARN("UPLOAD_CACHE", "Failed to find the cache path for the chunk %s: %v", chunkID, err)
 		} else if exist {
 			LOG_DEBUG("CHUNK_CACHE", "Chunk %s already exists in the snapshot cache", chunkID)
-		} else if err = uploader.snapshotCache.UploadFile(threadIndex, chunkPath, chunk.GetBytes()); err != nil {
+		} else if err = uploader.snapshotCache.UploadFile(threadIndex, chunkPath, chunk.GetBytes(), stropt); err != nil {
 			LOG_WARN("UPLOAD_CACHE", "Failed to save the chunk %s to the snapshot cache: %v", chunkID, err)
 		} else {
 			LOG_DEBUG("CHUNK_CACHE", "Chunk %s has been saved to the snapshot cache", chunkID)
@@ -135,7 +145,7 @@ func (uploader *ChunkUploader) Upload(threadIndex int, task ChunkUploadTask) boo
 	}
 
 	if !uploader.config.dryRun {
-		err = uploader.storage.UploadFile(threadIndex, chunkPath, chunk.GetBytes())
+		err = uploader.storage.UploadFile(threadIndex, chunkPath, chunk.GetBytes(), stropt)
 		if err != nil {
 			LOG_ERROR("UPLOAD_CHUNK", "Failed to upload the chunk %s: %v", chunkID, err)
 			return false

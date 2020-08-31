@@ -933,7 +933,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 						_, exist, _, err := manager.storage.FindChunk(0, chunkID, false)
 						if err != nil {
 							LOG_WARN("SNAPSHOT_VALIDATE", "Failed to check the existence of chunk %s: %v",
-							         chunkID, err)
+								chunkID, err)
 						} else if exist {
 							LOG_INFO("SNAPSHOT_VALIDATE", "Chunk %s is confirmed to exist", chunkID)
 							continue
@@ -1367,8 +1367,8 @@ func (manager *SnapshotManager) PrintFile(snapshotID string, revision int, path 
 
 	file := manager.FindFile(snapshot, path, false)
 	if !manager.RetrieveFile(snapshot, file, func(chunk []byte) {
-			fmt.Printf("%s", chunk)
-		}) {
+		fmt.Printf("%s", chunk)
+	}) {
 		LOG_ERROR("SNAPSHOT_RETRIEVE", "File %s is corrupted in snapshot %s at revision %d",
 			path, snapshot.ID, snapshot.Revision)
 		return false
@@ -2122,7 +2122,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 			return false
 		}
 
-		err = manager.snapshotCache.UploadFile(0, collectionFile, description)
+		err = manager.snapshotCache.UploadFile(0, collectionFile, description, nil)
 		if err != nil {
 			LOG_ERROR("FOSSIL_COLLECT", "Failed to save the fossil collection file %s: %v", collectionFile, err)
 			return false
@@ -2518,7 +2518,7 @@ func (manager *SnapshotManager) DownloadFile(path string, derivationKey string) 
 		return nil
 	}
 
-	err = manager.snapshotCache.UploadFile(0, path, manager.fileChunk.GetBytes())
+	err = manager.snapshotCache.UploadFile(0, path, manager.fileChunk.GetBytes(), nil)
 	if err != nil {
 		LOG_WARN("DOWNLOAD_FILE_CACHE", "Failed to add the file %s to the snapshot cache: %v", path, err)
 	}
@@ -2534,7 +2534,7 @@ func (manager *SnapshotManager) UploadFile(path string, derivationKey string, co
 	manager.fileChunk.Write(content)
 
 	if manager.storage.IsCacheNeeded() {
-		err := manager.snapshotCache.UploadFile(0, path, manager.fileChunk.GetBytes())
+		err := manager.snapshotCache.UploadFile(0, path, manager.fileChunk.GetBytes(), nil)
 		if err != nil {
 			LOG_WARN("UPLOAD_CACHE", "Failed to cache the file %s: %v", path, err)
 		} else {
@@ -2552,7 +2552,7 @@ func (manager *SnapshotManager) UploadFile(path string, derivationKey string, co
 		return false
 	}
 
-	err = manager.storage.UploadFile(0, path, manager.fileChunk.GetBytes())
+	err = manager.storage.UploadFile(0, path, manager.fileChunk.GetBytes(), nil)
 	if err != nil {
 		LOG_ERROR("UPLOAD_File", "Failed to upload the file %s: %v", path, err)
 		return false

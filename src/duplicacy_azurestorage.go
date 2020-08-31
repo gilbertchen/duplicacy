@@ -165,7 +165,7 @@ func (storage *AzureStorage) DownloadFile(threadIndex int, filePath string, chun
 }
 
 // UploadFile writes 'content' to the file at 'filePath'.
-func (storage *AzureStorage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
+func (storage *AzureStorage) UploadFile(threadIndex int, filePath string, content []byte, storageOption StorageOption) (err error) {
 
 	tries := 0
 

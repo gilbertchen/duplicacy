@@ -227,7 +227,7 @@ func (storage *SwiftStorage) DownloadFile(threadIndex int, filePath string, chun
 }
 
 // UploadFile writes 'content' to the file at 'filePath'.
-func (storage *SwiftStorage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
+func (storage *SwiftStorage) UploadFile(threadIndex int, filePath string, content []byte, storageOption StorageOption) (err error) {
 	reader := CreateRateLimitedReader(content, storage.UploadRateLimit/storage.threads)
 	_, err = storage.connection.ObjectPut(storage.container, storage.storageDir+filePath, reader, true, "", "application/duplicacy", nil)
 	return err

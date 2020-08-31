@@ -17,6 +17,9 @@ type S3CStorage struct {
 
 	buckets    []*s3.Bucket
 	storageDir string
+
+	stOptionMeta s3.Options // Option to use for metadata
+	stOptionData s3.Options // Option to use for file data
 }
 
 // CreateS3CStorage creates a amazon s3 storage object.
@@ -54,8 +57,10 @@ func CreateS3CStorage(regionName string, endpoint string, bucketName string, sto
 	}
 
 	storage = &S3CStorage{
-		buckets:    buckets,
-		storageDir: storageDir,
+		buckets:      buckets,
+		storageDir:   storageDir,
+		stOptionMeta: s3.Options{Tagging: "TYPE=META"},
+		stOptionData: s3.Options{Tagging: "TYPE=DATA"},
 	}
 
 	storage.DerivedStorage = storage
@@ -172,11 +177,22 @@ func (storage *S3CStorage) DownloadFile(threadIndex int, filePath string, chunk 
 }
 
 // UploadFile writes 'content' to the file at 'filePath'.
-func (storage *S3CStorage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
+func (storage *S3CStorage) UploadFile(threadIndex int, filePath string, content []byte, storageOption StorageOption) (err error) {
 
-	options := s3.Options{}
+	var options s3.Options
+	if sto, ok := storageOption.(s3.Options); ok {
+		options = sto
+	}
+	LOG_DEBUG("debug", "s3cOption %+v", options)
 	reader := CreateRateLimitedReader(content, storage.UploadRateLimit/len(storage.buckets))
 	return storage.buckets[threadIndex].PutReader(storage.storageDir+filePath, reader, int64(len(content)), "application/duplicacy", s3.Private, options)
+}
+
+// RestoreFile request restore filePath from GLACIER to STANDARD storage with a retention of days
+func (storage *S3CStorage) RestoreFile(threadIndex int, filePath string, days int) (err error) {
+
+	LOG_DEBUG("RestoreObject", "RestoreObject %v", filePath)
+	return storage.buckets[threadIndex].RestoreObject(storage.storageDir+filePath, days)
 }
 
 // If a local snapshot cache is needed for the storage to avoid downloading/uploading chunks too often when

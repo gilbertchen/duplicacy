@@ -216,7 +216,7 @@ func (storage *S3Storage) DownloadFile(threadIndex int, filePath string, chunk *
 }
 
 // UploadFile writes 'content' to the file at 'filePath'.
-func (storage *S3Storage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
+func (storage *S3Storage) UploadFile(threadIndex int, filePath string, content []byte, storageOption StorageOption) (err error) {
 
 	attempts := 0
 

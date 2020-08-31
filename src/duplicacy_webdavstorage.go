@@ -335,8 +335,8 @@ func (storage *WebDAVStorage) GetFileInfo(threadIndex int, filePath string) (exi
 	m, exist := properties["/"+storage.storageDir+filePath]
 
 	// If no properties exist for the given filePath, remove the trailing / from filePath and search again
-	if !exist && filePath != "" && filePath[len(filePath) - 1] == '/' {
-		m, exist = properties["/"+storage.storageDir+filePath[:len(filePath) - 1]]
+	if !exist && filePath != "" && filePath[len(filePath)-1] == '/' {
+		m, exist = properties["/"+storage.storageDir+filePath[:len(filePath)-1]]
 	}
 
 	if !exist {
@@ -434,7 +434,7 @@ func (storage *WebDAVStorage) DownloadFile(threadIndex int, filePath string, chu
 }
 
 // UploadFile writes 'content' to the file at 'filePath'.
-func (storage *WebDAVStorage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
+func (storage *WebDAVStorage) UploadFile(threadIndex int, filePath string, content []byte, storageOption StorageOption) (err error) {
 
 	// If there is an error in creating the parent directory, proceed anyway
 	storage.createParentDirectory(threadIndex, filePath)

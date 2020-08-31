@@ -216,7 +216,7 @@ func (storage *B2Storage) DownloadFile(threadIndex int, filePath string, chunk *
 }
 
 // UploadFile writes 'content' to the file at 'filePath'.
-func (storage *B2Storage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
+func (storage *B2Storage) UploadFile(threadIndex int, filePath string, content []byte, storageOption StorageOption) (err error) {
 	return storage.client.UploadFile(threadIndex, filePath, content, storage.UploadRateLimit/storage.client.Threads)
 }
 

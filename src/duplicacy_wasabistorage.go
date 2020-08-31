@@ -165,9 +165,9 @@ func (storage *WasabiStorage) DownloadFile(
 }
 
 func (storage *WasabiStorage) UploadFile(
-	threadIndex int, filePath string, content []byte,
+	threadIndex int, filePath string, content []byte, storageOption StorageOption,
 ) (err error) {
-	return storage.s3.UploadFile(threadIndex, filePath, content)
+	return storage.s3.UploadFile(threadIndex, filePath, content, storageOption)
 }
 
 func (storage *WasabiStorage) IsCacheNeeded() bool {
