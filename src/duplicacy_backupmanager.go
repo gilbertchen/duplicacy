@@ -184,8 +184,13 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 	LOG_DEBUG("BACKUP_PARAMETERS", "top: %s, quick: %t, tag: %s", top, quickMode, tag)
 
+	if manager.config.DataShards != 0 && manager.config.ParityShards != 0 {
+		LOG_INFO("BACKUP_ERASURECODING", "Erasure coding is enabled with %d data shards and %d parity shards",
+		         manager.config.DataShards, manager.config.ParityShards)
+	}
+
 	if manager.config.rsaPublicKey != nil && len(manager.config.FileKey) > 0 {
-		LOG_INFO("BACKUP_KEY", "RSA encryption is enabled" )
+		LOG_INFO("BACKUP_KEY", "RSA encryption is enabled")
 	}
 
 	remoteSnapshot := manager.SnapshotManager.downloadLatestSnapshot(manager.snapshotID)
@@ -1555,6 +1560,15 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 	if !manager.config.IsCompatiableWith(otherManager.config) {
 		LOG_ERROR("CONFIG_INCOMPATIBLE", "Two storages are not compatible for the copy operation")
 		return false
+	}
+
+	if otherManager.config.DataShards != 0 && otherManager.config.ParityShards != 0 {
+		LOG_INFO("BACKUP_ERASURECODING", "Erasure coding is enabled for the destination storage with %d data shards and %d parity shards",
+		         otherManager.config.DataShards, otherManager.config.ParityShards)
+	}
+
+	if otherManager.config.rsaPublicKey != nil && len(otherManager.config.FileKey) > 0 {
+		LOG_INFO("BACKUP_KEY", "RSA encryption is enabled for the destination")
 	}
 
 	if snapshotID == "" && len(revisionsToBeCopied) > 0 {
