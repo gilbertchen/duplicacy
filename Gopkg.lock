@@ -50,10 +50,9 @@
   revision = "1de0a1836ce9c3ae1bf737a0869c4f04f28a7f98"
 
 [[projects]]
-  branch = "master"
   name = "github.com/gilbertchen/go-dropbox"
   packages = ["."]
-  revision = "994e692c5061cefa14e4296600a773de7119aa15"
+  revision = "0baa9015ac2547d8b69b2e88c709aa90cfb8fbc1"
 
 [[projects]]
   name = "github.com/gilbertchen/go-ole"
@@ -99,7 +98,7 @@
 
 [[projects]]
   name = "github.com/golang/protobuf"
-  packages = ["proto","protoc-gen-go","protoc-gen-go/descriptor","protoc-gen-go/generator","protoc-gen-go/generator/internal/remap","protoc-gen-go/grpc","protoc-gen-go/plugin","ptypes","ptypes/any","ptypes/duration","ptypes/timestamp"]
+  packages = ["proto","protoc-gen-go/descriptor","ptypes","ptypes/any","ptypes/duration","ptypes/timestamp"]
   revision = "84668698ea25b64748563aa20726db66a6b8d299"
   version = "v1.3.5"
 
@@ -176,18 +175,6 @@
 
 [[projects]]
   branch = "master"
-  name = "golang.org/x/exp"
-  packages = ["apidiff","cmd/apidiff"]
-  revision = "e8c3332aa8e5b8e6acb4707c3a7e5979052b20aa"
-
-[[projects]]
-  name = "golang.org/x/mod"
-  packages = ["module","semver"]
-  revision = "ed3ec21bb8e252814c380df79a80f366440ddb2d"
-  version = "v0.2.0"
-
-[[projects]]
-  branch = "master"
   name = "golang.org/x/net"
   packages = ["context","context/ctxhttp","http/httpguts","http2","http2/hpack","idna","internal/timeseries","trace"]
   revision = "d3edc9973b7eb1fb302b0ff2c62357091cea9a30"
@@ -208,18 +195,6 @@
   packages = ["collate","collate/build","internal/colltab","internal/gen","internal/language","internal/language/compact","internal/tag","internal/triegen","internal/ucd","language","secure/bidirule","transform","unicode/bidi","unicode/cldr","unicode/norm","unicode/rangetable"]
   revision = "342b2e1fbaa52c93f31447ad2c6abc048c63e475"
   version = "v0.3.2"
-
-[[projects]]
-  branch = "master"
-  name = "golang.org/x/tools"
-  packages = ["cmd/goimports","go/ast/astutil","go/gcexportdata","go/internal/gcimporter","go/internal/packagesdriver","go/packages","go/types/typeutil","internal/fastwalk","internal/gocommand","internal/gopathwalk","internal/imports","internal/packagesinternal","internal/telemetry/event"]
-  revision = "700752c244080ed7ef6a61c3cfd73382cd334e57"
-
-[[projects]]
-  branch = "master"
-  name = "golang.org/x/xerrors"
-  packages = [".","internal"]
-  revision = "9bdfabe68543c54f90421aeb9a60ef8061b5b544"
 
 [[projects]]
   name = "google.golang.org/api"
@@ -248,6 +223,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e124cf64f7f8770e51ae52ac89030d512da946e3fdc2666ebd3a604a624dd679"
+  inputs-digest = "e462352e0b0c726247078462e30a79330ac7a8b9dc62e9ed9d1e097b684224e9"
   solver-name = "gps-cdcl"
   solver-version = 1

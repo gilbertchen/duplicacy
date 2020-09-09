@@ -381,6 +381,13 @@ func (manager *SnapshotManager) DownloadSnapshotContents(snapshot *Snapshot, pat
 	return true
 }
 
+// ClearSnapshotContents removes contents loaded by DownloadSnapshotContents
+func (manager *SnapshotManager) ClearSnapshotContents(snapshot *Snapshot) {
+	snapshot.ChunkHashes = nil
+	snapshot.ChunkLengths = nil
+	snapshot.Files = nil
+}
+
 // CleanSnapshotCache removes all files not referenced by the specified 'snapshot' in the snapshot cache.
 func (manager *SnapshotManager) CleanSnapshotCache(latestSnapshot *Snapshot, allSnapshots map[string][]*Snapshot) bool {
 
@@ -821,6 +828,8 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	// Store the index of the snapshot that references each chunk; if the chunk is shared by multiple chunks, the index is -1
 	chunkSnapshotMap := make(map[string]int)
 
+	emptyChunks := 0
+
 	LOG_INFO("SNAPSHOT_CHECK", "Listing all chunks")
 	allChunks, allSizes := manager.ListAllFiles(manager.storage, chunkDir)
 
@@ -835,6 +844,11 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 
 		chunk = strings.Replace(chunk, "/", "", -1)
 		chunkSizeMap[chunk] = allSizes[i]
+
+		if allSizes[i] == 0 && !strings.HasSuffix(chunk, ".tmp") {
+			LOG_WARN("SNAPSHOT_CHECK", "Chunk %s has a size of 0", chunk)
+			emptyChunks++
+		}
 	}
 
 	if snapshotID == "" || showStatistics || showTabular {
@@ -899,6 +913,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 			if checkFiles {
 				manager.DownloadSnapshotContents(snapshot, nil, false)
 				manager.VerifySnapshot(snapshot)
+				manager.ClearSnapshotContents(snapshot)
 				continue
 			}
 
@@ -991,6 +1006,11 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 		return false
 	}
 
+	if emptyChunks > 0 {
+		LOG_ERROR("SNAPSHOT_CHECK", "%d chunks have a size of 0", emptyChunks)
+		return false
+	}
+
 	if showTabular {
 		manager.ShowStatisticsTabular(snapshotMap, chunkSizeMap, chunkUniqueMap, chunkSnapshotMap)
 	} else if showStatistics {
@@ -998,6 +1018,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	}
 
 	if checkChunks && !checkFiles {
+		manager.chunkDownloader.snapshotCache = nil
 		LOG_INFO("SNAPSHOT_VERIFY", "Verifying %d chunks", len(*allChunkHashes))
 		for chunkHash := range *allChunkHashes {
 			manager.chunkDownloader.AddChunk(chunkHash)

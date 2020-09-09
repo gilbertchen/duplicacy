@@ -521,6 +521,11 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 				chunkID := chunk.GetID()
 				chunkSize := chunk.GetLength()
 
+				if chunkSize == 0 {
+					LOG_DEBUG("CHUNK_EMPTY", "Ignored chunk %s of size 0", chunkID)
+					return
+				}
+
 				chunkIndex++
 
 				_, found := chunkCache[chunkID]

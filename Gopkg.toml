@@ -46,8 +46,8 @@
   name = "github.com/gilbertchen/cli"
 
 [[constraint]]
-  branch = "master"
   name = "github.com/gilbertchen/go-dropbox"
+  revision = "0baa9015ac2547d8b69b2e88c709aa90cfb8fbc1"
 
 [[constraint]]
   name = "github.com/gilbertchen/go-ole"

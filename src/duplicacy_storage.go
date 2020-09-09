@@ -268,7 +268,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	if matched == nil {
 		LOG_ERROR("STORAGE_CREATE", "Unrecognizable storage URL: %s", storageURL)
 		return nil
-	} else if matched[1] == "sftp" {
+	} else if matched[1] == "sftp" || matched[1] == "sftpc" {
 		server := matched[3]
 		username := matched[2]
 		storageDir := matched[5]
@@ -440,7 +440,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			return checkHostKey(hostname, remote, key)
 		}
 
-		sftpStorage, err := CreateSFTPStorage(server, port, username, storageDir, 2, authMethods, hostKeyChecker, threads)
+		sftpStorage, err := CreateSFTPStorage(matched[1] == "sftpc", server, port, username, storageDir, 2, authMethods, hostKeyChecker, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the SFTP storage at %s: %v", storageURL, err)
 			return nil
@@ -652,7 +652,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the OneDrive storage at %s: %v", storageURL, err)
 			return nil
 		}
-		SavePassword(preference, "one_token", tokenFile)
+		SavePassword(preference, matched[1] + "_token", tokenFile)
 		return oneDriveStorage
 	} else if matched[1] == "hubic" {
 		storagePath := matched[3] + matched[4]
@@ -678,6 +678,10 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	} else if matched[1] == "webdav" || matched[1] == "webdav-http" {
 		server := matched[3]
 		username := matched[2]
+		if username == "" {
+			LOG_ERROR("STORAGE_CREATE", "No username is provided to access the WebDAV storage")
+			return nil
+		}
 		username = username[:len(username)-1]
 		storageDir := matched[5]
 		port := 0
@@ -698,6 +702,18 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		}
 		SavePassword(preference, "webdav_password", password)
 		return webDAVStorage
+	} else if matched[1] == "fabric" {
+		endpoint := matched[3]
+		storageDir := matched[5]
+		prompt := fmt.Sprintf("Enter the token for accessing the Storage Made Easy File Fabric storage:")
+		token := GetPassword(preference, "fabric_token", prompt, true, resetPassword)
+		smeStorage, err := CreateFileFabricStorage(endpoint, token, storageDir, threads)
+		if err != nil {
+			LOG_ERROR("STORAGE_CREATE", "Failed to load the File Fabric storage at %s: %v", storageURL, err)
+			return nil
+		}
+		SavePassword(preference, "fabric_token", token)
+		return smeStorage
 	} else {
 		LOG_ERROR("STORAGE_CREATE", "The storage type '%s' is not supported", matched[1])
 		return nil
