@@ -101,7 +101,7 @@ func TestUploaderAndDownloader(t *testing.T) {
 
 	chunkUploader.Stop()
 
-	chunkDownloader := CreateChunkDownloader(config, storage, nil, true, testThreads)
+	chunkDownloader := CreateChunkDownloader(config, storage, nil, true, testThreads, false)
 	chunkDownloader.totalChunkSize = int64(totalFileSize)
 
 	for _, chunk := range chunks {

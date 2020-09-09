@@ -87,6 +87,9 @@ func SetLoggingLevel(level int) {
 	loggingLevel = level
 }
 
+// log function type for passing as a parameter to functions
+type LogFunc func(logID string, format string, v ...interface{})
+
 func LOG_DEBUG(logID string, format string, v ...interface{}) {
 	logf(DEBUG, logID, format, v...)
 }

@@ -65,6 +65,8 @@ type Chunk struct {
 
 	isSnapshot bool // Indicates if the chunk is a snapshot chunk (instead of a file chunk).  This is only used by RSA
 	                // encryption, where a snapshot chunk is not encrypted by RSA
+	
+	isBroken bool // Indicates the chunk did not download correctly. This is only used for -persist (allowFailures) mode
 }
 
 // Magic word to identify a duplicacy format encrypted file, plus a version number.
@@ -122,6 +124,7 @@ func (chunk *Chunk) Reset(hashNeeded bool) {
 	chunk.id = ""
 	chunk.size = 0
 	chunk.isSnapshot = false
+	chunk.isBroken = false
 }
 
 // Write implements the Writer interface.

@@ -270,7 +270,7 @@ func (reader *sequenceReader) Read(data []byte) (n int, err error) {
 
 func (manager *SnapshotManager) CreateChunkDownloader() {
 	if manager.chunkDownloader == nil {
-		manager.chunkDownloader = CreateChunkDownloader(manager.config, manager.storage, manager.snapshotCache, false, 1)
+		manager.chunkDownloader = CreateChunkDownloader(manager.config, manager.storage, manager.snapshotCache, false, 1, false)
 	}
 }
 
@@ -809,9 +809,9 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 
 // ListSnapshots shows the information about a snapshot.
 func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToCheck []int, tag string, showStatistics bool, showTabular bool,
-	checkFiles bool, checkChunks, searchFossils bool, resurrect bool, threads int) bool {
+	checkFiles bool, checkChunks, searchFossils bool, resurrect bool, threads int, allowFailures bool) bool {
 
-	manager.chunkDownloader = CreateChunkDownloader(manager.config, manager.storage, manager.snapshotCache, false, threads)
+	manager.chunkDownloader = CreateChunkDownloader(manager.config, manager.storage, manager.snapshotCache, false, threads, allowFailures)
 
 	LOG_DEBUG("LIST_PARAMETERS", "id: %s, revisions: %v, tag: %s, showStatistics: %t, showTabular: %t, checkFiles: %t, searchFossils: %t, resurrect: %t",
 		snapshotID, revisionsToCheck, tag, showStatistics, showTabular, checkFiles, searchFossils, resurrect)
@@ -1024,7 +1024,11 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 			manager.chunkDownloader.AddChunk(chunkHash)
 		}
 		manager.chunkDownloader.WaitForCompletion()
-		LOG_INFO("SNAPSHOT_VERIFY", "All %d chunks have been successfully verified", len(*allChunkHashes))
+		if allowFailures {
+			LOG_INFO("SNAPSHOT_VERIFY", "All %d chunks have been verified, see above for any errors", len(*allChunkHashes))
+		} else {
+			LOG_INFO("SNAPSHOT_VERIFY", "All %d chunks have been successfully verified", len(*allChunkHashes))
+		}
 	}
 	return true
 }

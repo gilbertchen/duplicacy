@@ -620,7 +620,7 @@ func TestPruneNewSnapshots(t *testing.T) {
 	// Now chunkHash1 wil be resurrected
 	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 4, 0)
-	snapshotManager.CheckSnapshots("vm1@host1", []int{2, 3}, "", false, false, false, false, false, false, 1)
+	snapshotManager.CheckSnapshots("vm1@host1", []int{2, 3}, "", false, false, false, false, false, false, 1, false)
 }
 
 // A fossil collection left by an aborted prune should be ignored if any supposedly deleted snapshot exists
@@ -669,7 +669,7 @@ func TestPruneGhostSnapshots(t *testing.T) {
 	// Run the prune again but the fossil collection should be igored, since revision 1 still exists
 	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 3, 2)
-	snapshotManager.CheckSnapshots("vm1@host1", []int{1, 2, 3}, "", false, false, false, false, true /*searchFossils*/, false, 1)
+	snapshotManager.CheckSnapshots("vm1@host1", []int{1, 2, 3}, "", false, false, false, false, true /*searchFossils*/, false, 1, false)
 
 	// Prune snapshot 1 again
 	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{1}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
@@ -683,5 +683,5 @@ func TestPruneGhostSnapshots(t *testing.T) {
 	// Run the prune again and this time the fossil collection will be processed and the fossils removed
 	snapshotManager.PruneSnapshots("vm1@host1", "vm1@host1", []int{}, []string{}, []string{}, false, false, []string{}, false, false, false, 1)
 	checkTestSnapshots(snapshotManager, 3, 0)
-	snapshotManager.CheckSnapshots("vm1@host1", []int{2, 3, 4}, "", false, false, false, false, false, false, 1)
+	snapshotManager.CheckSnapshots("vm1@host1", []int{2, 3, 4}, "", false, false, false, false, false, false, 1, false)
 }
