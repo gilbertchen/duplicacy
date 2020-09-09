@@ -129,6 +129,11 @@ func CreateSwiftStorage(storageURL string, key string, threads int) (storage *Sw
 		TrustId:        arguments["trust_id"],
 	}
 
+	err = connection.Authenticate()
+	if err != nil {
+		return nil, err
+	}
+
 	_, _, err = connection.Container(container)
 	if err != nil {
 		return nil, err
