@@ -127,7 +127,12 @@ func (storage *WebDAVStorage) sendRequest(method string, uri string, depth int, 
 			dataReader = bytes.NewReader(data)
 		} else if method == "PUT" {
 			headers["Content-Type"] = "application/octet-stream"
-			dataReader = CreateRateLimitedReader(data, storage.UploadRateLimit/storage.threads)
+			headers["Content-Length"] = fmt.Sprintf("%d", len(data))
+			if storage.UploadRateLimit <= 0 {
+				dataReader = bytes.NewReader(data)
+			} else {
+				dataReader = CreateRateLimitedReader(data, storage.UploadRateLimit/storage.threads)
+			}
 		} else if method == "MOVE" {
 			headers["Destination"] = storage.createConnectionString(string(data))
 			headers["Content-Type"] = "application/octet-stream"
@@ -172,6 +177,7 @@ func (storage *WebDAVStorage) sendRequest(method string, uri string, depth int, 
 			return nil, nil, errWebDAVMovedPermanently
 		}
 
+		io.Copy(ioutil.Discard, response.Body)
 		response.Body.Close()
 		if response.StatusCode == 404 {
 			// Retry if it is UPLOAD, otherwise return immediately
@@ -357,6 +363,7 @@ func (storage *WebDAVStorage) DeleteFile(threadIndex int, filePath string) (err 
 	if err != nil {
 		return err
 	}
+	io.Copy(ioutil.Discard, readCloser)
 	readCloser.Close()
 	return nil
 }
@@ -367,6 +374,7 @@ func (storage *WebDAVStorage) MoveFile(threadIndex int, from string, to string) 
 	if err != nil {
 		return err
 	}
+	io.Copy(ioutil.Discard, readCloser)
 	readCloser.Close()
 	return nil
 }
@@ -418,6 +426,7 @@ func (storage *WebDAVStorage) CreateDirectory(threadIndex int, dir string) (err 
 		}
 		return err
 	}
+	io.Copy(ioutil.Discard, readCloser)
 	readCloser.Close()
 	return nil
 }
@@ -443,6 +452,7 @@ func (storage *WebDAVStorage) UploadFile(threadIndex int, filePath string, conte
 	if err != nil {
 		return err
 	}
+	io.Copy(ioutil.Discard, readCloser)
 	readCloser.Close()
 	return nil
 }
