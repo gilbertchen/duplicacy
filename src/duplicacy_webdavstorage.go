@@ -21,6 +21,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"io/ioutil"
 )
 
 type WebDAVStorage struct {
@@ -234,6 +235,7 @@ func (storage *WebDAVStorage) getProperties(uri string, depth int, properties ..
 			return nil, err
 		}
 		defer readCloser.Close()
+		defer io.Copy(ioutil.Discard, response.Body)
 
 		object := WebDAVMultiStatus{}
 		err = xml.NewDecoder(readCloser).Decode(&object)
