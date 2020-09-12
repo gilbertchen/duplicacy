@@ -235,7 +235,7 @@ func (storage *WebDAVStorage) getProperties(uri string, depth int, properties ..
 			return nil, err
 		}
 		defer readCloser.Close()
-		defer io.Copy(ioutil.Discard, response.Body)
+		defer io.Copy(ioutil.Discard, readCloser)
 
 		object := WebDAVMultiStatus{}
 		err = xml.NewDecoder(readCloser).Decode(&object)
