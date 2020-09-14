@@ -174,12 +174,13 @@ func (storage *WebDAVStorage) sendRequest(method string, uri string, depth int, 
 			return response.Body, response.Header, nil
 		}
 
+		io.Copy(ioutil.Discard, response.Body)
+		response.Body.Close()
+
 		if response.StatusCode == 301 {
 			return nil, nil, errWebDAVMovedPermanently
 		}
 
-		io.Copy(ioutil.Discard, response.Body)
-		response.Body.Close()
 		if response.StatusCode == 404 {
 			// Retry if it is UPLOAD, otherwise return immediately
 			if method != "PUT" {
