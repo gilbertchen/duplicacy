@@ -23,7 +23,7 @@ import (
 type Storage interface {
 	// ListFiles return the list of files and subdirectories under 'dir'.  A subdirectories returned must have a trailing '/', with
 	// a size of 0.  If 'dir' is 'snapshots', only subdirectories will be returned.  If 'dir' is 'snapshots/repository_id', then only
-	// files will be returned.  If 'dir' is 'chunks', the implementation can return the list either recusively or non-recusively.
+	// files will be returned.  If 'dir' is 'chunks', the implementation can return the list either recursively or non-recursively.
 	ListFiles(threadIndex int, dir string) (files []string, sizes []int64, err error)
 
 	// DeleteFile deletes the file or directory at 'filePath'.
