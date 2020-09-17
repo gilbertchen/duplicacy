@@ -1,5 +1,5 @@
 // Copyright (c) Storage Made Easy. All rights reserved.
-// 
+//
 // This storage backend is contributed by Storage Made Easy (https://storagemadeeasy.com/) to be used in
 // Duplicacy and its derivative works.
 //
@@ -7,45 +7,45 @@
 package duplicacy
 
 import (
-	"io"
-	"fmt"
-	"time"
-	"sync"
 	"bytes"
-	"errors"
-	"strings"
-	"net/url"
-	"net/http"
-	"math/rand"
-	"io/ioutil"
 	"encoding/xml"
-	"path/filepath"
+	"errors"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"math/rand"
 	"mime/multipart"
+	"net/http"
+	"net/url"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
 )
 
 // The XML element representing a file returned by the File Fabric server
 type FileFabricFile struct {
-	XMLName     xml.Name
-	ID          string     `xml:"fi_id"`
-	Path        string     `xml:"path"`
-	Size        int64      `xml:"fi_size"`
-	Type        int        `xml:"fi_type"`
+	XMLName xml.Name
+	ID      string `xml:"fi_id"`
+	Path    string `xml:"path"`
+	Size    int64  `xml:"fi_size"`
+	Type    int    `xml:"fi_type"`
 }
 
 // The XML element representing a file list returned by the server
 type FileFabricFileList struct {
-	XMLName xml.Name `xml:"files"`
-	Files []FileFabricFile `xml:",any"`
+	XMLName xml.Name         `xml:"files"`
+	Files   []FileFabricFile `xml:",any"`
 }
 
 type FileFabricStorage struct {
 	StorageBase
 
-	endpoint           string            // the server
-	authToken          string            // the authentication token
-	accessToken        string            // the access token (as returned by getTokenByAuthToken)
-	storageDir         string            // the path of the storage directory
-	storageDirID       string            // the id of 'storageDir'
+	endpoint     string // the server
+	authToken    string // the authentication token
+	accessToken  string // the access token (as returned by getTokenByAuthToken)
+	storageDir   string // the path of the storage directory
+	storageDirID string // the id of 'storageDir'
 
 	client             *http.Client      // the default http client
 	threads            int               // number of threads
@@ -53,18 +53,18 @@ type FileFabricStorage struct {
 	directoryCache     map[string]string // stores ids for directories known to this backend
 	directoryCacheLock sync.Mutex        // lock for accessing directoryCache
 
-	isAuthorized       bool
-	testMode           bool
+	isAuthorized bool
+	testMode     bool
 }
 
 var (
 	errFileFabricAuthorizationFailure = errors.New("Authentication failure")
-	errFileFabricDirectoryExists = errors.New("Directory exists")
+	errFileFabricDirectoryExists      = errors.New("Directory exists")
 )
 
 // The general server response
 type FileFabricResponse struct {
-	Status string `xml:"status"`
+	Status  string `xml:"status"`
 	Message string `xml:"statusmessage"`
 }
 
@@ -128,26 +128,26 @@ func CreateFileFabricStorage(endpoint string, token string, storageDir string, t
 }
 
 // Retrieve the access token using an auth token
-func (storage *FileFabricStorage) getAccessToken() (error) {
+func (storage *FileFabricStorage) getAccessToken() error {
 
-    formData := url.Values { "authtoken": {storage.authToken},}
+	formData := url.Values{"authtoken": {storage.authToken}}
 	readCloser, _, _, err := storage.sendRequest(0, http.MethodPost, storage.getAPIURL("getTokenByAuthToken"), nil, formData)
 	if err != nil {
 		return err
 	}
 
 	defer readCloser.Close()
-	defer io.Copy(ioutil.Discard, readCloser)	
+	defer io.Copy(ioutil.Discard, readCloser)
 
-    var output struct {
+	var output struct {
 		FileFabricResponse
-        Token string `xml:"token"`
-    }
+		Token string `xml:"token"`
+	}
 
-    err = xml.NewDecoder(readCloser).Decode(&output)
-    if err != nil {
-        return err
-    }
+	err = xml.NewDecoder(readCloser).Decode(&output)
+	if err != nil {
+		return err
+	}
 
 	err = checkFileFabricResponse(output.FileFabricResponse, "request the access token")
 	if err != nil {
@@ -155,7 +155,7 @@ func (storage *FileFabricStorage) getAccessToken() (error) {
 	}
 
 	storage.accessToken = output.Token
-    return nil
+	return nil
 }
 
 // Determine if we should retry based on the number of retries given by 'retry' and if so calculate the delay with exponential backoff
@@ -171,13 +171,13 @@ func (storage *FileFabricStorage) shouldRetry(retry int, messageFormat string, m
 		backoff = 60
 	}
 	delay := rand.Intn(backoff*500) + backoff*500
-	LOG_INFO("FILEFABRIC_RETRY", "%s; retrying after %.1f seconds", message, float32(delay) / 1000.0)
+	LOG_INFO("FILEFABRIC_RETRY", "%s; retrying after %.1f seconds", message, float32(delay)/1000.0)
 	time.Sleep(time.Duration(delay) * time.Millisecond)
 	return true
 }
 
 // Send a request to the server
-func (storage *FileFabricStorage) sendRequest(threadIndex int, method string, requestURL string, requestHeaders map[string]string, input interface{}) ( io.ReadCloser, http.Header, int64, error) {
+func (storage *FileFabricStorage) sendRequest(threadIndex int, method string, requestURL string, requestHeaders map[string]string, input interface{}) (io.ReadCloser, http.Header, int64, error) {
 
 	var response *http.Response
 
@@ -229,13 +229,13 @@ func (storage *FileFabricStorage) sendRequest(threadIndex int, method string, re
 		}
 
 		defer response.Body.Close()
-		defer io.Copy(ioutil.Discard, response.Body)	
+		defer io.Copy(ioutil.Discard, response.Body)
 
 		var output struct {
-			Status string `xml:"status"`
+			Status  string `xml:"status"`
 			Message string `xml:"statusmessage"`
 		}
-	
+
 		err = xml.NewDecoder(response.Body).Decode(&output)
 		if err != nil {
 			if !storage.shouldRetry(retries, "[%d] %s %s returned an invalid response: %v", threadIndex, method, requestURL, err) {
@@ -261,7 +261,7 @@ func (storage *FileFabricStorage) getAPIURL(function string) string {
 
 // ListFiles return the list of files and subdirectories under 'dir'.  A subdirectories returned must have a trailing '/', with
 // a size of 0.  If 'dir' is 'snapshots', only subdirectories will be returned.  If 'dir' is 'snapshots/repository_id', then only
-// files will be returned.  If 'dir' is 'chunks', the implementation can return the list either recusively or non-recusively.
+// files will be returned.  If 'dir' is 'chunks', the implementation can return the list either recursively or non-recursively.
 func (storage *FileFabricStorage) ListFiles(threadIndex int, dir string) (files []string, sizes []int64, err error) {
 	if dir != "" && dir[len(dir)-1] != '/' {
 		dir += "/"
@@ -279,7 +279,7 @@ func (storage *FileFabricStorage) ListFiles(threadIndex int, dir string) (files 
 	lastID := ""
 
 	for {
-		formData := url.Values { "marker": {lastID}, "limit": {"1000"}, "includefolders": {"n"}, "fi_pid" : {dirID}}
+		formData := url.Values{"marker": {lastID}, "limit": {"1000"}, "includefolders": {"n"}, "fi_pid": {dirID}}
 		if dir == "snapshots/" {
 			formData["includefolders"] = []string{"y"}
 		}
@@ -293,12 +293,12 @@ func (storage *FileFabricStorage) ListFiles(threadIndex int, dir string) (files 
 		}
 
 		defer readCloser.Close()
-		defer io.Copy(ioutil.Discard, readCloser)	
+		defer io.Copy(ioutil.Discard, readCloser)
 
 		var output struct {
 			FileFabricResponse
-			FileList FileFabricFileList `xml:"files"`
-			Truncated int `xml:"truncated"`
+			FileList  FileFabricFileList `xml:"files"`
+			Truncated int                `xml:"truncated"`
 		}
 
 		err = xml.NewDecoder(readCloser).Decode(&output)
@@ -314,7 +314,7 @@ func (storage *FileFabricStorage) ListFiles(threadIndex int, dir string) (files 
 		if dir == "snapshots/" {
 			for _, file := range output.FileList.Files {
 				if file.Type == 1 {
-					files = append(files, file.Path + "/")
+					files = append(files, file.Path+"/")
 				}
 				lastID = file.ID
 			}
@@ -338,7 +338,7 @@ func (storage *FileFabricStorage) ListFiles(threadIndex int, dir string) (files 
 // getFileInfo returns the information about the file or directory at 'filePath'.
 func (storage *FileFabricStorage) getFileInfo(threadIndex int, filePath string) (fileID string, isDir bool, size int64, err error) {
 
-	formData := url.Values { "path" : {storage.storageDir + filePath}}
+	formData := url.Values{"path": {storage.storageDir + filePath}}
 
 	readCloser, _, _, err := storage.sendRequest(threadIndex, http.MethodPost, storage.getAPIURL("checkPathExists"), nil, formData)
 	if err != nil {
@@ -346,12 +346,12 @@ func (storage *FileFabricStorage) getFileInfo(threadIndex int, filePath string) 
 	}
 
 	defer readCloser.Close()
-	defer io.Copy(ioutil.Discard, readCloser)	
+	defer io.Copy(ioutil.Discard, readCloser)
 
 	var output struct {
 		FileFabricResponse
-		File FileFabricFile `xml:"file"`
-		Exists string `xml:"exists"`
+		File   FileFabricFile `xml:"file"`
+		Exists string         `xml:"exists"`
 	}
 
 	err = xml.NewDecoder(readCloser).Decode(&output)
@@ -371,7 +371,7 @@ func (storage *FileFabricStorage) getFileInfo(threadIndex int, filePath string) 
 			for filePath != "" && filePath[len(filePath)-1] == '/' {
 				filePath = filePath[:len(filePath)-1]
 			}
-			
+
 			storage.directoryCacheLock.Lock()
 			storage.directoryCache[filePath] = output.File.ID
 			storage.directoryCacheLock.Unlock()
@@ -396,7 +396,7 @@ func (storage *FileFabricStorage) DeleteFile(threadIndex int, filePath string) (
 		return nil
 	}
 
-	formData := url.Values { "fi_id" : {fileID}}
+	formData := url.Values{"fi_id": {fileID}}
 
 	readCloser, _, _, err := storage.sendRequest(threadIndex, http.MethodPost, storage.getAPIURL("doDeleteFile"), nil, formData)
 	if err != nil {
@@ -404,7 +404,7 @@ func (storage *FileFabricStorage) DeleteFile(threadIndex int, filePath string) (
 	}
 
 	defer readCloser.Close()
-	defer io.Copy(ioutil.Discard, readCloser)	
+	defer io.Copy(ioutil.Discard, readCloser)
 
 	var output FileFabricResponse
 
@@ -428,7 +428,7 @@ func (storage *FileFabricStorage) MoveFile(threadIndex int, from string, to stri
 		return nil
 	}
 
-	formData := url.Values { "fi_id" : {fileID}, "fi_name": {filepath.Base(to)},}
+	formData := url.Values{"fi_id": {fileID}, "fi_name": {filepath.Base(to)}}
 
 	readCloser, _, _, err := storage.sendRequest(threadIndex, http.MethodPost, storage.getAPIURL("doRenameFile"), nil, formData)
 	if err != nil {
@@ -436,7 +436,7 @@ func (storage *FileFabricStorage) MoveFile(threadIndex int, from string, to stri
 	}
 
 	defer readCloser.Close()
-	defer io.Copy(ioutil.Discard, readCloser)	
+	defer io.Copy(ioutil.Discard, readCloser)
 
 	var output FileFabricResponse
 
@@ -449,7 +449,7 @@ func (storage *FileFabricStorage) MoveFile(threadIndex int, from string, to stri
 	if err != nil {
 		return err
 	}
-	
+
 	return nil
 }
 
@@ -473,7 +473,7 @@ func (storage *FileFabricStorage) createParentDirectory(threadIndex int, dir str
 	parentID, err = storage.createDirectory(threadIndex, parent)
 	if err != nil {
 		if err == errFileFabricDirectoryExists {
-		    var isDir bool
+			var isDir bool
 			parentID, isDir, _, err = storage.getFileInfo(threadIndex, parent)
 			if err != nil {
 				return "", err
@@ -503,7 +503,7 @@ func (storage *FileFabricStorage) createDirectory(threadIndex int, dir string) (
 		return "", err
 	}
 
-	formData := url.Values { "fi_name": {filepath.Base(dir)}, "fi_pid" : {parentID}}
+	formData := url.Values{"fi_name": {filepath.Base(dir)}, "fi_pid": {parentID}}
 
 	readCloser, _, _, err := storage.sendRequest(threadIndex, http.MethodPost, storage.getAPIURL("doCreateNewFolder"), nil, formData)
 	if err != nil {
@@ -511,7 +511,7 @@ func (storage *FileFabricStorage) createDirectory(threadIndex int, dir string) (
 	}
 
 	defer readCloser.Close()
-	defer io.Copy(ioutil.Discard, readCloser)	
+	defer io.Copy(ioutil.Discard, readCloser)
 
 	var output struct {
 		FileFabricResponse
@@ -545,7 +545,7 @@ func (storage *FileFabricStorage) CreateDirectory(threadIndex int, dir string) (
 
 // DownloadFile reads the file at 'filePath' into the chunk.
 func (storage *FileFabricStorage) DownloadFile(threadIndex int, filePath string, chunk *Chunk) (err error) {
-	formData := url.Values { "fi_id" : {storage.storageDir + filePath}}
+	formData := url.Values{"fi_id": {storage.storageDir + filePath}}
 
 	readCloser, _, _, err := storage.sendRequest(threadIndex, http.MethodPost, storage.getAPIURL("getFile"), nil, formData)
 	if err != nil {
@@ -553,7 +553,7 @@ func (storage *FileFabricStorage) DownloadFile(threadIndex int, filePath string,
 	}
 
 	defer readCloser.Close()
-	defer io.Copy(ioutil.Discard, readCloser)	
+	defer io.Copy(ioutil.Discard, readCloser)
 	_, err = RateLimitedCopy(chunk, readCloser, storage.DownloadRateLimit/storage.threads)
 	return err
 }
@@ -567,15 +567,15 @@ func (storage *FileFabricStorage) UploadFile(threadIndex int, filePath string, c
 	}
 
 	fileName := filepath.Base(filePath)
-    requestBody := &bytes.Buffer{}
-    writer := multipart.NewWriter(requestBody)
-    part, _ := writer.CreateFormFile("file_1", fileName)
-    part.Write(content)
+	requestBody := &bytes.Buffer{}
+	writer := multipart.NewWriter(requestBody)
+	part, _ := writer.CreateFormFile("file_1", fileName)
+	part.Write(content)
 
-    writer.WriteField("file_name1", fileName)
+	writer.WriteField("file_name1", fileName)
 	writer.WriteField("fi_pid", parentID)
 	writer.WriteField("fi_structtype", "g")
-    writer.Close()
+	writer.Close()
 
 	headers := make(map[string]string)
 	headers["Content-Type"] = writer.FormDataContentType()
@@ -584,7 +584,7 @@ func (storage *FileFabricStorage) UploadFile(threadIndex int, filePath string, c
 	readCloser, _, _, err := storage.sendRequest(threadIndex, http.MethodPost, storage.getAPIURL("doUploadFiles"), headers, rateLimitedReader)
 
 	defer readCloser.Close()
-	defer io.Copy(ioutil.Discard, readCloser)	
+	defer io.Copy(ioutil.Discard, readCloser)
 
 	var output FileFabricResponse
 

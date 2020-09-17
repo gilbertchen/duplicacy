@@ -8,13 +8,13 @@ import (
 	"bytes"
 	"compress/zlib"
 	"crypto/aes"
-	"crypto/rsa"
 	"crypto/cipher"
 	"crypto/hmac"
 	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
-	"encoding/hex"
 	"encoding/binary"
+	"encoding/hex"
 	"fmt"
 	"hash"
 	"io"
@@ -64,8 +64,8 @@ type Chunk struct {
 	// by the config
 
 	isSnapshot bool // Indicates if the chunk is a snapshot chunk (instead of a file chunk).  This is only used by RSA
-	                // encryption, where a snapshot chunk is not encrypted by RSA
-	
+	// encryption, where a snapshot chunk is not encrypted by RSA
+
 	isBroken bool // Indicates the chunk did not download correctly. This is only used for -persist (allowFailures) mode
 }
 
@@ -227,7 +227,7 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string, isSnapsh
 		// Start with the magic number and the version number.
 		if usingRSA {
 			// RSA encryption starts "duplicacy\002"
-			encryptedBuffer.Write([]byte(ENCRYPTION_HEADER)[:len(ENCRYPTION_HEADER) - 1])
+			encryptedBuffer.Write([]byte(ENCRYPTION_HEADER)[:len(ENCRYPTION_HEADER)-1])
 			encryptedBuffer.Write([]byte{ENCRYPTION_VERSION_RSA})
 
 			// Then the encrypted key
@@ -343,7 +343,7 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 			key = hasher.Sum(nil)
 		}
 
-		if len(encryptedBuffer.Bytes()) < headerLength + 12 {
+		if len(encryptedBuffer.Bytes()) < headerLength+12 {
 			return fmt.Errorf("No enough encrypted data (%d bytes) provided", len(encryptedBuffer.Bytes()))
 		}
 
@@ -362,13 +362,13 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 				return fmt.Errorf("An RSA private key is required to decrypt the chunk")
 			}
 
-			encryptedKeyLength := binary.LittleEndian.Uint16(encryptedBuffer.Bytes()[headerLength:headerLength+2])
+			encryptedKeyLength := binary.LittleEndian.Uint16(encryptedBuffer.Bytes()[headerLength : headerLength+2])
 
-			if len(encryptedBuffer.Bytes()) < headerLength + 14 + int(encryptedKeyLength) {
+			if len(encryptedBuffer.Bytes()) < headerLength+14+int(encryptedKeyLength) {
 				return fmt.Errorf("No enough encrypted data (%d bytes) provided", len(encryptedBuffer.Bytes()))
 			}
 
-			encryptedKey := encryptedBuffer.Bytes()[headerLength + 2:headerLength + 2 + int(encryptedKeyLength)]
+			encryptedKey := encryptedBuffer.Bytes()[headerLength+2 : headerLength+2+int(encryptedKeyLength)]
 			headerLength += 2 + int(encryptedKeyLength)
 
 			decryptedKey, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, chunk.config.rsaPrivateKey, encryptedKey, nil)

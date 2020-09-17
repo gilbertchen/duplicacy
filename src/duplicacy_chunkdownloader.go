@@ -270,7 +270,7 @@ func (downloader *ChunkDownloader) WaitForCompletion() {
 	}
 
 	// Looping until there isn't a download task in progress
-	for downloader.numberOfActiveChunks > 0 || downloader.lastChunkIndex + 1 < len(downloader.taskList) {
+	for downloader.numberOfActiveChunks > 0 || downloader.lastChunkIndex+1 < len(downloader.taskList) {
 
 		// Wait for a completion event first
 		if downloader.numberOfActiveChunks > 0 {
@@ -282,8 +282,8 @@ func (downloader *ChunkDownloader) WaitForCompletion() {
 		}
 
 		// Pass the tasks one by one to the download queue
-		if downloader.lastChunkIndex + 1 < len(downloader.taskList) {
-			task := &downloader.taskList[downloader.lastChunkIndex + 1]
+		if downloader.lastChunkIndex+1 < len(downloader.taskList) {
+			task := &downloader.taskList[downloader.lastChunkIndex+1]
 			if task.isDownloading {
 				downloader.lastChunkIndex++
 				continue

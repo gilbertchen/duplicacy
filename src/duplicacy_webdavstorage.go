@@ -17,11 +17,11 @@ import (
 	"math/rand"
 	"net/http"
 	//"net/http/httputil"
+	"io/ioutil"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"io/ioutil"
 )
 
 type WebDAVStorage struct {
@@ -276,7 +276,7 @@ func (storage *WebDAVStorage) getProperties(uri string, depth int, properties ..
 
 // ListFiles return the list of files and subdirectories under 'dir'.  A subdirectories returned must have a trailing '/', with
 // a size of 0.  If 'dir' is 'snapshots', only subdirectories will be returned.  If 'dir' is 'snapshots/repository_id', then only
-// files will be returned.  If 'dir' is 'chunks', the implementation can return the list either recusively or non-recusively.
+// files will be returned.  If 'dir' is 'chunks', the implementation can return the list either recursively or non-recursively.
 func (storage *WebDAVStorage) ListFiles(threadIndex int, dir string) (files []string, sizes []int64, err error) {
 	if dir[len(dir)-1] != '/' {
 		dir += "/"
@@ -344,8 +344,8 @@ func (storage *WebDAVStorage) GetFileInfo(threadIndex int, filePath string) (exi
 	m, exist := properties["/"+storage.storageDir+filePath]
 
 	// If no properties exist for the given filePath, remove the trailing / from filePath and search again
-	if !exist && filePath != "" && filePath[len(filePath) - 1] == '/' {
-		m, exist = properties["/"+storage.storageDir+filePath[:len(filePath) - 1]]
+	if !exist && filePath != "" && filePath[len(filePath)-1] == '/' {
+		m, exist = properties["/"+storage.storageDir+filePath[:len(filePath)-1]]
 	}
 
 	if !exist {

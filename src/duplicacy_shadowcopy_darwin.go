@@ -163,7 +163,7 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 		return top
 	}
 	snapshotName := "com.apple.TimeMachine." + snapshotDate
- 
+
 	r := regexp.MustCompile(`(?m)^(.+` + snapshotDate + `.*)$`)
 	snapshotNames := r.FindStringSubmatch(tmutilOutput)
 	if len(snapshotNames) > 0 {
@@ -171,7 +171,7 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 	} else {
 		LOG_WARN("VSS_CREATE", "Error while using 'tmutil listlocalsnapshots' to find snapshot name. Will fallback to 'com.apple.TimeMachine.SNAPSHOT_DATE'")
 	}
- 
+
 	// Mount snapshot as readonly and hide from GUI i.e. Finder
 	_, err = CommandWithTimeout(timeoutInSeconds,
 		"/sbin/mount", "-t", "apfs", "-o", "nobrowse,-r,-s="+snapshotName, "/", snapshotPath)
