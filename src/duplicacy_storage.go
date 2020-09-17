@@ -74,7 +74,7 @@ type Storage interface {
 // StorageBase is the base struct from which all storages are derived from
 type StorageBase struct {
 	DownloadRateLimit int // Maximum download rate (bytes/seconds)
-	UploadRateLimit   int // Maximum upload reate (bytes/seconds)
+	UploadRateLimit   int // Maximum upload rate (bytes/seconds)
 
 	DerivedStorage Storage // Used as the pointer to the derived storage class
 
