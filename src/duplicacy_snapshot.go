@@ -175,7 +175,7 @@ func ProcessFilterLines(patternFileLines []string, includedFiles []string) (patt
 			if patternIncludeFile == "" {
 				continue
 			}
-			if ! filepath.IsAbs(patternIncludeFile) {
+			if !filepath.IsAbs(patternIncludeFile) {
 				basePath := ""
 				if len(includedFiles) == 0 {
 					basePath, _ = os.Getwd()

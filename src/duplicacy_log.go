@@ -6,13 +6,13 @@ package duplicacy
 
 import (
 	"fmt"
-	"os"
 	"log"
+	"os"
+	"regexp"
 	"runtime/debug"
 	"sync"
 	"testing"
 	"time"
-	"regexp"
 )
 
 const (
@@ -187,8 +187,8 @@ type Logger struct {
 
 func (logger *Logger) Write(line []byte) (n int, err error) {
 	n = len(line)
-	for len(line) > 0 && line[len(line) - 1] == '\n' {
-		line = line[:len(line) - 1]
+	for len(line) > 0 && line[len(line)-1] == '\n' {
+		line = line[:len(line)-1]
 	}
 	matched := logger.formatRegex.FindStringSubmatch(string(line))
 	if matched != nil {
@@ -197,12 +197,12 @@ func (logger *Logger) Write(line []byte) (n int, err error) {
 		LOG_INFO("LOG_DEFAULT", "%s", line)
 	}
 
-    return
+	return
 }
 
 func init() {
 	log.SetFlags(0)
-	log.SetOutput(&Logger{ formatRegex: regexp.MustCompile(`^\[(.+)\]\s*(.+)`) })
+	log.SetOutput(&Logger{formatRegex: regexp.MustCompile(`^\[(.+)\]\s*(.+)`)})
 }
 
 const (

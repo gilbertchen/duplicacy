@@ -459,9 +459,9 @@ func TestBackupManagerPersist(t *testing.T) {
 	maxFileSize := 1000000
 	//maxFileSize := 200000
 
-	createRandomFileSeeded(testDir+"/repository1/file1", maxFileSize,1)
-	createRandomFileSeeded(testDir+"/repository1/file2", maxFileSize,2)
-	createRandomFileSeeded(testDir+"/repository1/dir1/file3", maxFileSize,3)
+	createRandomFileSeeded(testDir+"/repository1/file1", maxFileSize, 1)
+	createRandomFileSeeded(testDir+"/repository1/file2", maxFileSize, 2)
+	createRandomFileSeeded(testDir+"/repository1/dir1/file3", maxFileSize, 3)
 
 	threads := 1
 
@@ -518,7 +518,6 @@ func TestBackupManagerPersist(t *testing.T) {
 	unencBackupManager.Backup(testDir+"/repository1" /*quickMode=*/, true, threads, "first", false, false, 0, false)
 	time.Sleep(time.Duration(delay) * time.Second)
 
-
 	// do encrypted backup
 	SetDuplicacyPreferencePath(testDir + "/repository1/.duplicacy")
 	encBackupManager := CreateBackupManager("host1", storage, testDir, password, "", "")
@@ -528,7 +527,6 @@ func TestBackupManagerPersist(t *testing.T) {
 	encBackupManager.Backup(testDir+"/repository1" /*quickMode=*/, true, threads, "first", false, false, 0, false)
 	time.Sleep(time.Duration(delay) * time.Second)
 
-
 	// check snapshots
 	unencBackupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1" /*revisions*/, []int{1} /*tag*/, "",
 		/*showStatistics*/ true /*showTabular*/, false /*checkFiles*/, true /*checkChunks*/, false,
@@ -536,60 +534,60 @@ func TestBackupManagerPersist(t *testing.T) {
 
 	encBackupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1" /*revisions*/, []int{1} /*tag*/, "",
 		/*showStatistics*/ true /*showTabular*/, false /*checkFiles*/, true /*checkChunks*/, false,
-		 /*searchFossils*/ false /*resurrect*/, false, 1 /*allowFailures*/, false)
-		
+		/*searchFossils*/ false /*resurrect*/, false, 1 /*allowFailures*/, false)
+
 	// check functions
 	checkAllUncorrupted := func(cmpRepository string) {
-			for _, f := range []string{"file1", "file2", "dir1/file3"} {
-				if _, err := os.Stat(testDir + cmpRepository + "/" + f); os.IsNotExist(err) {
-					t.Errorf("File %s does not exist", f)
-					continue
-				}
-
-				hash1 := getFileHash(testDir + "/repository1/" + f)
-				hash2 := getFileHash(testDir + cmpRepository + "/" + f)
-				if hash1 != hash2 {
-					t.Errorf("File %s has different hashes: %s vs %s", f, hash1, hash2)
-				}
-		}
-	}
-	checkMissingFile := func(cmpRepository string, expectMissing string) {
-			for _, f := range []string{"file1", "file2", "dir1/file3"} {
-				_, err := os.Stat(testDir + cmpRepository + "/" + f)
-				if err==nil {
-					if f==expectMissing {
-						t.Errorf("File %s exists, expected to be missing", f)
-					}
-					continue
-				}
-				if os.IsNotExist(err) {
-					if f!=expectMissing {
-						t.Errorf("File %s does not exist", f)
-					}
-					continue
-				}
-
-				hash1 := getFileHash(testDir + "/repository1/" + f)
-				hash2 := getFileHash(testDir + cmpRepository + "/" + f)
-				if hash1 != hash2 {
-					t.Errorf("File %s has different hashes: %s vs %s", f, hash1, hash2)
-				}
-		}
-	}
-	checkCorruptedFile  := func(cmpRepository string, expectCorrupted string) {
 		for _, f := range []string{"file1", "file2", "dir1/file3"} {
 			if _, err := os.Stat(testDir + cmpRepository + "/" + f); os.IsNotExist(err) {
 				t.Errorf("File %s does not exist", f)
 				continue
 			}
-	
+
 			hash1 := getFileHash(testDir + "/repository1/" + f)
 			hash2 := getFileHash(testDir + cmpRepository + "/" + f)
-			if (f==expectCorrupted) {
+			if hash1 != hash2 {
+				t.Errorf("File %s has different hashes: %s vs %s", f, hash1, hash2)
+			}
+		}
+	}
+	checkMissingFile := func(cmpRepository string, expectMissing string) {
+		for _, f := range []string{"file1", "file2", "dir1/file3"} {
+			_, err := os.Stat(testDir + cmpRepository + "/" + f)
+			if err == nil {
+				if f == expectMissing {
+					t.Errorf("File %s exists, expected to be missing", f)
+				}
+				continue
+			}
+			if os.IsNotExist(err) {
+				if f != expectMissing {
+					t.Errorf("File %s does not exist", f)
+				}
+				continue
+			}
+
+			hash1 := getFileHash(testDir + "/repository1/" + f)
+			hash2 := getFileHash(testDir + cmpRepository + "/" + f)
+			if hash1 != hash2 {
+				t.Errorf("File %s has different hashes: %s vs %s", f, hash1, hash2)
+			}
+		}
+	}
+	checkCorruptedFile := func(cmpRepository string, expectCorrupted string) {
+		for _, f := range []string{"file1", "file2", "dir1/file3"} {
+			if _, err := os.Stat(testDir + cmpRepository + "/" + f); os.IsNotExist(err) {
+				t.Errorf("File %s does not exist", f)
+				continue
+			}
+
+			hash1 := getFileHash(testDir + "/repository1/" + f)
+			hash2 := getFileHash(testDir + cmpRepository + "/" + f)
+			if f == expectCorrupted {
 				if hash1 == hash2 {
 					t.Errorf("File %s has same hashes, expected to be corrupted: %s vs %s", f, hash1, hash2)
 				}
-	
+
 			} else {
 				if hash1 != hash2 {
 					t.Errorf("File %s has different hashes: %s vs %s", f, hash1, hash2)
@@ -601,27 +599,27 @@ func TestBackupManagerPersist(t *testing.T) {
 	// test restore all uncorrupted to repository3
 	SetDuplicacyPreferencePath(testDir + "/repository3/.duplicacy")
 	unencBackupManager.Restore(testDir+"/repository3", threads /*inPlace=*/, true /*quickMode=*/, false, threads /*overwrite=*/, false,
-		 /*deleteMode=*/ false /*setowner=*/, false /*showStatistics=*/, false /*patterns=*/, nil /*allowFailures=*/, false)
+		/*deleteMode=*/ false /*setowner=*/, false /*showStatistics=*/, false /*patterns=*/, nil /*allowFailures=*/, false)
 	checkAllUncorrupted("/repository3")
 
 	// test for corrupt files and -persist
-	// corrupt a chunk 
+	// corrupt a chunk
 	chunkToCorrupt1 := "/4d/538e5dfd2b08e782bfeb56d1360fb5d7eb9d8c4b2531cc2fca79efbaec910c"
-		// this should affect file1
+	// this should affect file1
 	chunkToCorrupt2 := "/2b/f953a766d0196ce026ae259e76e3c186a0e4bcd3ce10f1571d17f86f0a5497"
-		// this should affect dir1/file3
-	
+	// this should affect dir1/file3
+
 	for i := 0; i < 2; i++ {
-		if i==0 {
+		if i == 0 {
 			// test corrupt chunks
 			corruptFile(testDir+"/unenc_storage"+"/chunks"+chunkToCorrupt1, 128, 128, 4)
 			corruptFile(testDir+"/enc_storage"+"/chunks"+chunkToCorrupt2, 128, 128, 4)
 		} else {
 			// test missing chunks
-			os.Remove(testDir+"/unenc_storage"+"/chunks"+chunkToCorrupt1)
-			os.Remove(testDir+"/enc_storage"+"/chunks"+chunkToCorrupt2)
+			os.Remove(testDir + "/unenc_storage" + "/chunks" + chunkToCorrupt1)
+			os.Remove(testDir + "/enc_storage" + "/chunks" + chunkToCorrupt2)
 		}
-		
+
 		// check snapshots with --persist (allowFailures == true)
 		// this would cause a panic and os.Exit from duplicacy_log if allowFailures == false
 		unencBackupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1" /*revisions*/, []int{1} /*tag*/, "",
@@ -632,9 +630,8 @@ func TestBackupManagerPersist(t *testing.T) {
 			/*showStatistics*/ true /*showTabular*/, false /*checkFiles*/, true /*checkChunks*/, false,
 			/*searchFossils*/ false /*resurrect*/, false, 1 /*allowFailures*/, true)
 
-		
 		// test restore corrupted, inPlace = true, corrupted files will have hash failures
-		os.RemoveAll(testDir+"/repository2")
+		os.RemoveAll(testDir + "/repository2")
 		SetDuplicacyPreferencePath(testDir + "/repository2/.duplicacy")
 		unencBackupManager.Restore(testDir+"/repository2", threads /*inPlace=*/, true /*quickMode=*/, false, threads /*overwrite=*/, false,
 			/*deleteMode=*/ false /*setowner=*/, false /*showStatistics=*/, false /*patterns=*/, nil /*allowFailures=*/, true)
@@ -642,8 +639,7 @@ func TestBackupManagerPersist(t *testing.T) {
 		// check restore, expect file1 to be corrupted
 		checkCorruptedFile("/repository2", "file1")
 
-		
-		os.RemoveAll(testDir+"/repository2")
+		os.RemoveAll(testDir + "/repository2")
 		SetDuplicacyPreferencePath(testDir + "/repository2/.duplicacy")
 		encBackupManager.Restore(testDir+"/repository2", threads /*inPlace=*/, true /*quickMode=*/, false, threads /*overwrite=*/, false,
 			/*deleteMode=*/ false /*setowner=*/, false /*showStatistics=*/, false /*patterns=*/, nil /*allowFailures=*/, true)
@@ -653,7 +649,7 @@ func TestBackupManagerPersist(t *testing.T) {
 
 		//SetLoggingLevel(DEBUG)
 		// test restore corrupted, inPlace = false, corrupted files will be missing
-		os.RemoveAll(testDir+"/repository2")
+		os.RemoveAll(testDir + "/repository2")
 		SetDuplicacyPreferencePath(testDir + "/repository2/.duplicacy")
 		unencBackupManager.Restore(testDir+"/repository2", threads /*inPlace=*/, false /*quickMode=*/, false, threads /*overwrite=*/, false,
 			/*deleteMode=*/ false /*setowner=*/, false /*showStatistics=*/, false /*patterns=*/, nil /*allowFailures=*/, true)
@@ -661,8 +657,7 @@ func TestBackupManagerPersist(t *testing.T) {
 		// check restore, expect file1 to be corrupted
 		checkMissingFile("/repository2", "file1")
 
-		
-		os.RemoveAll(testDir+"/repository2")
+		os.RemoveAll(testDir + "/repository2")
 		SetDuplicacyPreferencePath(testDir + "/repository2/.duplicacy")
 		encBackupManager.Restore(testDir+"/repository2", threads /*inPlace=*/, false /*quickMode=*/, false, threads /*overwrite=*/, false,
 			/*deleteMode=*/ false /*setowner=*/, false /*showStatistics=*/, false /*patterns=*/, nil /*allowFailures=*/, true)
@@ -673,7 +668,7 @@ func TestBackupManagerPersist(t *testing.T) {
 		// test restore corrupted files from different backups, inPlace = true
 		// with overwrite=true, corrupted file1 from unenc will be restored correctly from enc
 		// the latter will not touch the existing file3 with correct hash
-		os.RemoveAll(testDir+"/repository2")
+		os.RemoveAll(testDir + "/repository2")
 		unencBackupManager.Restore(testDir+"/repository2", threads /*inPlace=*/, true /*quickMode=*/, false, threads /*overwrite=*/, false,
 			/*deleteMode=*/ false /*setowner=*/, false /*showStatistics=*/, false /*patterns=*/, nil /*allowFailures=*/, true)
 		encBackupManager.Restore(testDir+"/repository2", threads /*inPlace=*/, true /*quickMode=*/, false, threads /*overwrite=*/, true,

@@ -8,8 +8,8 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/binary"
 	"encoding/hex"
@@ -17,12 +17,12 @@ import (
 	"encoding/pem"
 	"fmt"
 	"hash"
+	"io/ioutil"
 	"os"
+	"reflect"
 	"runtime"
 	"runtime/debug"
 	"sync/atomic"
-	"io/ioutil"
-	"reflect"
 
 	blake2 "github.com/minio/blake2b-simd"
 )
@@ -72,7 +72,7 @@ type Config struct {
 
 	// for RSA encryption
 	rsaPrivateKey *rsa.PrivateKey
-	rsaPublicKey *rsa.PublicKey
+	rsaPublicKey  *rsa.PublicKey
 
 	chunkPool      chan *Chunk
 	numberOfChunks int32
@@ -84,17 +84,17 @@ type aliasedConfig Config
 
 type jsonableConfig struct {
 	*aliasedConfig
-	ChunkSeed string `json:"chunk-seed"`
-	HashKey   string `json:"hash-key"`
-	IDKey     string `json:"id-key"`
-	ChunkKey  string `json:"chunk-key"`
-	FileKey   string `json:"file-key"`
+	ChunkSeed    string `json:"chunk-seed"`
+	HashKey      string `json:"hash-key"`
+	IDKey        string `json:"id-key"`
+	ChunkKey     string `json:"chunk-key"`
+	FileKey      string `json:"file-key"`
 	RSAPublicKey string `json:"rsa-public-key"`
 }
 
 func (config *Config) MarshalJSON() ([]byte, error) {
 
-	publicKey := []byte {}
+	publicKey := []byte{}
 	if config.rsaPublicKey != nil {
 		publicKey, _ = x509.MarshalPKIXPublicKey(config.rsaPublicKey)
 	}

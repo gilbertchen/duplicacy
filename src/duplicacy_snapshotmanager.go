@@ -933,7 +933,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 						_, exist, _, err := manager.storage.FindChunk(0, chunkID, false)
 						if err != nil {
 							LOG_WARN("SNAPSHOT_VALIDATE", "Failed to check the existence of chunk %s: %v",
-							         chunkID, err)
+								chunkID, err)
 						} else if exist {
 							LOG_INFO("SNAPSHOT_VALIDATE", "Chunk %s is confirmed to exist", chunkID)
 							continue
@@ -1371,8 +1371,8 @@ func (manager *SnapshotManager) PrintFile(snapshotID string, revision int, path 
 
 	file := manager.FindFile(snapshot, path, false)
 	if !manager.RetrieveFile(snapshot, file, func(chunk []byte) {
-			fmt.Printf("%s", chunk)
-		}) {
+		fmt.Printf("%s", chunk)
+	}) {
 		LOG_ERROR("SNAPSHOT_RETRIEVE", "File %s is corrupted in snapshot %s at revision %d",
 			path, snapshot.ID, snapshot.Revision)
 		return false
