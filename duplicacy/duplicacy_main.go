@@ -830,7 +830,11 @@ func restoreRepository(context *cli.Context) {
 	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), preference, backupManager, false)
 
 	backupManager.SetupSnapshotCache(preference.Name)
-	backupManager.Restore(repository, revision, true, quickMode, threads, overwrite, deleteMode, setOwner, showStatistics, patterns, persist)
+	failed := backupManager.Restore(repository, revision, true, quickMode, threads, overwrite, deleteMode, setOwner, showStatistics, patterns, persist)
+	if failed > 0 {
+		duplicacy.LOG_ERROR("RESTORE_FAIL", "%d file(s) were not restored correctly", failed)
+		return
+	}
 
 	runScript(context, preference.Name, "post")
 }
