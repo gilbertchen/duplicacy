@@ -851,10 +851,6 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 		}
 	}
 
-	for chunk, size := range chunkSizeMap {
-		LOG_INFO("debug", "Chunk %s: %d", chunk, size)
-	}
-
 	if snapshotID == "" || showStatistics || showTabular {
 		snapshotIDs, err := manager.ListSnapshotIDs()
 		if err != nil {
