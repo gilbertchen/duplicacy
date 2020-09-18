@@ -13,6 +13,7 @@ import (
 	"math/rand"
 	"net/http"
 	"strings"
+	"strconv"
 	"sync"
 	"time"
 	"path/filepath"
@@ -86,7 +87,7 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 	var response *http.Response
 
 	backoff := 1
-	for i := 0; i < 8; i++ {
+	for i := 0; i < 12; i++ {
 
 		LOG_DEBUG("ONEDRIVE_CALL", "%s %s", method, url)
 
@@ -129,6 +130,8 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 			request.Header.Set("Content-Type", contentType)
 		}
 
+		request.Header.Set("User-Agent", "ISV|Acrosync|Duplicacy/2.0")
+
 		response, err = client.HTTPClient.Do(request)
 		if err != nil {
 			if client.IsConnected {
@@ -145,6 +148,9 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 					time.Sleep(retryAfter * time.Millisecond)
 				}
 				backoff *= 2
+				if backoff > 256 {
+					backoff = 256
+				}
 				continue
 			}
 			return nil, 0, err
@@ -176,10 +182,20 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 		} else if response.StatusCode == 409 {
 			return nil, 0, OneDriveError{Status: response.StatusCode, Message: "Conflict"}
 		} else if response.StatusCode > 401 && response.StatusCode != 404 {
-			retryAfter := time.Duration(rand.Float32() * 1000.0 * float32(backoff))
-			LOG_INFO("ONEDRIVE_RETRY", "Response code: %d; retry after %d milliseconds", response.StatusCode, retryAfter)
-			time.Sleep(retryAfter * time.Millisecond)
+			delay := int((rand.Float32() * 0.5 + 0.5) * 1000.0 * float32(backoff))
+			if backoffList, found := response.Header["Retry-After"]; found && len(backoffList) > 0 {
+				retryAfter, _ := strconv.Atoi(backoffList[0])
+				if retryAfter * 1000 > delay {
+					delay = retryAfter * 1000
+				}
+			}
+
+			LOG_INFO("ONEDRIVE_RETRY", "Response code: %d; retry after %d milliseconds", response.StatusCode, delay)
+			time.Sleep(time.Duration(delay) * time.Millisecond)
 			backoff *= 2
+			if backoff > 256 {
+				backoff = 256
+			}
 			continue
 		} else {
 			if err := json.NewDecoder(response.Body).Decode(errorResponse); err != nil {
@@ -314,7 +330,7 @@ func (client *OneDriveClient) UploadFile(path string, content []byte, rateLimit 
 
 	// Upload file using the simple method; this is only possible for OneDrive Personal or if the file
 	// is smaller than 4MB for OneDrive Business
-	if !client.IsBusiness || len(content) < 4 * 1024 * 1024 || (client.TestMode && rand.Int() % 2 == 0) {
+	if !client.IsBusiness || (client.TestMode && rand.Int() % 2 == 0) {
 		url := client.APIURL + "/drive/root:/" + path + ":/content"
 
 		readCloser, _, err := client.call(url, "PUT", CreateRateLimitedReader(content, rateLimit), "application/octet-stream")
