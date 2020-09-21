@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"hash"
 	"os"
+	"strings"
 	"runtime"
 	"runtime/debug"
 	"sync/atomic"
@@ -554,10 +555,16 @@ func ConfigStorage(storage Storage, iterations int, compressionLevel int, averag
 }
 
 func (config *Config) loadRSAPublicKey(keyFile string) {
-	encodedKey, err := ioutil.ReadFile(keyFile)
-	if err != nil {
-		LOG_ERROR("BACKUP_KEY", "Failed to read the public key file: %v", err)
-		return
+	encodedKey := []byte(keyFile)
+	var err error
+
+	// keyFile may be the actually key, in which case we don't need to read from a file
+	if !strings.Contains(keyFile, "-----BEGIN") {
+		encodedKey, err = ioutil.ReadFile(keyFile)
+		if err != nil {
+			LOG_ERROR("BACKUP_KEY", "Failed to read the public key file: %v", err)
+			return
+		}
 	}
 
 	decodedKey, _ := pem.Decode(encodedKey)
@@ -593,10 +600,16 @@ func (config *Config) loadRSAPrivateKey(keyFile string, passphrase string) {
 		return
 	}
 
-	encodedKey, err := ioutil.ReadFile(keyFile)
-	if err != nil {
-		LOG_ERROR("RSA_PRIVATE", "Failed to read the private key file: %v", err)
-		return
+	encodedKey := []byte(keyFile)
+	var err error
+
+	// keyFile may be the actually key, in which case we don't need to read from a file
+	if !strings.Contains(keyFile, "-----BEGIN") {
+		encodedKey, err = ioutil.ReadFile(keyFile)
+		if err != nil {
+			LOG_ERROR("RSA_PRIVATE", "Failed to read the private key file: %v", err)
+			return
+		}
 	}
 
 	decodedKey, _ := pem.Decode(encodedKey)
