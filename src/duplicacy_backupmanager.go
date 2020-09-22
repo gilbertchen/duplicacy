@@ -171,7 +171,7 @@ func setEntryContent(entries []*Entry, chunkLengths []int, offset int) {
 // unmodified files with last backup).  Otherwise (or if this is the first backup), the entire repository will
 // be scanned to create the snapshot.  'tag' is the tag assigned to the new snapshot.
 func (manager *BackupManager) Backup(top string, quickMode bool, threads int, tag string,
-	showStatistics bool, shadowCopy bool, shadowCopyTimeout int, enumOnly bool) bool {
+	showStatistics bool, shadowCopy bool, shadowCopyTimeout int, enumOnly bool, listRateLimit int) bool {
 
 	var err error
 	top, err = filepath.Abs(top)
@@ -201,7 +201,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 	LOG_INFO("BACKUP_INDEXING", "Indexing %s", top)
 	localSnapshot, skippedDirectories, skippedFiles, err := CreateSnapshotFromDirectory(manager.snapshotID, shadowTop,
-		                                                                                manager.nobackupFile, manager.filtersFile)
+		                                                                                manager.nobackupFile, manager.filtersFile, listRateLimit)
 	if err != nil {
 		LOG_ERROR("SNAPSHOT_LIST", "Failed to list the directory %s: %v", top, err)
 		return false
@@ -784,7 +784,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 	manager.SnapshotManager.DownloadSnapshotContents(remoteSnapshot, patterns, true)
 
 	localSnapshot, _, _, err := CreateSnapshotFromDirectory(manager.snapshotID, top, manager.nobackupFile,
-		                                                    manager.filtersFile)
+		                                                    manager.filtersFile, 0)
 	if err != nil {
 		LOG_ERROR("SNAPSHOT_LIST", "Failed to list the repository: %v", err)
 		return 0

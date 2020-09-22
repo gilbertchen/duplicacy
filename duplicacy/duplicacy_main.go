@@ -745,13 +745,14 @@ func backupRepository(context *cli.Context) {
 	dryRun := context.Bool("dry-run")
 	uploadRateLimit := context.Int("limit-rate")
 	enumOnly := context.Bool("enum-only")
+	listRateLimit := context.Int("max-list-rate")
 	storage.SetRateLimits(0, uploadRateLimit)
 	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.FiltersFile)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	backupManager.SetupSnapshotCache(preference.Name)
 	backupManager.SetDryRun(dryRun)
-	backupManager.Backup(repository, quickMode, threads, context.String("t"), showStatistics, enableVSS, vssTimeout, enumOnly)
+	backupManager.Backup(repository, quickMode, threads, context.String("t"), showStatistics, enableVSS, vssTimeout, enumOnly, listRateLimit)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1465,6 +1466,13 @@ func main() {
 					Name:  "enum-only",
 					Usage: "enumerate the repository recursively and then exit",
 				},
+				cli.IntFlag{
+					Name:     "max-list-rate",
+					Value:    0,
+					Usage:    "the maximum number of files to list in one second",
+					Argument: "<number>",
+				},
+
 			},
 			Usage:     "Save a snapshot of the repository to the storage",
 			ArgsUsage: " ",
