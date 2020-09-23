@@ -249,7 +249,7 @@ func TestBackupManager(t *testing.T) {
 	backupManager.SetupSnapshotCache("default")
 
 	SetDuplicacyPreferencePath(testDir + "/repository1/.duplicacy")
-	backupManager.Backup(testDir+"/repository1" /*quickMode=*/, true, threads, "first", false, false, 0, false, 0)
+	backupManager.Backup(testDir+"/repository1" /*quickMode=*/, true, threads, "first", false, false, 0, false)
 	time.Sleep(time.Duration(delay) * time.Second)
 	SetDuplicacyPreferencePath(testDir + "/repository2/.duplicacy")
 	failedFiles := backupManager.Restore(testDir+"/repository2", threads /*inPlace=*/, false /*quickMode=*/, false, threads /*overwrite=*/, true,
@@ -274,7 +274,7 @@ func TestBackupManager(t *testing.T) {
 	modifyFile(testDir+"/repository1/dir1/file3", 0.3)
 
 	SetDuplicacyPreferencePath(testDir + "/repository1/.duplicacy")
-	backupManager.Backup(testDir+"/repository1" /*quickMode=*/, true, threads, "second", false, false, 0, false, 0)
+	backupManager.Backup(testDir+"/repository1" /*quickMode=*/, true, threads, "second", false, false, 0, false)
 	time.Sleep(time.Duration(delay) * time.Second)
 	SetDuplicacyPreferencePath(testDir + "/repository2/.duplicacy")
 	failedFiles = backupManager.Restore(testDir+"/repository2", 2 /*inPlace=*/, true /*quickMode=*/, true, threads /*overwrite=*/, true,
@@ -295,7 +295,7 @@ func TestBackupManager(t *testing.T) {
 	os.Mkdir(testDir+"/repository1/dir2/dir3", 0700)
 	os.Mkdir(testDir+"/repository1/dir4", 0700)
 	SetDuplicacyPreferencePath(testDir + "/repository1/.duplicacy")
-	backupManager.Backup(testDir+"/repository1" /*quickMode=*/, false, threads, "third", false, false, 0, false, 0)
+	backupManager.Backup(testDir+"/repository1" /*quickMode=*/, false, threads, "third", false, false, 0, false)
 	time.Sleep(time.Duration(delay) * time.Second)
 
 	// Create some directories and files under repository2 that will be deleted during restore
@@ -360,7 +360,7 @@ func TestBackupManager(t *testing.T) {
 	}
 	backupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1" /*revisions*/, []int{2, 3} /*tag*/, "",
 		/*showStatistics*/ false /*showTabular*/, false /*checkFiles*/, false /*checkChunks*/, false /*searchFossils*/, false /*resurrect*/, false, 1 /*allowFailures*/, false)
-	backupManager.Backup(testDir+"/repository1" /*quickMode=*/, false, threads, "fourth", false, false, 0, false, 0)
+	backupManager.Backup(testDir+"/repository1" /*quickMode=*/, false, threads, "fourth", false, false, 0, false)
 	backupManager.SnapshotManager.PruneSnapshots("host1", "host1" /*revisions*/, nil /*tags*/, nil /*retentions*/, nil,
 		/*exhaustive*/ false /*exclusive=*/, true /*ignoredIDs*/, nil /*dryRun*/, false /*deleteOnly*/, false /*collectOnly*/, false, 1)
 	numberOfSnapshots = backupManager.SnapshotManager.ListSnapshots( /*snapshotID*/ "host1" /*revisionsToList*/, nil /*tag*/, "" /*showFiles*/, false /*showChunks*/, false)
@@ -525,7 +525,7 @@ func TestPersistRestore(t *testing.T) {
 	unencBackupManager.SetupSnapshotCache("default")
 
 	SetDuplicacyPreferencePath(testDir + "/repository1/.duplicacy")
-	unencBackupManager.Backup(testDir+"/repository1" /*quickMode=*/, true, threads, "first", false, false, 0, false, 0)
+	unencBackupManager.Backup(testDir+"/repository1" /*quickMode=*/, true, threads, "first", false, false, 0, false)
 	time.Sleep(time.Duration(delay) * time.Second)
 
 
@@ -535,7 +535,7 @@ func TestPersistRestore(t *testing.T) {
 	encBackupManager.SetupSnapshotCache("default")
 
 	SetDuplicacyPreferencePath(testDir + "/repository1/.duplicacy")
-	encBackupManager.Backup(testDir+"/repository1" /*quickMode=*/, true, threads, "first", false, false, 0, false, 0)
+	encBackupManager.Backup(testDir+"/repository1" /*quickMode=*/, true, threads, "first", false, false, 0, false)
 	time.Sleep(time.Duration(delay) * time.Second)
 
 

@@ -58,7 +58,7 @@ func CreateEmptySnapshot(id string) (snapshto *Snapshot) {
 
 // CreateSnapshotFromDirectory creates a snapshot from the local directory 'top'.  Only 'Files'
 // will be constructed, while 'ChunkHashes' and 'ChunkLengths' can only be populated after uploading.
-func CreateSnapshotFromDirectory(id string, top string, nobackupFile string, filtersFile string, listRateLimit int) (snapshot *Snapshot, skippedDirectories []string,
+func CreateSnapshotFromDirectory(id string, top string, nobackupFile string, filtersFile string) (snapshot *Snapshot, skippedDirectories []string,
 	skippedFiles []string, err error) {
 
 	snapshot = &Snapshot{
@@ -84,22 +84,11 @@ func CreateSnapshotFromDirectory(id string, top string, nobackupFile string, fil
 		attributeThreshold, _ = strconv.Atoi(attributeThresholdValue)
 	}
 
-	startTime := time.Now()
-
 	for len(directories) > 0 {
 
 		directory := directories[len(directories)-1]
 		directories = directories[:len(directories)-1]
 		snapshot.Files = append(snapshot.Files, directory)
-
-		if listRateLimit > 0 {
-			maxFiles := int(time.Now().Sub(startTime).Seconds() * float64(listRateLimit))
-			if len(snapshot.Files) > maxFiles  {
-				delay := float64(len(snapshot.Files) - maxFiles) / float64(listRateLimit)
-				time.Sleep(time.Duration(delay * 1000.0) * time.Millisecond)
-			}
-		}
-
 		subdirectories, skipped, err := ListEntries(top, directory.Path, &snapshot.Files, patterns, nobackupFile, snapshot.discardAttributes)
 		if err != nil {
 			if directory.Path == "" {
