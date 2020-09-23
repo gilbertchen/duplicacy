@@ -434,7 +434,7 @@ func PrettyTime(seconds int64) string {
 			seconds/day, (seconds%day)/3600, (seconds%3600)/60, seconds%60)
 	} else if seconds > day {
 		return fmt.Sprintf("1 day %02d:%02d:%02d", (seconds%day)/3600, (seconds%3600)/60, seconds%60)
-	} else if seconds > 0 {
+	} else if seconds >= 0 {
 		return fmt.Sprintf("%02d:%02d:%02d", seconds/3600, (seconds%3600)/60, seconds%60)
 	} else {
 		return "n/a"

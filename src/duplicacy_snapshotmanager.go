@@ -1020,14 +1020,42 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	if checkChunks && !checkFiles {
 		manager.chunkDownloader.snapshotCache = nil
 		LOG_INFO("SNAPSHOT_VERIFY", "Verifying %d chunks", len(*allChunkHashes))
+
+		startTime := time.Now()
+		var chunkHashes []string
+
+		// The index of the first chunk to add to the downloader, which may have already downloaded
+		// some metadata chunks so the index doesn't start with 0.
+		chunkIndex := -1
+
 		for chunkHash := range *allChunkHashes {
-			manager.chunkDownloader.AddChunk(chunkHash)
+			chunkHashes = append(chunkHashes, chunkHash)
+			if chunkIndex == -1 {
+				chunkIndex = manager.chunkDownloader.AddChunk(chunkHash)
+			} else {
+				manager.chunkDownloader.AddChunk(chunkHash)
+			}
 		}
-		manager.chunkDownloader.WaitForCompletion()
+
+		var downloadedChunkSize int64
+		totalChunks := len(*allChunkHashes)
+		for i := 0; i < totalChunks; i++ {
+			chunk := manager.chunkDownloader.WaitForChunk(i + chunkIndex)
+			downloadedChunkSize += int64(chunk.GetLength())
+
+			elapsedTime := time.Now().Sub(startTime).Seconds()
+			speed := int64(float64(downloadedChunkSize) / elapsedTime)
+			remainingTime := int64(float64(totalChunks - i - 1) / float64(i + 1) * elapsedTime)
+			percentage := float64(i + 1) / float64(totalChunks) * 100.0
+			LOG_INFO("VERIFY_PROGRESS", "Verified chunk %s (%d/%d), %sB/s %s %.1f%%",
+					 manager.config.GetChunkIDFromHash(chunkHashes[i]), i + 1, totalChunks,
+					 PrettySize(speed), PrettyTime(remainingTime), percentage)
+		}
+
 		if manager.chunkDownloader.NumberOfFailedChunks > 0 {
-			LOG_ERROR("SNAPSHOT_VERIFY", "%d out of %d chunks are corrupted", manager.chunkDownloader.NumberOfFailedChunks, len(*allChunkHashes))
+			LOG_ERROR("SNAPSHOT_VERIFY", "%d out of %d chunks are corrupted", manager.chunkDownloader.NumberOfFailedChunks, totalChunks)
 		} else {
-			LOG_INFO("SNAPSHOT_VERIFY", "All %d chunks have been successfully verified", len(*allChunkHashes))
+			LOG_INFO("SNAPSHOT_VERIFY", "All %d chunks have been successfully verified", totalChunks)
 		}
 	}
 	return true
