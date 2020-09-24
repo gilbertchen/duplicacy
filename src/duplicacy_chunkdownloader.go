@@ -254,6 +254,9 @@ func (downloader *ChunkDownloader) WaitForChunk(chunkIndex int) (chunk *Chunk) {
 		downloader.taskList[completion.chunkIndex].chunk = completion.chunk
 		downloader.numberOfDownloadedChunks++
 		downloader.numberOfDownloadingChunks--
+		if completion.chunk.isBroken {
+			downloader.NumberOfFailedChunks++
+		}
 	}
 	return downloader.taskList[chunkIndex].chunk
 }

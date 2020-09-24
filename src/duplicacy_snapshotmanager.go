@@ -1041,6 +1041,9 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 		totalChunks := len(*allChunkHashes)
 		for i := 0; i < totalChunks; i++ {
 			chunk := manager.chunkDownloader.WaitForChunk(i + chunkIndex)
+			if chunk.isBroken {
+				continue
+			}
 			downloadedChunkSize += int64(chunk.GetLength())
 
 			elapsedTime := time.Now().Sub(startTime).Seconds()
