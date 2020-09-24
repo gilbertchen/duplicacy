@@ -1171,9 +1171,14 @@ func copySnapshots(context *cli.Context) {
 		os.Exit(ArgumentExitCode)
 	}
 
-	threads := context.Int("threads")
-	if threads < 1 {
-		threads = 1
+	uploadingThreads := context.Int("threads")
+	if uploadingThreads < 1 {
+		uploadingThreads = 1
+	}
+
+	downloadingThreads := context.Int("download-threads")
+	if downloadingThreads < 1 {
+		downloadingThreads = 1
 	}
 
 	repository, source := getRepositoryPreference(context, context.String("from"))
@@ -1181,7 +1186,7 @@ func copySnapshots(context *cli.Context) {
 	runScript(context, source.Name, "pre")
 
 	duplicacy.LOG_INFO("STORAGE_SET", "Source storage set to %s", source.StorageURL)
-	sourceStorage := duplicacy.CreateStorage(*source, false, threads)
+	sourceStorage := duplicacy.CreateStorage(*source, false, downloadingThreads)
 	if sourceStorage == nil {
 		return
 	}
@@ -1211,7 +1216,7 @@ func copySnapshots(context *cli.Context) {
 	}
 
 	duplicacy.LOG_INFO("STORAGE_SET", "Destination storage set to %s", destination.StorageURL)
-	destinationStorage := duplicacy.CreateStorage(*destination, false, threads)
+	destinationStorage := duplicacy.CreateStorage(*destination, false, uploadingThreads)
 	if destinationStorage == nil {
 		return
 	}
@@ -1236,7 +1241,7 @@ func copySnapshots(context *cli.Context) {
 		snapshotID = context.String("id")
 	}
 
-	sourceManager.CopySnapshots(destinationManager, snapshotID, revisions, threads)
+	sourceManager.CopySnapshots(destinationManager, snapshotID, revisions, uploadingThreads, downloadingThreads)
 	runScript(context, source.Name, "post")
 }
 
@@ -1997,6 +2002,12 @@ func main() {
 					Name:     "threads",
 					Value:    1,
 					Usage:    "number of uploading threads",
+					Argument: "<n>",
+				},
+				cli.IntFlag{
+					Name:     "download-threads",
+					Value:    1,
+					Usage:    "number of downloading threads",
 					Argument: "<n>",
 				},
 				cli.StringFlag{
