@@ -974,12 +974,12 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 			// No error, file was restored
 			downloadedFileSize += file.Size
 			downloadedFiles = append(downloadedFiles, file)
-			file.RestoreMetadata(fullPath, nil, setOwner)
 		} else {
 			// No error, file was skipped
 			skippedFileSize += file.Size
 			skippedFiles++
 		}
+		file.RestoreMetadata(fullPath, nil, setOwner)
 	}
 
 	if deleteMode && len(patterns) == 0 {
