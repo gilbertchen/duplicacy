@@ -12,7 +12,46 @@ import (
 	"testing"
 )
 
-func TestChunk(t *testing.T) {
+func TestErasureCoding(t *testing.T) {
+	key := []byte("duplicacydefault")
+
+	config := CreateConfig()
+	config.HashKey = key
+	config.IDKey = key
+	config.MinimumChunkSize = 100
+	config.CompressionLevel = DEFAULT_COMPRESSION_LEVEL
+	config.DataShards = 5
+    config.ParityShards = 2
+
+	chunk := CreateChunk(config, true)
+	chunk.Reset(true)
+	data := make([]byte, 100)
+	for i := 0; i < len(data); i++ {
+		data[i] = byte(i)
+	}
+	chunk.Write(data)
+	err := chunk.Encrypt([]byte(""), "", false)
+	if err != nil {
+		t.Errorf("Failed to encrypt the test data: %v", err)
+		return
+	}
+
+	encryptedData := make([]byte, chunk.GetLength())
+	copy(encryptedData, chunk.GetBytes())
+
+	crypto_rand.Read(encryptedData[280:300])
+
+	chunk.Reset(false)
+	chunk.Write(encryptedData)
+	err = chunk.Decrypt([]byte(""), "")
+	if err != nil {
+		t.Errorf("Failed to decrypt the data: %v", err)
+		return
+	}
+	return
+}
+
+func TestChunkBasic(t *testing.T) {
 
 	key := []byte("duplicacydefault")
 
@@ -32,7 +71,10 @@ func TestChunk(t *testing.T) {
 		config.rsaPublicKey = privateKey.Public().(*rsa.PublicKey)
 	}
 
-	remainderLength := -1
+	if testErasureCoding {
+		config.DataShards = 5
+		config.ParityShards = 2
+	}
 
 	for i := 0; i < 500; i++ {
 
@@ -56,10 +98,14 @@ func TestChunk(t *testing.T) {
 		encryptedData := make([]byte, chunk.GetLength())
 		copy(encryptedData, chunk.GetBytes())
 
-		if remainderLength == -1 {
-			remainderLength = len(encryptedData) % 256
-		} else if len(encryptedData)%256 != remainderLength {
-			t.Errorf("Incorrect padding size")
+		if testErasureCoding {
+			offset := 24 + 32 * 7
+			start := rand.Int() % (len(encryptedData) - offset) + offset
+			length := (len(encryptedData) - offset) / 7
+			if start + length > len(encryptedData) {
+				length = len(encryptedData) - start
+			}
+			crypto_rand.Read(encryptedData[start: start+length])
 		}
 
 		chunk.Reset(false)

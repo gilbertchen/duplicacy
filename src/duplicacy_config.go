@@ -35,8 +35,8 @@ var DEFAULT_KEY = []byte("duplicacy")
 // standard zlib levels of -1 to 9.
 var DEFAULT_COMPRESSION_LEVEL = 100
 
-// The new header of the config file (to differentiate from the old format where the salt and iterations are fixed)
-var CONFIG_HEADER = "duplicacy\001"
+// The new banner of the config file (to differentiate from the old format where the salt and iterations are fixed)
+var CONFIG_BANNER = "duplicacy\001"
 
 // The length of the salt used in the new format
 var CONFIG_SALT_LENGTH = 32
@@ -70,6 +70,10 @@ type Config struct {
 
 	// for encrypting a non-chunk file
 	FileKey []byte `json:"-"`
+
+	// for erasure coding
+	DataShards int `json:'data-shards'`
+	ParityShards int `json:'parity-shards'`
 
 	// for RSA encryption
 	rsaPrivateKey *rsa.PrivateKey
@@ -179,6 +183,10 @@ func (config *Config) Print() {
 
 	if len(config.FileKey) > 0 {
 		LOG_TRACE("CONFIG_INFO", "Metadata chunks are encrypted")
+	}
+
+	if config.DataShards != 0 && config.ParityShards != 0 {
+		LOG_TRACE("CONFIG_INFO", "Data shards: %d, parity shards: %d", config.DataShards, config.ParityShards)
 	}
 
 	if config.rsaPublicKey != nil {
@@ -387,11 +395,11 @@ func DownloadConfig(storage Storage, password string) (config *Config, isEncrypt
 		return nil, false, err
 	}
 
-	if len(configFile.GetBytes()) < len(ENCRYPTION_HEADER) {
+	if len(configFile.GetBytes()) < len(ENCRYPTION_BANNER) {
 		return nil, false, fmt.Errorf("The storage has an invalid config file")
 	}
 
-	if string(configFile.GetBytes()[:len(ENCRYPTION_HEADER)-1]) == ENCRYPTION_HEADER[:len(ENCRYPTION_HEADER)-1] && len(password) == 0 {
+	if string(configFile.GetBytes()[:len(ENCRYPTION_BANNER)-1]) == ENCRYPTION_BANNER[:len(ENCRYPTION_BANNER)-1] && len(password) == 0 {
 		return nil, true, fmt.Errorf("The storage is likely to have been initialized with a password before")
 	}
 
@@ -399,23 +407,23 @@ func DownloadConfig(storage Storage, password string) (config *Config, isEncrypt
 
 	if len(password) > 0 {
 
-		if string(configFile.GetBytes()[:len(ENCRYPTION_HEADER)]) == ENCRYPTION_HEADER {
+		if string(configFile.GetBytes()[:len(ENCRYPTION_BANNER)]) == ENCRYPTION_BANNER {
 			// This is the old config format with a static salt and a fixed number of iterations
 			masterKey = GenerateKeyFromPassword(password, DEFAULT_KEY, CONFIG_DEFAULT_ITERATIONS)
 			LOG_TRACE("CONFIG_FORMAT", "Using a static salt and %d iterations for key derivation", CONFIG_DEFAULT_ITERATIONS)
-		} else if string(configFile.GetBytes()[:len(CONFIG_HEADER)]) == CONFIG_HEADER {
+		} else if string(configFile.GetBytes()[:len(CONFIG_BANNER)]) == CONFIG_BANNER {
 			// This is the new config format with a random salt and a configurable number of iterations
 			encryptedLength := len(configFile.GetBytes()) - CONFIG_SALT_LENGTH - 4
 
 			// Extract the salt and the number of iterations
-			saltStart := configFile.GetBytes()[len(CONFIG_HEADER):]
+			saltStart := configFile.GetBytes()[len(CONFIG_BANNER):]
 			iterations := binary.LittleEndian.Uint32(saltStart[CONFIG_SALT_LENGTH : CONFIG_SALT_LENGTH+4])
 			LOG_TRACE("CONFIG_ITERATIONS", "Using %d iterations for key derivation", iterations)
 			masterKey = GenerateKeyFromPassword(password, saltStart[:CONFIG_SALT_LENGTH], int(iterations))
 
-			// Copy to a temporary buffer to replace the header and remove the salt and the number of riterations
+			// Copy to a temporary buffer to replace the banner and remove the salt and the number of riterations
 			var encrypted bytes.Buffer
-			encrypted.Write([]byte(ENCRYPTION_HEADER))
+			encrypted.Write([]byte(ENCRYPTION_BANNER))
 			encrypted.Write(saltStart[CONFIG_SALT_LENGTH+4:])
 
 			configFile.Reset(false)
@@ -424,7 +432,7 @@ func DownloadConfig(storage Storage, password string) (config *Config, isEncrypt
 				LOG_ERROR("CONFIG_DOWNLOAD", "Encrypted config has %d bytes instead of expected %d bytes", len(configFile.GetBytes()), encryptedLength)
 			}
 		} else {
-			return nil, true, fmt.Errorf("The config file has an invalid header")
+			return nil, true, fmt.Errorf("The config file has an invalid banner")
 		}
 
 		// Decrypt the config file.  masterKey == nil means no encryption.
@@ -488,15 +496,15 @@ func UploadConfig(storage Storage, config *Config, password string, iterations i
 			return false
 		}
 
-		// The new encrypted format for config is CONFIG_HEADER + salt + #iterations + encrypted content
+		// The new encrypted format for config is CONFIG_BANNER + salt + #iterations + encrypted content
 		encryptedLength := len(chunk.GetBytes()) + CONFIG_SALT_LENGTH + 4
 
-		// Copy to a temporary buffer to replace the header and add the salt and the number of iterations
+		// Copy to a temporary buffer to replace the banner and add the salt and the number of iterations
 		var encrypted bytes.Buffer
-		encrypted.Write([]byte(CONFIG_HEADER))
+		encrypted.Write([]byte(CONFIG_BANNER))
 		encrypted.Write(salt)
 		binary.Write(&encrypted, binary.LittleEndian, uint32(iterations))
-		encrypted.Write(chunk.GetBytes()[len(ENCRYPTION_HEADER):])
+		encrypted.Write(chunk.GetBytes()[len(ENCRYPTION_BANNER):])
 
 		chunk.Reset(false)
 		chunk.Write(encrypted.Bytes())
@@ -529,7 +537,7 @@ func UploadConfig(storage Storage, config *Config, password string, iterations i
 // it simply creates a file named 'config' that stores various parameters as well as a set of keys if encryption
 // is enabled.
 func ConfigStorage(storage Storage, iterations int, compressionLevel int, averageChunkSize int, maximumChunkSize int,
-	minimumChunkSize int, password string, copyFrom *Config, bitCopy bool, keyFile string) bool {
+	minimumChunkSize int, password string, copyFrom *Config, bitCopy bool, keyFile string, dataShards int, parityShards int) bool {
 
 	exist, _, _, err := storage.GetFileInfo(0, "config")
 	if err != nil {
@@ -551,6 +559,10 @@ func ConfigStorage(storage Storage, iterations int, compressionLevel int, averag
 	if keyFile != "" {
 		config.loadRSAPublicKey(keyFile)
 	}
+
+	config.DataShards = dataShards
+	config.ParityShards = parityShards
+
 	return UploadConfig(storage, config, password, iterations)
 }
 

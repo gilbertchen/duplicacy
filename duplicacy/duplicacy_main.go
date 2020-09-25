@@ -458,8 +458,26 @@ func configRepository(context *cli.Context, init bool) {
 		if iterations == 0 {
 			iterations = duplicacy.CONFIG_DEFAULT_ITERATIONS
 		}
+
+		dataShards := 0
+		parityShards := 0
+		shards := context.String("erasure-coding")
+		if shards != "" {
+			shardsRegex := regexp.MustCompile(`^([0-9]+):([0-9]+)$`)
+			matched := shardsRegex.FindStringSubmatch(shards)
+			if matched == nil {
+				duplicacy.LOG_ERROR("STORAGE_ERASURECODE", "Invalid erasure coding parameters: %s", shards)
+			} else {
+				dataShards, _ = strconv.Atoi(matched[1])
+				parityShards, _ = strconv.Atoi(matched[2])
+				if dataShards == 0 || dataShards > 256 || parityShards == 0 || parityShards > dataShards {
+					duplicacy.LOG_ERROR("STORAGE_ERASURECODE", "Invalid erasure coding parameters: %s", shards)
+				}
+			}
+		}
+
 		duplicacy.ConfigStorage(storage, iterations, compressionLevel, averageChunkSize, maximumChunkSize,
-			minimumChunkSize, storagePassword, otherConfig, bitCopy, context.String("key"))
+			minimumChunkSize, storagePassword, otherConfig, bitCopy, context.String("key"), dataShards, parityShards)
 	}
 
 	duplicacy.Preferences = append(duplicacy.Preferences, preference)
@@ -1414,6 +1432,11 @@ func main() {
 					Usage:    "the RSA public key to encrypt file chunks",
 					Argument: "<public key>",
 				},
+				cli.StringFlag{
+					Name:     "erasure-coding",
+					Usage:    "enable erasure coding to protect against storage corruption",
+					Argument: "<data shards>:<parity shards>",
+				},
 			},
 			Usage:     "Initialize the storage if necessary and the current directory as the repository",
 			ArgsUsage: "<snapshot id> <storage url>",
@@ -1900,6 +1923,11 @@ func main() {
 					Name:     "key",
 					Usage:    "the RSA public key to encrypt file chunks",
 					Argument: "<public key>",
+				},
+				cli.StringFlag{
+					Name:     "erasure-coding",
+					Usage:    "enable erasure coding to protect against storage corruption",
+					Argument: "<data shards>:<parity shards>",
 				},
 			},
 			Usage:     "Add an additional storage to be used for the existing repository",
