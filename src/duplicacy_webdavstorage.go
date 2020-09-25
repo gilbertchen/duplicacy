@@ -165,7 +165,7 @@ func (storage *WebDAVStorage) sendRequest(method string, uri string, depth int, 
 
 		response, err := storage.client.Do(request)
 		if err != nil {
-			LOG_TRACE("WEBDAV_RETRY", "URL request '%s %s' returned an error (%v)", method, uri, err)
+			LOG_TRACE("WEBDAV_ERROR", "URL request '%s %s' returned an error (%v)", method, uri, err)
 			backoff = storage.retry(backoff)
 			continue
 		}
@@ -320,6 +320,12 @@ func (storage *WebDAVStorage) ListFiles(threadIndex int, dir string) (files []st
 			}
 			files = append(files, file)
 			sizes = append(sizes, int64(0))
+
+			// Add the directory to the directory cache
+			storage.directoryCacheLock.Lock()
+			storage.directoryCache[dir + file] = 1
+			storage.directoryCacheLock.Unlock()
+
 		}
 	}
 
@@ -391,21 +397,7 @@ func (storage *WebDAVStorage) createParentDirectory(threadIndex int, dir string)
 	}
 	parent := dir[:found]
 
-	storage.directoryCacheLock.Lock()
-	_, exist := storage.directoryCache[parent]
-	storage.directoryCacheLock.Unlock()
-
-	if exist {
-		return nil
-	}
-
-	err = storage.CreateDirectory(threadIndex, parent)
-	if err == nil {
-		storage.directoryCacheLock.Lock()
-		storage.directoryCache[parent] = 1
-		storage.directoryCacheLock.Unlock()
-	}
-	return err
+	return storage.CreateDirectory(threadIndex, parent)
 }
 
 // CreateDirectory creates a new directory.
@@ -418,19 +410,35 @@ func (storage *WebDAVStorage) CreateDirectory(threadIndex int, dir string) (err 
 		return nil
 	}
 
+	storage.directoryCacheLock.Lock()
+	_, exist := storage.directoryCache[dir]
+	storage.directoryCacheLock.Unlock()
+
+	if exist {
+		return nil
+	}
+
 	// If there is an error in creating the parent directory, proceed anyway
 	storage.createParentDirectory(threadIndex, dir)
 
 	readCloser, _, err := storage.sendRequest("MKCOL", dir, 0, []byte(""))
 	if err != nil {
-		if err == errWebDAVMethodNotAllowed || err == errWebDAVMovedPermanently {
+		if err == errWebDAVMethodNotAllowed || err == errWebDAVMovedPermanently || err == io.EOF {
 			// We simply ignore these errors and assume that the directory already exists
+			LOG_TRACE("WEBDAV_MKDIR", "Can't create directory %s: %v; error ignored", dir, err)
+			storage.directoryCacheLock.Lock()
+			storage.directoryCache[dir] = 1
+			storage.directoryCacheLock.Unlock()
 			return nil
 		}
 		return err
 	}
 	io.Copy(ioutil.Discard, readCloser)
 	readCloser.Close()
+
+	storage.directoryCacheLock.Lock()
+	storage.directoryCache[dir] = 1
+	storage.directoryCacheLock.Unlock()
 	return nil
 }
 
