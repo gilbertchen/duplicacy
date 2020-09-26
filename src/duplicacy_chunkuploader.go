@@ -128,7 +128,7 @@ func (uploader *ChunkUploader) Upload(threadIndex int, task ChunkUploadTask) boo
 	}
 
 	// Encrypt the chunk only after we know that it must be uploaded.
-	err = chunk.Encrypt(uploader.config.ChunkKey, chunk.GetHash())
+	err = chunk.Encrypt(uploader.config.ChunkKey, chunk.GetHash(), uploader.snapshotCache != nil)
 	if err != nil {
 		LOG_ERROR("UPLOAD_CHUNK", "Failed to encrypt the chunk %s: %v", chunkID, err)
 		return false

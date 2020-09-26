@@ -7,10 +7,12 @@ package duplicacy
 import (
 	"fmt"
 	"os"
+	"log"
 	"runtime/debug"
 	"sync"
 	"testing"
 	"time"
+	"regexp"
 )
 
 const (
@@ -41,6 +43,13 @@ var testingT *testing.T
 
 func setTestingT(t *testing.T) {
 	testingT = t
+}
+
+// Contains the ids of logs that won't be displayed
+var suppressedLogs map[string]bool = map[string]bool{}
+
+func SuppressLog(id string) {
+	suppressedLogs[id] = true
 }
 
 func getLevelName(level int) string {
@@ -98,6 +107,15 @@ func LOG_ERROR(logID string, format string, v ...interface{}) {
 	logf(ERROR, logID, format, v...)
 }
 
+func LOG_WERROR(isWarning bool, logID string, format string, v ...interface{}) {
+	if isWarning {
+		logf(WARN, logID, format, v...)
+	} else {
+		logf(ERROR, logID, format, v...)
+	}
+}
+
+
 func LOG_FATAL(logID string, format string, v ...interface{}) {
 	logf(FATAL, logID, format, v...)
 }
@@ -143,6 +161,12 @@ func logf(level int, logID string, format string, v ...interface{}) {
 		defer logMutex.Unlock()
 
 		if level >= loggingLevel {
+			if level <= ERROR && len(suppressedLogs) > 0 {
+				if _, found := suppressedLogs[logID]; found {
+					return
+				}
+			}
+
 			if printLogHeader {
 				fmt.Printf("%s %s %s %s\n",
 					now.Format("2006-01-02 15:04:05.000"), getLevelName(level), logID, message)
@@ -159,6 +183,32 @@ func logf(level int, logID string, format string, v ...interface{}) {
 			Message: message,
 		})
 	}
+}
+
+// Set up logging for libraries that Duplicacy depends on.  They can call 'log.Printf("[ID] message")'
+// to produce logs in Duplicacy's format
+type Logger struct {
+	formatRegex *regexp.Regexp
+}
+
+func (logger *Logger) Write(line []byte) (n int, err error) {
+	n = len(line)
+	for len(line) > 0 && line[len(line) - 1] == '\n' {
+		line = line[:len(line) - 1]
+	}
+	matched := logger.formatRegex.FindStringSubmatch(string(line))
+	if matched != nil {
+		LOG_INFO(matched[1], "%s", matched[2])
+	} else {
+		LOG_INFO("LOG_DEFAULT", "%s", line)
+	}
+
+    return
+}
+
+func init() {
+	log.SetFlags(0)
+	log.SetOutput(&Logger{ formatRegex: regexp.MustCompile(`^\[(.+)\]\s*(.+)`) })
 }
 
 const (

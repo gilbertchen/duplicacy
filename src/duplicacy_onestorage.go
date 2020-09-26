@@ -19,13 +19,13 @@ type OneDriveStorage struct {
 }
 
 // CreateOneDriveStorage creates an OneDrive storage object.
-func CreateOneDriveStorage(tokenFile string, storagePath string, threads int) (storage *OneDriveStorage, err error) {
+func CreateOneDriveStorage(tokenFile string, isBusiness bool, storagePath string, threads int) (storage *OneDriveStorage, err error) {
 
 	for len(storagePath) > 0 && storagePath[len(storagePath)-1] == '/' {
 		storagePath = storagePath[:len(storagePath)-1]
 	}
 
-	client, err := NewOneDriveClient(tokenFile)
+	client, err := NewOneDriveClient(tokenFile, isBusiness)
 	if err != nil {
 		return nil, err
 	}
@@ -80,6 +80,7 @@ func (storage *OneDriveStorage) convertFilePath(filePath string) string {
 
 // ListFiles return the list of files and subdirectories under 'dir' (non-recursively)
 func (storage *OneDriveStorage) ListFiles(threadIndex int, dir string) ([]string, []int64, error) {
+
 	for len(dir) > 0 && dir[len(dir)-1] == '/' {
 		dir = dir[:len(dir)-1]
 	}
@@ -97,7 +98,7 @@ func (storage *OneDriveStorage) ListFiles(threadIndex int, dir string) ([]string
 			}
 		}
 		return subDirs, nil, nil
-	} else if strings.HasPrefix(dir, "snapshots/") {
+	} else if strings.HasPrefix(dir, "snapshots/") || strings.HasPrefix(dir, "benchmark") {
 		entries, err := storage.client.ListEntries(storage.storageDir + "/" + dir)
 		if err != nil {
 			return nil, nil, err

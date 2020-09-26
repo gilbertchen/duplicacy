@@ -113,7 +113,7 @@ func (storage *HubicStorage) ListFiles(threadIndex int, dir string) ([]string, [
 
 		for _, entry := range entries {
 			if entry.Type == "application/directory" {
-				files = append(files,  entry.Name + "/")
+				files = append(files, entry.Name+"/")
 				sizes = append(sizes, 0)
 			} else {
 				files = append(files, entry.Name)

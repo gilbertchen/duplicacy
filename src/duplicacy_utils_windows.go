@@ -7,6 +7,8 @@ package duplicacy
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 	"syscall"
 	"unsafe"
 )
@@ -113,4 +115,19 @@ func (entry *Entry) ReadAttributes(top string) {
 
 func (entry *Entry) SetAttributesToFile(fullPath string) {
 
+}
+
+func joinPath(components ...string) string {
+
+	combinedPath := `\\?\` + filepath.Join(components...)
+	// If the path is on a samba drive we must use the UNC format
+	if strings.HasPrefix(combinedPath, `\\?\\\`) {
+		combinedPath = `\\?\UNC\` + combinedPath[6:]
+	}
+	return combinedPath
+}
+
+func SplitDir(fullPath string) (dir string, file string) {
+	i := strings.LastIndex(fullPath, "\\")
+	return fullPath[:i+1], fullPath[i+1:]
 }

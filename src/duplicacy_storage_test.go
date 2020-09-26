@@ -27,6 +27,8 @@ var testRateLimit int
 var testQuickMode bool
 var testThreads int
 var testFixedChunkSize bool
+var testRSAEncryption bool
+var testErasureCoding bool
 
 func init() {
 	flag.StringVar(&testStorageName, "storage", "", "the test storage to use")
@@ -34,6 +36,8 @@ func init() {
 	flag.BoolVar(&testQuickMode, "quick", false, "quick test")
 	flag.IntVar(&testThreads, "threads", 1, "number of downloading/uploading threads")
 	flag.BoolVar(&testFixedChunkSize, "fixed-chunk-size", false, "fixed chunk size")
+	flag.BoolVar(&testRSAEncryption, "rsa", false, "enable RSA encryption")
+	flag.BoolVar(&testErasureCoding, "erasure-coding", false, "enable Erasure Coding")
 	flag.Parse()
 }
 
@@ -80,12 +84,12 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		return storage, err
 	} else if testStorageName == "s3" {
 		storage, err := CreateS3Storage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads, true, false)
-		return storage, err
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
+		return storage, err
 	} else if testStorageName == "wasabi" {
 		storage, err := CreateWasabiStorage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads)
-		return storage, err
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
+		return storage, err
 	} else if testStorageName == "s3c" {
 		storage, err := CreateS3CStorage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
@@ -107,7 +111,7 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
 	} else if testStorageName == "b2" {
-		storage, err := CreateB2Storage(config["account"], config["key"], config["bucket"], threads)
+		storage, err := CreateB2Storage(config["account"], config["key"], "", config["bucket"], config["directory"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
 	} else if testStorageName == "gcs-s3" {
@@ -131,11 +135,23 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
 	} else if testStorageName == "gcd" {
-		storage, err := CreateGCDStorage(config["token_file"], config["storage_path"], threads)
+		storage, err := CreateGCDStorage(config["token_file"], "", config["storage_path"], threads)
+		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
+		return storage, err
+	} else if testStorageName == "gcd-shared" {
+		storage, err := CreateGCDStorage(config["token_file"], config["drive"], config["storage_path"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
 	} else if testStorageName == "one" {
-		storage, err := CreateOneDriveStorage(config["token_file"], config["storage_path"], threads)
+		storage, err := CreateOneDriveStorage(config["token_file"], false, config["storage_path"], threads)
+		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
+		return storage, err
+	} else if testStorageName == "odb" {
+		storage, err := CreateOneDriveStorage(config["token_file"], true, config["storage_path"], threads)
+		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
+		return storage, err
+	} else if testStorageName == "one" {
+		storage, err := CreateOneDriveStorage(config["token_file"], false, config["storage_path"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
 	} else if testStorageName == "hubic" {
@@ -153,10 +169,7 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		}
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else {
-		return nil, fmt.Errorf("Invalid storage named: %s", testStorageName)
 	}
-
 	return nil, fmt.Errorf("Invalid storage named: %s", testStorageName)
 }
 
@@ -299,7 +312,8 @@ func TestStorage(t *testing.T) {
 
 	LOG_INFO("STORAGE_TEST", "storage: %s", testStorageName)
 
-	storage, err := loadStorage(testDir, 1)
+	threads := 8
+	storage, err := loadStorage(testDir, threads)
 	if err != nil {
 		t.Errorf("Failed to create storage: %v", err)
 		return
@@ -329,16 +343,16 @@ func TestStorage(t *testing.T) {
 	storage.CreateDirectory(0, "shared")
 
 	// Upload to the same directory by multiple goroutines
-	count := 8
+	count := threads
 	finished := make(chan int, count)
 	for i := 0; i < count; i++ {
-		go func(name string) {
-			err := storage.UploadFile(0, name, []byte("this is a test file"))
+		go func(threadIndex int, name string) {
+			err := storage.UploadFile(threadIndex, name, []byte("this is a test file"))
 			if err != nil {
 				t.Errorf("Error to upload '%s': %v", name, err)
 			}
 			finished <- 0
-		}(fmt.Sprintf("shared/a/b/c/%d", i))
+		}(i, fmt.Sprintf("shared/a/b/c/%d", i))
 	}
 
 	for i := 0; i < count; i++ {
@@ -387,7 +401,6 @@ func TestStorage(t *testing.T) {
 
 	snapshotIDs := []string{}
 	for _, snapshotDir := range snapshotDirs {
-		LOG_INFO("debug", "snapshot dir: %s", snapshotDir)
 		if len(snapshotDir) > 0 && snapshotDir[len(snapshotDir)-1] == '/' {
 			snapshotIDs = append(snapshotIDs, snapshotDir[:len(snapshotDir)-1])
 		}

@@ -89,7 +89,7 @@ func (storage *StorageBase) SetRateLimits(downloadRateLimit int, uploadRateLimit
 }
 
 // SetDefaultNestingLevels sets the default read and write levels.  This is usually called by
-// derived storages to set the levels with old values so that storages initialied by ealier versions
+// derived storages to set the levels with old values so that storages initialized by earlier versions
 // will continue to work.
 func (storage *StorageBase) SetDefaultNestingLevels(readLevels []int, writeLevel int) {
 	storage.readLevels = readLevels
@@ -268,7 +268,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	if matched == nil {
 		LOG_ERROR("STORAGE_CREATE", "Unrecognizable storage URL: %s", storageURL)
 		return nil
-	} else if matched[1] == "sftp" {
+	} else if matched[1] == "sftp" || matched[1] == "sftpc" {
 		server := matched[3]
 		username := matched[2]
 		storageDir := matched[5]
@@ -291,6 +291,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 
 		// If ssh_key_file is set, skip password-based login
 		keyFile := GetPasswordFromPreference(preference, "ssh_key_file")
+		passphrase := ""
 
 		password := ""
 		passwordCallback := func() (string, error) {
@@ -335,7 +336,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			keyFile = GetPassword(preference, "ssh_key_file", "Enter the path of the private key file:",
 				true, resetPassword)
 
-			var key ssh.Signer
+			var keySigner ssh.Signer
 			var err error
 
 			if keyFile == "" {
@@ -346,15 +347,52 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 				if err != nil {
 					LOG_INFO("SSH_PUBLICKEY", "Failed to read the private key file: %v", err)
 				} else {
-					key, err = ssh.ParsePrivateKey(content)
+					keySigner, err = ssh.ParsePrivateKey(content)
 					if err != nil {
-						LOG_INFO("SSH_PUBLICKEY", "Failed to parse the private key file %s: %v", keyFile, err)
+						if _, ok := err.(*ssh.PassphraseMissingError); ok {
+							LOG_TRACE("SSH_PUBLICKEY", "The private key file is encrypted")
+							passphrase = GetPassword(preference, "ssh_passphrase", "Enter the passphrase to decrypt the private key file:", false, resetPassword)
+							if len(passphrase) == 0 {
+								LOG_INFO("SSH_PUBLICKEY", "No passphrase to descrypt the private key file %s", keyFile)
+							} else {
+								keySigner, err = ssh.ParsePrivateKeyWithPassphrase(content, []byte(passphrase))
+								if err != nil {
+									LOG_INFO("SSH_PUBLICKEY", "Failed to parse the encrypted private key file %s: %v", keyFile, err)
+								}
+							}
+						} else {
+							LOG_INFO("SSH_PUBLICKEY", "Failed to parse the private key file %s: %v", keyFile, err)
+						}
+					}
+
+					if keySigner != nil {
+						certFile := keyFile + "-cert.pub"
+						if stat, err := os.Stat(certFile); err == nil && !stat.IsDir() {
+							LOG_DEBUG("SSH_CERTIFICATE", "Attempting to use ssh certificate from file %s", certFile)
+							var content []byte
+							content, err = ioutil.ReadFile(certFile)
+							if err != nil {
+								LOG_INFO("SSH_CERTIFICATE", "Failed to read ssh certificate file %s: %v", certFile, err)
+							} else {
+								pubKey, _, _, _, err := ssh.ParseAuthorizedKey(content)
+								if err != nil {
+									LOG_INFO("SSH_CERTIFICATE", "Failed parse ssh certificate file %s: %v", certFile, err)
+								} else {
+									certSigner, err := ssh.NewCertSigner(pubKey.(*ssh.Certificate), keySigner)
+									if err != nil {
+										LOG_INFO("SSH_CERTIFICATE", "Failed to create certificate signer: %v", err)
+									} else {
+										keySigner = certSigner
+									}
+								}
+							}
+						}
 					}
 				}
 			}
 
-			if key != nil {
-				signers = append(signers, key)
+			if keySigner != nil {
+				signers = append(signers, keySigner)
 			}
 
 			if len(signers) > 0 {
@@ -402,7 +440,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			return checkHostKey(hostname, remote, key)
 		}
 
-		sftpStorage, err := CreateSFTPStorage(server, port, username, storageDir, 2, authMethods, hostKeyChecker, threads)
+		sftpStorage, err := CreateSFTPStorage(matched[1] == "sftpc", server, port, username, storageDir, 2, authMethods, hostKeyChecker, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the SFTP storage at %s: %v", storageURL, err)
 			return nil
@@ -410,6 +448,9 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 
 		if keyFile != "" {
 			SavePassword(preference, "ssh_key_file", keyFile)
+			if passphrase != "" {
+				SavePassword(preference, "ssh_passphrase", passphrase)
+			}
 		} else if password != "" {
 			SavePassword(preference, "ssh_password", password)
 		}
@@ -509,11 +550,30 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		return dropboxStorage
 	} else if matched[1] == "b2" {
 		bucket := matched[3]
+		storageDir := matched[5]
 
-		accountID := GetPassword(preference, "b2_id", "Enter Backblaze Account ID:", true, resetPassword)
-		applicationKey := GetPassword(preference, "b2_key", "Enter Backblaze Application Key:", true, resetPassword)
+		accountID := GetPassword(preference, "b2_id", "Enter Backblaze account or application id:", true, resetPassword)
+		applicationKey := GetPassword(preference, "b2_key", "Enter corresponding Backblaze application key:", true, resetPassword)
 
-		b2Storage, err := CreateB2Storage(accountID, applicationKey, bucket, threads)
+		b2Storage, err := CreateB2Storage(accountID, applicationKey, "", bucket, storageDir, threads)
+		if err != nil {
+			LOG_ERROR("STORAGE_CREATE", "Failed to load the Backblaze B2 storage at %s: %v", storageURL, err)
+			return nil
+		}
+		SavePassword(preference, "b2_id", accountID)
+		SavePassword(preference, "b2_key", applicationKey)
+		return b2Storage
+	} else if matched[1] == "b2-custom" {
+		b2customUrlRegex := regexp.MustCompile(`^b2-custom://([^/]+)/([^/]+)(/(.+))?`)
+		matched := b2customUrlRegex.FindStringSubmatch(storageURL)
+		downloadURL := "https://" + matched[1]
+		bucket := matched[2]
+		storageDir := matched[4]
+
+		accountID := GetPassword(preference, "b2_id", "Enter Backblaze account or application id:", true, resetPassword)
+		applicationKey := GetPassword(preference, "b2_key", "Enter corresponding Backblaze application key:", true, resetPassword)
+
+		b2Storage, err := CreateB2Storage(accountID, applicationKey, downloadURL, bucket, storageDir, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the Backblaze B2 storage at %s: %v", storageURL, err)
 			return nil
@@ -564,26 +624,35 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		SavePassword(preference, "gcs_token", tokenFile)
 		return gcsStorage
 	} else if matched[1] == "gcd" {
+		// Handle writing directly to the root of the drive
+		// For gcd://driveid@/, driveid@ is match[3] not match[2]
+		if matched[2] == "" && strings.HasSuffix(matched[3], "@") {
+			matched[2], matched[3]  = matched[3], matched[2]
+		}
+		driveID := matched[2]
+		if driveID != "" {
+			driveID = driveID[:len(driveID)-1]
+		}
 		storagePath := matched[3] + matched[4]
 		prompt := fmt.Sprintf("Enter the path of the Google Drive token file (downloadable from https://duplicacy.com/gcd_start):")
 		tokenFile := GetPassword(preference, "gcd_token", prompt, true, resetPassword)
-		gcdStorage, err := CreateGCDStorage(tokenFile, storagePath, threads)
+		gcdStorage, err := CreateGCDStorage(tokenFile, driveID, storagePath, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the Google Drive storage at %s: %v", storageURL, err)
 			return nil
 		}
 		SavePassword(preference, "gcd_token", tokenFile)
 		return gcdStorage
-	} else if matched[1] == "one" {
+	} else if matched[1] == "one" || matched[1] == "odb" {
 		storagePath := matched[3] + matched[4]
 		prompt := fmt.Sprintf("Enter the path of the OneDrive token file (downloadable from https://duplicacy.com/one_start):")
-		tokenFile := GetPassword(preference, "one_token", prompt, true, resetPassword)
-		oneDriveStorage, err := CreateOneDriveStorage(tokenFile, storagePath, threads)
+		tokenFile := GetPassword(preference, matched[1] + "_token", prompt, true, resetPassword)
+		oneDriveStorage, err := CreateOneDriveStorage(tokenFile, matched[1] == "odb", storagePath, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the OneDrive storage at %s: %v", storageURL, err)
 			return nil
 		}
-		SavePassword(preference, "one_token", tokenFile)
+		SavePassword(preference, matched[1] + "_token", tokenFile)
 		return oneDriveStorage
 	} else if matched[1] == "hubic" {
 		storagePath := matched[3] + matched[4]
@@ -609,7 +678,11 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	} else if matched[1] == "webdav" || matched[1] == "webdav-http" {
 		server := matched[3]
 		username := matched[2]
-		username = username[:len(username) - 1]
+		if username == "" {
+			LOG_ERROR("STORAGE_CREATE", "No username is provided to access the WebDAV storage")
+			return nil
+		}
+		username = username[:len(username)-1]
 		storageDir := matched[5]
 		port := 0
 		useHTTP := matched[1] == "webdav-http"
@@ -629,6 +702,18 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		}
 		SavePassword(preference, "webdav_password", password)
 		return webDAVStorage
+	} else if matched[1] == "fabric" {
+		endpoint := matched[3]
+		storageDir := matched[5]
+		prompt := fmt.Sprintf("Enter the token for accessing the Storage Made Easy File Fabric storage:")
+		token := GetPassword(preference, "fabric_token", prompt, true, resetPassword)
+		smeStorage, err := CreateFileFabricStorage(endpoint, token, storageDir, threads)
+		if err != nil {
+			LOG_ERROR("STORAGE_CREATE", "Failed to load the File Fabric storage at %s: %v", storageURL, err)
+			return nil
+		}
+		SavePassword(preference, "fabric_token", token)
+		return smeStorage
 	} else {
 		LOG_ERROR("STORAGE_CREATE", "The storage type '%s' is not supported", matched[1])
 		return nil

@@ -14,14 +14,14 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
 	//"net/http/httputil"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
-	"strings"
+	"io/ioutil"
 )
 
 type WebDAVStorage struct {
@@ -42,14 +42,14 @@ type WebDAVStorage struct {
 
 var (
 	errWebDAVAuthorizationFailure = errors.New("Authentication failed")
-	errWebDAVMovedPermanently = errors.New("Moved permanently")
-	errWebDAVNotExist = errors.New("Path does not exist")
-	errWebDAVMaximumBackoff = errors.New("Maximum backoff reached")
-	errWebDAVMethodNotAllowed = errors.New("Method not allowed")
+	errWebDAVMovedPermanently     = errors.New("Moved permanently")
+	errWebDAVNotExist             = errors.New("Path does not exist")
+	errWebDAVMaximumBackoff       = errors.New("Maximum backoff reached")
+	errWebDAVMethodNotAllowed     = errors.New("Method not allowed")
 )
 
 func CreateWebDAVStorage(host string, port int, username string, password string, storageDir string, useHTTP bool, threads int) (storage *WebDAVStorage, err error) {
-	if storageDir[len(storageDir)-1] != '/' {
+	if len(storageDir) > 0 && storageDir[len(storageDir)-1] != '/' {
 		storageDir += "/"
 	}
 
@@ -59,7 +59,7 @@ func CreateWebDAVStorage(host string, port int, username string, password string
 		username:   username,
 		password:   password,
 		storageDir: "",
-		useHTTP:    false,
+		useHTTP:    useHTTP,
 
 		client:         http.DefaultClient,
 		threads:        threads,
@@ -68,7 +68,7 @@ func CreateWebDAVStorage(host string, port int, username string, password string
 
 	// Make sure it doesn't follow redirect
 	storage.client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-        return http.ErrUseLastResponse
+		return http.ErrUseLastResponse
 	}
 
 	exist, isDir, _, err := storage.GetFileInfo(0, storageDir)
@@ -128,7 +128,12 @@ func (storage *WebDAVStorage) sendRequest(method string, uri string, depth int, 
 			dataReader = bytes.NewReader(data)
 		} else if method == "PUT" {
 			headers["Content-Type"] = "application/octet-stream"
-			dataReader = CreateRateLimitedReader(data, storage.UploadRateLimit/storage.threads)
+			headers["Content-Length"] = fmt.Sprintf("%d", len(data))
+			if storage.UploadRateLimit <= 0 {
+				dataReader = bytes.NewReader(data)
+			} else {
+				dataReader = CreateRateLimitedReader(data, storage.UploadRateLimit/storage.threads)
+			}
 		} else if method == "MOVE" {
 			headers["Destination"] = storage.createConnectionString(string(data))
 			headers["Content-Type"] = "application/octet-stream"
@@ -151,12 +156,16 @@ func (storage *WebDAVStorage) sendRequest(method string, uri string, depth int, 
 			request.Header.Set(key, value)
 		}
 
+		if method == "PUT" {
+			request.ContentLength = int64(len(data))
+		}
+
 		//requestDump, err := httputil.DumpRequest(request, true)
 		//LOG_INFO("debug", "Request: %s", requestDump)
 
 		response, err := storage.client.Do(request)
 		if err != nil {
-			LOG_TRACE("WEBDAV_RETRY", "URL request '%s %s' returned an error (%v)", method, uri, err)
+			LOG_TRACE("WEBDAV_ERROR", "URL request '%s %s' returned an error (%v)", method, uri, err)
 			backoff = storage.retry(backoff)
 			continue
 		}
@@ -165,11 +174,13 @@ func (storage *WebDAVStorage) sendRequest(method string, uri string, depth int, 
 			return response.Body, response.Header, nil
 		}
 
+		io.Copy(ioutil.Discard, response.Body)
+		response.Body.Close()
+
 		if response.StatusCode == 301 {
 			return nil, nil, errWebDAVMovedPermanently
 		}
 
-		response.Body.Close()
 		if response.StatusCode == 404 {
 			// Retry if it is UPLOAD, otherwise return immediately
 			if method != "PUT" {
@@ -210,53 +221,57 @@ type WebDAVMultiStatus struct {
 
 func (storage *WebDAVStorage) getProperties(uri string, depth int, properties ...string) (map[string]WebDAVProperties, error) {
 
-	propfind := "<prop>"
-	for _, p := range properties {
-		propfind += fmt.Sprintf("<%s/>", p)
-	}
-	propfind += "</prop>"
+	maxTries := 3
+	for tries := 0; ; tries++ {
+		propfind := "<prop>"
+		for _, p := range properties {
+			propfind += fmt.Sprintf("<%s/>", p)
+		}
+		propfind += "</prop>"
 
-	body := fmt.Sprintf(`<?xml version="1.0" encoding="utf-8" ?><propfind xmlns="DAV:">%s</propfind>`, propfind)
+		body := fmt.Sprintf(`<?xml version="1.0" encoding="utf-8" ?><propfind xmlns="DAV:">%s</propfind>`, propfind)
 
-	readCloser, _, err := storage.sendRequest("PROPFIND", uri, depth, []byte(body))
-	if err != nil {
-		return nil, err
-	}
-	defer readCloser.Close()
-	content, err := ioutil.ReadAll(readCloser)
-	if err != nil {
-		return nil, err
-	}
+		readCloser, _, err := storage.sendRequest("PROPFIND", uri, depth, []byte(body))
+		if err != nil {
+			return nil, err
+		}
+		defer readCloser.Close()
+		defer io.Copy(ioutil.Discard, readCloser)
 
-	object := WebDAVMultiStatus{}
-	err = xml.Unmarshal(content, &object)
-	if err != nil {
-		return nil, err
-	}
-
-	if object.Responses == nil || len(object.Responses) == 0 {
-		return nil, errors.New("no WebDAV responses")
-	}
-
-	responses := make(map[string]WebDAVProperties)
-
-	for _, responseTag := range object.Responses {
-
-		if responseTag.PropStat == nil || responseTag.PropStat.Prop == nil || responseTag.PropStat.Prop.PropList == nil {
-			return nil, errors.New("no WebDAV properties")
+		object := WebDAVMultiStatus{}
+		err = xml.NewDecoder(readCloser).Decode(&object)
+		if err != nil {
+			if strings.Contains(err.Error(), "unexpected EOF") && tries < maxTries {
+				LOG_WARN("WEBDAV_RETRY", "Retrying on %v", err)
+				continue
+			}
+			return nil, err
 		}
 
-		properties := make(WebDAVProperties)
-		for _, prop := range responseTag.PropStat.Prop.PropList {
-			properties[prop.XMLName.Local] = prop.Value
+		if object.Responses == nil || len(object.Responses) == 0 {
+			return nil, errors.New("no WebDAV responses")
 		}
 
-		responseKey := responseTag.Href
-		responses[responseKey] = properties
+		responses := make(map[string]WebDAVProperties)
 
+		for _, responseTag := range object.Responses {
+
+			if responseTag.PropStat == nil || responseTag.PropStat.Prop == nil || responseTag.PropStat.Prop.PropList == nil {
+				return nil, errors.New("no WebDAV properties")
+			}
+
+			properties := make(WebDAVProperties)
+			for _, prop := range responseTag.PropStat.Prop.PropList {
+				properties[prop.XMLName.Local] = prop.Value
+			}
+
+			responseKey := responseTag.Href
+			responses[responseKey] = properties
+
+		}
+
+		return responses, nil
 	}
-
-	return responses, nil
 }
 
 // ListFiles return the list of files and subdirectories under 'dir'.  A subdirectories returned must have a trailing '/', with
@@ -305,6 +320,12 @@ func (storage *WebDAVStorage) ListFiles(threadIndex int, dir string) (files []st
 			}
 			files = append(files, file)
 			sizes = append(sizes, int64(0))
+
+			// Add the directory to the directory cache
+			storage.directoryCacheLock.Lock()
+			storage.directoryCache[dir + file] = 1
+			storage.directoryCacheLock.Unlock()
+
 		}
 	}
 
@@ -313,6 +334,7 @@ func (storage *WebDAVStorage) ListFiles(threadIndex int, dir string) (files []st
 
 // GetFileInfo returns the information about the file or directory at 'filePath'.
 func (storage *WebDAVStorage) GetFileInfo(threadIndex int, filePath string) (exist bool, isDir bool, size int64, err error) {
+
 	properties, err := storage.getProperties(filePath, 0, "getcontentlength", "resourcetype")
 	if err != nil {
 		if err == errWebDAVNotExist {
@@ -325,11 +347,18 @@ func (storage *WebDAVStorage) GetFileInfo(threadIndex int, filePath string) (exi
 		return false, false, 0, err
 	}
 
-	if m, exist := properties["/" + storage.storageDir + filePath]; !exist {
+	m, exist := properties["/"+storage.storageDir+filePath]
+
+	// If no properties exist for the given filePath, remove the trailing / from filePath and search again
+	if !exist && filePath != "" && filePath[len(filePath) - 1] == '/' {
+		m, exist = properties["/"+storage.storageDir+filePath[:len(filePath) - 1]]
+	}
+
+	if !exist {
 		return false, false, 0, nil
 	} else if resourceType, exist := m["resourcetype"]; exist && strings.Contains(resourceType, "collection") {
 		return true, true, 0, nil
-	} else if length, exist := m["getcontentlength"]; exist && length != ""{
+	} else if length, exist := m["getcontentlength"]; exist && length != "" {
 		value, _ := strconv.Atoi(length)
 		return true, false, int64(value), nil
 	} else {
@@ -343,6 +372,7 @@ func (storage *WebDAVStorage) DeleteFile(threadIndex int, filePath string) (err 
 	if err != nil {
 		return err
 	}
+	io.Copy(ioutil.Discard, readCloser)
 	readCloser.Close()
 	return nil
 }
@@ -353,6 +383,7 @@ func (storage *WebDAVStorage) MoveFile(threadIndex int, from string, to string) 
 	if err != nil {
 		return err
 	}
+	io.Copy(ioutil.Discard, readCloser)
 	readCloser.Close()
 	return nil
 }
@@ -366,21 +397,7 @@ func (storage *WebDAVStorage) createParentDirectory(threadIndex int, dir string)
 	}
 	parent := dir[:found]
 
-	storage.directoryCacheLock.Lock()
-	_, exist := storage.directoryCache[parent]
-	storage.directoryCacheLock.Unlock()
-
-	if exist {
-		return nil
-	}
-
-	err = storage.CreateDirectory(threadIndex, parent)
-	if err == nil {
-		storage.directoryCacheLock.Lock()
-		storage.directoryCache[parent] = 1
-		storage.directoryCacheLock.Unlock()
-	}
-	return err
+	return storage.CreateDirectory(threadIndex, parent)
 }
 
 // CreateDirectory creates a new directory.
@@ -393,18 +410,35 @@ func (storage *WebDAVStorage) CreateDirectory(threadIndex int, dir string) (err 
 		return nil
 	}
 
+	storage.directoryCacheLock.Lock()
+	_, exist := storage.directoryCache[dir]
+	storage.directoryCacheLock.Unlock()
+
+	if exist {
+		return nil
+	}
+
 	// If there is an error in creating the parent directory, proceed anyway
 	storage.createParentDirectory(threadIndex, dir)
 
 	readCloser, _, err := storage.sendRequest("MKCOL", dir, 0, []byte(""))
 	if err != nil {
-		if err == errWebDAVMethodNotAllowed || err == errWebDAVMovedPermanently {
+		if err == errWebDAVMethodNotAllowed || err == errWebDAVMovedPermanently || err == io.EOF {
 			// We simply ignore these errors and assume that the directory already exists
+			LOG_TRACE("WEBDAV_MKDIR", "Can't create directory %s: %v; error ignored", dir, err)
+			storage.directoryCacheLock.Lock()
+			storage.directoryCache[dir] = 1
+			storage.directoryCacheLock.Unlock()
 			return nil
 		}
 		return err
 	}
+	io.Copy(ioutil.Discard, readCloser)
 	readCloser.Close()
+
+	storage.directoryCacheLock.Lock()
+	storage.directoryCache[dir] = 1
+	storage.directoryCacheLock.Unlock()
 	return nil
 }
 
@@ -429,6 +463,7 @@ func (storage *WebDAVStorage) UploadFile(threadIndex int, filePath string, conte
 	if err != nil {
 		return err
 	}
+	io.Copy(ioutil.Discard, readCloser)
 	readCloser.Close()
 	return nil
 }

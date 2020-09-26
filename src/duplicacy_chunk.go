@@ -5,21 +5,25 @@
 package duplicacy
 
 import (
-	"os"
 	"bytes"
 	"compress/zlib"
 	"crypto/aes"
+	"crypto/rsa"
 	"crypto/cipher"
-	"crypto/rand"
 	"crypto/hmac"
+	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/binary"
 	"fmt"
 	"hash"
 	"io"
+	"os"
 	"runtime"
 
 	"github.com/bkaradzic/go-lz4"
+	"github.com/minio/highwayhash"
+	"github.com/klauspost/reedsolomon"
 )
 
 // A chunk needs to acquire a new buffer and return the old one for every encrypt/decrypt operation, therefore
@@ -60,10 +64,20 @@ type Chunk struct {
 
 	config *Config // Every chunk is associated with a Config object.  Which hashing algorithm to use is determined
 	// by the config
+
+	isSnapshot bool // Indicates if the chunk is a snapshot chunk (instead of a file chunk).  This is only used by RSA
+	                // encryption, where a snapshot chunk is not encrypted by RSA
+	
+	isBroken bool // Indicates the chunk did not download correctly. This is only used for -persist (allowFailures) mode
 }
 
 // Magic word to identify a duplicacy format encrypted file, plus a version number.
-var ENCRYPTION_HEADER = "duplicacy\000"
+var ENCRYPTION_BANNER = "duplicacy\000"
+
+// RSA encrypted chunks start with "duplicacy\002"
+var ENCRYPTION_VERSION_RSA byte = 2
+
+var ERASURE_CODING_BANNER = "duplicacy\003"
 
 // CreateChunk creates a new chunk.
 func CreateChunk(config *Config, bufferNeeded bool) *Chunk {
@@ -113,6 +127,8 @@ func (chunk *Chunk) Reset(hashNeeded bool) {
 	chunk.hash = nil
 	chunk.id = ""
 	chunk.size = 0
+	chunk.isSnapshot = false
+	chunk.isBroken = false
 }
 
 // Write implements the Writer interface.
@@ -170,7 +186,7 @@ func (chunk *Chunk) VerifyID() {
 
 // Encrypt encrypts the plain data stored in the chunk buffer.  If derivationKey is not nil, the actual
 // encryption key will be HMAC-SHA256(encryptionKey, derivationKey).
-func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err error) {
+func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string, isSnapshot bool) (err error) {
 
 	var aesBlock cipher.Block
 	var gcm cipher.AEAD
@@ -186,8 +202,17 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err err
 	if len(encryptionKey) > 0 {
 
 		key := encryptionKey
-
-		if len(derivationKey) > 0 {
+		usingRSA := false
+		// Enable RSA encryption only when the chunk is not a snapshot chunk
+		if chunk.config.rsaPublicKey != nil && !isSnapshot && !chunk.isSnapshot {
+			randomKey := make([]byte, 32)
+			_, err := rand.Read(randomKey)
+			if err != nil {
+				return err
+			}
+			key = randomKey
+			usingRSA = true
+		} else if len(derivationKey) > 0 {
 			hasher := chunk.config.NewKeyedHasher([]byte(derivationKey))
 			hasher.Write(encryptionKey)
 			key = hasher.Sum(nil)
@@ -204,7 +229,21 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err err
 		}
 
 		// Start with the magic number and the version number.
-		encryptedBuffer.Write([]byte(ENCRYPTION_HEADER))
+		if usingRSA {
+			// RSA encryption starts "duplicacy\002"
+			encryptedBuffer.Write([]byte(ENCRYPTION_BANNER)[:len(ENCRYPTION_BANNER) - 1])
+			encryptedBuffer.Write([]byte{ENCRYPTION_VERSION_RSA})
+
+			// Then the encrypted key
+			encryptedKey, err := rsa.EncryptOAEP(sha256.New(), rand.Reader, chunk.config.rsaPublicKey, key, nil)
+			if err != nil {
+				return err
+			}
+			binary.Write(encryptedBuffer, binary.LittleEndian, uint16(len(encryptedKey)))
+			encryptedBuffer.Write(encryptedKey)
+		} else {
+			encryptedBuffer.Write([]byte(ENCRYPTION_BANNER))
+		}
 
 		// Followed by the nonce
 		nonce = make([]byte, gcm.NonceSize())
@@ -214,10 +253,9 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err err
 		}
 		encryptedBuffer.Write(nonce)
 		offset = encryptedBuffer.Len()
-
 	}
 
-	// offset is either 0 or the length of header + nonce
+	// offset is either 0 or the length of banner + nonce
 
 	if chunk.config.CompressionLevel >= -1 && chunk.config.CompressionLevel <= 9 {
 		deflater, _ := zlib.NewWriterLevel(encryptedBuffer, chunk.config.CompressionLevel)
@@ -242,35 +280,85 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string) (err err
 		return fmt.Errorf("Invalid compression level: %d", chunk.config.CompressionLevel)
 	}
 
-	if len(encryptionKey) == 0 {
+	if len(encryptionKey) > 0 {
+
+		// PKCS7 is used.  The sizes of compressed chunks leak information about the original chunks so we want the padding sizes
+		// to be the maximum allowed by PKCS7
+		dataLength := encryptedBuffer.Len() - offset
+		paddingLength := 256 - dataLength%256
+
+		encryptedBuffer.Write(bytes.Repeat([]byte{byte(paddingLength)}, paddingLength))
+		encryptedBuffer.Write(bytes.Repeat([]byte{0}, gcm.Overhead()))
+
+		// The encrypted data will be appended to the duplicacy banner and the once.
+		encryptedBytes := gcm.Seal(encryptedBuffer.Bytes()[:offset], nonce,
+			encryptedBuffer.Bytes()[offset:offset+dataLength+paddingLength], nil)
+
+		encryptedBuffer.Truncate(len(encryptedBytes))
+	}
+
+	if chunk.config.DataShards == 0 || chunk.config.ParityShards == 0 {
 		chunk.buffer, encryptedBuffer = encryptedBuffer, chunk.buffer
-		return nil
+		return
 	}
 
-	// PKCS7 is used.  Compressed chunk sizes leaks information about the original chunks so we want the padding sizes
-	// to be the maximum allowed by PKCS7
-	dataLength := encryptedBuffer.Len() - offset
-	paddingLength := dataLength % 256
-	if paddingLength == 0 {
-		paddingLength = 256
+	// Start erasure coding
+	encoder, err := reedsolomon.New(chunk.config.DataShards, chunk.config.ParityShards)
+	if err != nil {
+		return err
+	}
+	chunkSize := len(encryptedBuffer.Bytes())
+	shardSize := (chunkSize + chunk.config.DataShards - 1) / chunk.config.DataShards
+	// Append zeros to make the last shard to have the same size as other
+	encryptedBuffer.Write(make([]byte, shardSize * chunk.config.DataShards - chunkSize))
+	// Grow the buffer for parity shards
+	encryptedBuffer.Grow(shardSize * chunk.config.ParityShards)
+	// Now create one slice for each shard, reusing the data in the buffer
+	data := make([][]byte, chunk.config.DataShards + chunk.config.ParityShards)
+	for i := 0; i < chunk.config.DataShards + chunk.config.ParityShards; i++ {
+		data[i] = encryptedBuffer.Bytes()[i * shardSize: (i + 1) * shardSize]
+	}
+	// This populates the parity shard
+	encoder.Encode(data)
+
+	// Prepare the chunk to be uploaded
+	chunk.buffer.Reset()
+	// First the banner
+	chunk.buffer.Write([]byte(ERASURE_CODING_BANNER))
+	// Then the header which includes the chunk size, data/parity and a 2-byte checksum
+	header := make([]byte, 14)
+	binary.LittleEndian.PutUint64(header[0:], uint64(chunkSize))
+	binary.LittleEndian.PutUint16(header[8:], uint16(chunk.config.DataShards))
+	binary.LittleEndian.PutUint16(header[10:], uint16(chunk.config.ParityShards))
+	header[12] = header[0] ^ header[2] ^ header[4] ^ header[6] ^ header[8] ^ header[10]
+	header[13] = header[1] ^ header[3] ^ header[5] ^ header[7] ^ header[9] ^ header[11]
+	chunk.buffer.Write(header)
+	// Calculate the highway hash for each shard
+	hashKey := make([]byte, 32)
+	for _, part := range data {
+		hasher, err := highwayhash.New(hashKey)
+		if err != nil {
+			return err
+		}
+		_, err = hasher.Write(part)
+		if err != nil {
+			return err
+		}
+		chunk.buffer.Write(hasher.Sum(nil))
 	}
 
-	encryptedBuffer.Write(bytes.Repeat([]byte{byte(paddingLength)}, paddingLength))
-	encryptedBuffer.Write(bytes.Repeat([]byte{0}, gcm.Overhead()))
-
-	// The encrypted data will be appended to the duplicacy header and the once.
-	encryptedBytes := gcm.Seal(encryptedBuffer.Bytes()[:offset], nonce,
-		encryptedBuffer.Bytes()[offset:offset+dataLength+paddingLength], nil)
-
-	encryptedBuffer.Truncate(len(encryptedBytes))
-
-	chunk.buffer, encryptedBuffer = encryptedBuffer, chunk.buffer
+	// Copy the data
+	for _, part := range data {
+		chunk.buffer.Write(part)
+	}
+	// Append the header again for redundancy
+	chunk.buffer.Write(header)
 
 	return nil
 
 }
 
-// This is to ensure compability with Vertical Backup, which still uses HMAC-SHA256 (instead of HMAC-BLAKE2) to
+// This is to ensure compatibility with Vertical Backup, which still uses HMAC-SHA256 (instead of HMAC-BLAKE2) to
 // derive the key used to encrypt/decrypt files and chunks.
 
 var DecryptWithHMACSHA256 = false
@@ -294,6 +382,122 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 	}()
 
 	chunk.buffer, encryptedBuffer = encryptedBuffer, chunk.buffer
+	bannerLength := len(ENCRYPTION_BANNER)
+
+	if len(encryptedBuffer.Bytes()) > bannerLength && string(encryptedBuffer.Bytes()[:bannerLength]) == ERASURE_CODING_BANNER {
+
+		// The chunk was encoded with erasure coding
+		if len(encryptedBuffer.Bytes()) < bannerLength + 14 {
+			return fmt.Errorf("Erasure coding header truncated (%d bytes)", len(encryptedBuffer.Bytes()))
+		}
+		// Check the header checksum
+		header := encryptedBuffer.Bytes()[bannerLength: bannerLength + 14]
+		if header[12] != header[0] ^ header[2] ^ header[4] ^ header[6] ^ header[8] ^ header[10] ||
+		   header[13] != header[1] ^ header[3] ^ header[5] ^ header[7] ^ header[9] ^ header[11] {
+			return fmt.Errorf("Erasure coding header corrupted (%x)", header)
+		}
+
+		// Read the parameters
+		chunkSize := int(binary.LittleEndian.Uint64(header[0:8]))
+		dataShards := int(binary.LittleEndian.Uint16(header[8:10]))
+		parityShards := int(binary.LittleEndian.Uint16(header[10:12]))
+		shardSize := (chunkSize + chunk.config.DataShards - 1) / chunk.config.DataShards
+		// This is the length the chunk file should have
+		expectedLength := bannerLength + 2 * len(header) + (dataShards + parityShards) * (shardSize + 32)
+		// The minimum length that can be recovered from
+		minimumLength := bannerLength + len(header) + (dataShards + parityShards) * 32 + dataShards * shardSize
+		LOG_DEBUG("CHUNK_ERASURECODE", "Chunk size: %d bytes, data size: %d, parity: %d/%d", chunkSize, len(encryptedBuffer.Bytes()), dataShards, parityShards)
+		if len(encryptedBuffer.Bytes()) > expectedLength {
+			LOG_WARN("CHUNK_ERASURECODE", "Chunk has %d bytes (instead of %d)", len(encryptedBuffer.Bytes()), expectedLength)
+		} else if len(encryptedBuffer.Bytes()) == expectedLength {
+			// Correct size; fall through
+		} else if len(encryptedBuffer.Bytes()) > minimumLength {
+			LOG_WARN("CHUNK_ERASURECODE", "Chunk is truncated (%d out of %d bytes)", len(encryptedBuffer.Bytes()), expectedLength)
+		} else {
+			return fmt.Errorf("Not enough chunk data for recovery; chunk size: %d bytes, data size: %d, parity: %d/%d", chunkSize, len(encryptedBuffer.Bytes()), dataShards, parityShards)
+		}
+
+		// Where the hashes start
+		hashOffset := bannerLength + len(header)
+		// Where the data start
+		dataOffset := hashOffset + (dataShards + parityShards) * 32
+
+		data := make([][]byte, dataShards + parityShards)
+		recoveryNeeded := false
+		hashKey := make([]byte, 32)
+		availableShards := 0
+		for i := 0; i < dataShards + parityShards; i++ {
+			start := dataOffset + i * shardSize
+			if start + shardSize > len(encryptedBuffer.Bytes()) {
+				// the current shard is incomplete
+				break
+			}
+			// Now verify the hash
+			hasher, err := highwayhash.New(hashKey)
+			if err != nil {
+				return err
+			}
+			_, err = hasher.Write(encryptedBuffer.Bytes()[start: start + shardSize])
+			if err != nil {
+				return err
+			}
+			if bytes.Compare(hasher.Sum(nil), encryptedBuffer.Bytes()[hashOffset + i * 32: hashOffset + (i + 1) * 32]) != 0 {
+				if i < dataShards {
+					recoveryNeeded = true
+				}
+			} else {
+				// The shard is good
+				data[i] = encryptedBuffer.Bytes()[start: start + shardSize]
+				availableShards++
+				if availableShards >= dataShards {
+					// We have enough shards to recover; skip the remaining shards
+					break
+				}
+			}
+		}
+
+		if !recoveryNeeded {
+			// Remove the padding zeros from the last shard
+			encryptedBuffer.Truncate(dataOffset + chunkSize)
+			// Skip the header and hashes
+			encryptedBuffer.Read(encryptedBuffer.Bytes()[:dataOffset])
+		} else {
+			if availableShards < dataShards {
+				return fmt.Errorf("Not enough chunk data for recover; only %d out of %d shards are complete", availableShards, dataShards + parityShards)
+			}
+
+			// Show the validity of shards using a string of * and -
+			slots := ""
+			for _, part := range data {
+				if len(part) != 0 {
+					slots += "*"
+				} else {
+					slots += "-"
+				}
+			}
+
+			LOG_WARN("CHUNK_ERASURECODE", "Recovering a %d byte chunk from %d byte shards: %s", chunkSize, shardSize, slots)
+			encoder, err := reedsolomon.New(dataShards, parityShards)
+			if err != nil {
+				return err
+			}
+			err = encoder.Reconstruct(data)
+			if err != nil {
+				return err
+			}
+			LOG_DEBUG("CHUNK_ERASURECODE", "Chunk data successfully recovered")
+			buffer := AllocateChunkBuffer()
+			buffer.Reset()
+			for i := 0; i < dataShards; i++ {
+				buffer.Write(data[i])
+			}
+			buffer.Truncate(chunkSize)
+
+			ReleaseChunkBuffer(encryptedBuffer)
+			encryptedBuffer = buffer
+		}
+
+	}
 
 	if len(encryptionKey) > 0 {
 
@@ -311,6 +515,41 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 			key = hasher.Sum(nil)
 		}
 
+		if len(encryptedBuffer.Bytes()) < bannerLength + 12 {
+			return fmt.Errorf("No enough encrypted data (%d bytes) provided", len(encryptedBuffer.Bytes()))
+		}
+
+		if string(encryptedBuffer.Bytes()[:bannerLength-1]) != ENCRYPTION_BANNER[:bannerLength-1] {
+			return fmt.Errorf("The storage doesn't seem to be encrypted")
+		}
+
+		encryptionVersion := encryptedBuffer.Bytes()[bannerLength-1]
+		if encryptionVersion != 0 && encryptionVersion != ENCRYPTION_VERSION_RSA {
+			return fmt.Errorf("Unsupported encryption version %d", encryptionVersion)
+		}
+
+		if encryptionVersion == ENCRYPTION_VERSION_RSA {
+			if chunk.config.rsaPrivateKey == nil {
+				LOG_ERROR("CHUNK_DECRYPT", "An RSA private key is required to decrypt the chunk")
+				return fmt.Errorf("An RSA private key is required to decrypt the chunk")
+			}
+
+			encryptedKeyLength := binary.LittleEndian.Uint16(encryptedBuffer.Bytes()[bannerLength:bannerLength+2])
+
+			if len(encryptedBuffer.Bytes()) < bannerLength + 14 + int(encryptedKeyLength) {
+				return fmt.Errorf("No enough encrypted data (%d bytes) provided", len(encryptedBuffer.Bytes()))
+			}
+
+			encryptedKey := encryptedBuffer.Bytes()[bannerLength + 2:bannerLength + 2 + int(encryptedKeyLength)]
+			bannerLength += 2 + int(encryptedKeyLength)
+
+			decryptedKey, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, chunk.config.rsaPrivateKey, encryptedKey, nil)
+			if err != nil {
+				return err
+			}
+			key = decryptedKey
+		}
+
 		aesBlock, err := aes.NewCipher(key)
 		if err != nil {
 			return err
@@ -321,22 +560,8 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 			return err
 		}
 
-		headerLength := len(ENCRYPTION_HEADER)
-		offset = headerLength + gcm.NonceSize()
-
-		if len(encryptedBuffer.Bytes()) < offset {
-			return fmt.Errorf("No enough encrypted data (%d bytes) provided", len(encryptedBuffer.Bytes()))
-		}
-
-		if string(encryptedBuffer.Bytes()[:headerLength-1]) != ENCRYPTION_HEADER[:headerLength-1] {
-			return fmt.Errorf("The storage doesn't seem to be encrypted")
-		}
-
-		if encryptedBuffer.Bytes()[headerLength-1] != 0 {
-			return fmt.Errorf("Unsupported encryption version %d", encryptedBuffer.Bytes()[headerLength-1])
-		}
-
-		nonce := encryptedBuffer.Bytes()[headerLength:offset]
+		offset = bannerLength + gcm.NonceSize()
+		nonce := encryptedBuffer.Bytes()[bannerLength:offset]
 
 		decryptedBytes, err := gcm.Open(encryptedBuffer.Bytes()[:offset], nonce,
 			encryptedBuffer.Bytes()[offset:], nil)
@@ -344,7 +569,6 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 		if err != nil {
 			return err
 		}
-
 
 		paddingLength := int(decryptedBytes[len(decryptedBytes)-1])
 		if paddingLength == 0 {

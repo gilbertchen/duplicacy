@@ -10,10 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
-	"path/filepath"
 	"regexp"
-	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -58,7 +55,7 @@ func IsEmptyFilter(pattern string) bool {
 }
 
 func IsUnspecifiedFilter(pattern string) bool {
-	if pattern[0] != '+' && pattern[0] != '-' && pattern[0] != 'i' && pattern[0] != 'e' {
+	if pattern[0] != '+' && pattern[0] != '-' && !strings.HasPrefix(pattern, "i:") && !strings.HasPrefix(pattern, "e:")  {
 		return true
 	} else {
 		return false
@@ -175,6 +172,15 @@ func GetPasswordFromPreference(preference Preference, passwordType string) strin
 		LOG_DEBUG("PASSWORD_ENV_VAR", "Reading the environment variable %s", name)
 		if password, found := os.LookupEnv(name); found && password != "" {
 			return password
+		}
+
+		re := regexp.MustCompile(`[^a-zA-Z0-9_]`)
+		namePlain := re.ReplaceAllString(name, "_")
+		if namePlain != name {
+			LOG_DEBUG("PASSWORD_ENV_VAR", "Reading the environment variable %s", namePlain)
+			if password, found := os.LookupEnv(namePlain); found && password != "" {
+				return password
+			}
 		}
 	}
 
@@ -390,19 +396,6 @@ func MatchPath(filePath string, patterns []string) (included bool) {
 	}
 }
 
-func joinPath(components ...string) string {
-
-	combinedPath := path.Join(components...)
-	if len(combinedPath) > 257 && runtime.GOOS == "windows" {
-		combinedPath = `\\?\` + filepath.Join(components...)
-		// If the path is on a samba drive we must use the UNC format
-		if strings.HasPrefix(combinedPath, `\\?\\\`) {
-			combinedPath = `\\?\UNC\` + combinedPath[6:]
-		}
-	}
-	return combinedPath
-}
-
 func PrettyNumber(number int64) string {
 
 	G := int64(1024 * 1024 * 1024)
@@ -441,7 +434,7 @@ func PrettyTime(seconds int64) string {
 			seconds/day, (seconds%day)/3600, (seconds%3600)/60, seconds%60)
 	} else if seconds > day {
 		return fmt.Sprintf("1 day %02d:%02d:%02d", (seconds%day)/3600, (seconds%3600)/60, seconds%60)
-	} else if seconds > 0 {
+	} else if seconds >= 0 {
 		return fmt.Sprintf("%02d:%02d:%02d", seconds/3600, (seconds%3600)/60, seconds%60)
 	} else {
 		return "n/a"
@@ -466,11 +459,4 @@ func AtoSize(sizeString string) int {
 	}
 
 	return size
-}
-
-func MinInt(x, y int) int {
-	if x < y {
-		return x
-	}
-	return y
 }

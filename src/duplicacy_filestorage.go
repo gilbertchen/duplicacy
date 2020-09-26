@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -165,7 +166,7 @@ func (storage *FileStorage) UploadFile(threadIndex int, filePath string, content
 			}
 		} else {
 			if !stat.IsDir() {
-				fmt.Errorf("The path %s is not a directory", dir)
+				return fmt.Errorf("The path %s is not a directory", dir)
 			}
 		}
 	}
@@ -190,7 +191,19 @@ func (storage *FileStorage) UploadFile(threadIndex int, filePath string, content
 		return err
 	}
 
-	file.Close()
+	if err = file.Sync(); err != nil {
+		pathErr, ok := err.(*os.PathError)
+		isNotSupported := ok && pathErr.Op == "sync" && pathErr.Err == syscall.ENOTSUP
+		if !isNotSupported {
+			_ = file.Close()
+			return err
+		}
+	}
+
+	err = file.Close()
+	if err != nil {
+		return err
+	}
 
 	err = os.Rename(temporaryFile, fullPath)
 	if err != nil {

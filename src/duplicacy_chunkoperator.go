@@ -18,7 +18,7 @@ const (
 	ChunkOperationResurrect = 3
 )
 
-// ChunkOperatorTask is used to pass paramaters for different kinds of chunk operations.
+// ChunkOperatorTask is used to pass parameters for different kinds of chunk operations.
 type ChunkOperatorTask struct {
 	operation int    // The type of operation
 	chunkID   string // The chunk id

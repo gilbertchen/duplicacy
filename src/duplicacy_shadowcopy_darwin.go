@@ -13,6 +13,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"syscall"
 	"time"
@@ -25,7 +26,7 @@ var snapshotDate string
 func CharsToString(ca []int8) string {
 
 	len := len(ca)
-	ba := make([]byte, len) 
+	ba := make([]byte, len)
 
 	for i, v := range ca {
 		ba[i] = byte(v)
@@ -54,8 +55,8 @@ func GetPathDeviceId(path string) (deviceId int32, err error) {
 // Executes shell command with timeout and returns stdout
 func CommandWithTimeout(timeoutInSeconds int, name string, arg ...string) (output string, err error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutInSeconds) * time.Second)
-	defer cancel() 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(timeoutInSeconds)*time.Second)
+	defer cancel()
 
 	cmd := exec.CommandContext(ctx, name, arg...)
 	out, err := cmd.Output()
@@ -91,10 +92,10 @@ func DeleteShadowCopy() {
 		LOG_ERROR("VSS_DELETE", "Error while deleting temporary mount directory")
 		return
 	}
-	
+
 	LOG_INFO("VSS_DELETE", "Shadow copy unmounted and deleted at %s", snapshotPath)
 
-	snapshotPath = "" 
+	snapshotPath = ""
 }
 
 func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadowTop string) {
@@ -123,12 +124,12 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 	}
 	deviceIdRepository, err := GetPathDeviceId(top)
 	if err != nil {
-		LOG_ERROR("VSS_INIT", "Unable to get device ID of path: ", top)
+		LOG_ERROR("VSS_INIT", "Unable to get device ID of path: %s", top)
 		return top
 	}
 	if deviceIdLocal != deviceIdRepository {
-		LOG_WARN("VSS_PATH", "VSS not supported for non-local repository path: ", top)
-		return top 
+		LOG_WARN("VSS_PATH", "VSS not supported for non-local repository path: %s", top)
+		return top
 	}
 
 	if timeoutInSeconds <= 60 {
@@ -145,22 +146,37 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 	// Use tmutil to create snapshot
 	tmutilOutput, err := CommandWithTimeout(timeoutInSeconds, "tmutil", "snapshot")
 	if err != nil {
-		LOG_ERROR("VSS_CREATE", "Error while calling tmutil: ", err)
+		LOG_ERROR("VSS_CREATE", "Error while calling tmutil: %v", err)
 		return top
 	}
 
 	colonPos := strings.IndexByte(tmutilOutput, ':')
 	if colonPos < 0 {
-		LOG_ERROR("VSS_CREATE", "Snapshot creation failed: ", tmutilOutput)
+		LOG_ERROR("VSS_CREATE", "Snapshot creation failed: %s", tmutilOutput)
 		return top
 	}
 	snapshotDate = strings.TrimSpace(tmutilOutput[colonPos+1:])
 
-	// Mount snapshot as readonly and hide from GUI i.e. Finder
-	_, err = CommandWithTimeout(timeoutInSeconds, 
-		"/sbin/mount", "-t", "apfs", "-o", "nobrowse,-r,-s=com.apple.TimeMachine." + snapshotDate, "/", snapshotPath)
+	tmutilOutput, err = CommandWithTimeout(timeoutInSeconds, "tmutil", "listlocalsnapshots", ".")
 	if err != nil {
-		LOG_ERROR("VSS_CREATE", "Error while mounting snapshot: ", err)
+		LOG_ERROR("VSS_CREATE", "Error while calling 'tmutil listlocalsnapshots': %v", err)
+		return top
+	}
+	snapshotName := "com.apple.TimeMachine." + snapshotDate
+ 
+	r := regexp.MustCompile(`(?m)^(.+` + snapshotDate + `.*)$`)
+	snapshotNames := r.FindStringSubmatch(tmutilOutput)
+	if len(snapshotNames) > 0 {
+		snapshotName = snapshotNames[0]
+	} else {
+		LOG_WARN("VSS_CREATE", "Error while using 'tmutil listlocalsnapshots' to find snapshot name. Will fallback to 'com.apple.TimeMachine.SNAPSHOT_DATE'")
+	}
+ 
+	// Mount snapshot as readonly and hide from GUI i.e. Finder
+	_, err = CommandWithTimeout(timeoutInSeconds,
+		"/sbin/mount", "-t", "apfs", "-o", "nobrowse,-r,-s="+snapshotName, "/", snapshotPath)
+	if err != nil {
+		LOG_ERROR("VSS_CREATE", "Error while mounting snapshot: %v", err)
 		return top
 	}
 

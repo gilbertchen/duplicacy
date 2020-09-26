@@ -36,6 +36,7 @@ type ChunkDownloader struct {
 	snapshotCache  *FileStorage // Used as cache if not nil; usually for downloading snapshot chunks
 	showStatistics bool         // Show a stats log for each chunk if true
 	threads        int          // Number of threads
+	allowFailures  bool         // Whether to failfast on download error, or continue
 
 	taskList       []ChunkDownloadTask // The list of chunks to be downloaded
 	completedTasks map[int]bool        // Store downloaded chunks
@@ -51,15 +52,18 @@ type ChunkDownloader struct {
 	numberOfDownloadedChunks  int   // The number of chunks that have been downloaded
 	numberOfDownloadingChunks int   // The number of chunks still being downloaded
 	numberOfActiveChunks      int   // The number of chunks that is being downloaded or has been downloaded but not reclaimed
+
+	NumberOfFailedChunks      int   // The number of chunks that can't be downloaded
 }
 
-func CreateChunkDownloader(config *Config, storage Storage, snapshotCache *FileStorage, showStatistics bool, threads int) *ChunkDownloader {
+func CreateChunkDownloader(config *Config, storage Storage, snapshotCache *FileStorage, showStatistics bool, threads int, allowFailures bool) *ChunkDownloader {
 	downloader := &ChunkDownloader{
 		config:         config,
 		storage:        storage,
 		snapshotCache:  snapshotCache,
 		showStatistics: showStatistics,
 		threads:        threads,
+		allowFailures:  allowFailures,
 
 		taskList:       nil,
 		completedTasks: make(map[int]bool),
@@ -126,6 +130,7 @@ func (downloader *ChunkDownloader) AddFiles(snapshot *Snapshot, files []*Entry) 
 
 // AddChunk adds a single chunk the download list.
 func (downloader *ChunkDownloader) AddChunk(chunkHash string) int {
+
 	task := ChunkDownloadTask{
 		chunkIndex:    len(downloader.taskList),
 		chunkHash:     chunkHash,
@@ -178,7 +183,7 @@ func (downloader *ChunkDownloader) Reclaim(chunkIndex int) {
 		return
 	}
 
-	for i, _ := range downloader.completedTasks {
+	for i := range downloader.completedTasks {
 		if i < chunkIndex && downloader.taskList[i].chunk != nil {
 			downloader.config.PutChunk(downloader.taskList[i].chunk)
 			downloader.taskList[i].chunk = nil
@@ -195,6 +200,16 @@ func (downloader *ChunkDownloader) Reclaim(chunkIndex int) {
 		}
 	}
 	downloader.lastChunkIndex = chunkIndex
+}
+
+// Return the chunk last downloaded and its hash
+func (downloader *ChunkDownloader) GetLastDownloadedChunk() (chunk *Chunk, chunkHash string) {
+	if downloader.lastChunkIndex >= len(downloader.taskList) {
+		return nil, ""
+	}
+
+	task := downloader.taskList[downloader.lastChunkIndex]
+	return task.chunk, task.chunkHash
 }
 
 // WaitForChunk waits until the specified chunk is ready
@@ -239,8 +254,55 @@ func (downloader *ChunkDownloader) WaitForChunk(chunkIndex int) (chunk *Chunk) {
 		downloader.taskList[completion.chunkIndex].chunk = completion.chunk
 		downloader.numberOfDownloadedChunks++
 		downloader.numberOfDownloadingChunks--
+		if completion.chunk.isBroken {
+			downloader.NumberOfFailedChunks++
+		}
 	}
 	return downloader.taskList[chunkIndex].chunk
+}
+
+// WaitForCompletion waits until all chunks have been downloaded
+func (downloader *ChunkDownloader) WaitForCompletion() {
+
+	// Tasks in completedTasks have not been counted by numberOfActiveChunks
+	downloader.numberOfActiveChunks -= len(downloader.completedTasks)
+
+	// find the completed task with the largest index; we'll start from the next index
+	for index := range downloader.completedTasks {
+		if downloader.lastChunkIndex < index {
+			downloader.lastChunkIndex = index
+		}
+	}
+
+	// Looping until there isn't a download task in progress
+	for downloader.numberOfActiveChunks > 0 || downloader.lastChunkIndex + 1 < len(downloader.taskList) {
+
+		// Wait for a completion event first
+		if downloader.numberOfActiveChunks > 0 {
+			completion := <-downloader.completionChannel
+			downloader.config.PutChunk(completion.chunk)
+			downloader.numberOfActiveChunks--
+			downloader.numberOfDownloadedChunks++
+			downloader.numberOfDownloadingChunks--
+			if completion.chunk.isBroken {
+				downloader.NumberOfFailedChunks++
+			}
+		}
+
+		// Pass the tasks one by one to the download queue
+		if downloader.lastChunkIndex + 1 < len(downloader.taskList) {
+			task := &downloader.taskList[downloader.lastChunkIndex + 1]
+			if task.isDownloading {
+				downloader.lastChunkIndex++
+				continue
+			}
+			downloader.taskQueue <- *task
+			task.isDownloading = true
+			downloader.numberOfDownloadingChunks++
+			downloader.numberOfActiveChunks++
+			downloader.lastChunkIndex++
+		}
+	}
 }
 
 // Stop terminates all downloading goroutines
@@ -251,9 +313,12 @@ func (downloader *ChunkDownloader) Stop() {
 		downloader.taskList[completion.chunkIndex].chunk = completion.chunk
 		downloader.numberOfDownloadedChunks++
 		downloader.numberOfDownloadingChunks--
-	}
+		if completion.chunk.isBroken {
+			downloader.NumberOfFailedChunks++
+		}
+}
 
-	for i, _ := range downloader.completedTasks {
+	for i := range downloader.completedTasks {
 		downloader.config.PutChunk(downloader.taskList[i].chunk)
 		downloader.taskList[i].chunk = nil
 		downloader.numberOfActiveChunks--
@@ -305,13 +370,22 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 	// will be set up before the encryption
 	chunk.Reset(false)
 
+	// If failures are allowed, complete the task properly
+	completeFailedChunk := func(chunk *Chunk) {
+		if downloader.allowFailures {
+			chunk.isBroken = true
+			downloader.completionChannel <- ChunkDownloadCompletion{chunk: chunk, chunkIndex: task.chunkIndex}
+		}
+	}
+
 	const MaxDownloadAttempts = 3
 	for downloadAttempt := 0; ; downloadAttempt++ {
 
 		// Find the chunk by ID first.
 		chunkPath, exist, _, err := downloader.storage.FindChunk(threadIndex, chunkID, false)
 		if err != nil {
-			LOG_ERROR("DOWNLOAD_CHUNK", "Failed to find the chunk %s: %v", chunkID, err)
+			completeFailedChunk(chunk)
+			LOG_WERROR(downloader.allowFailures, "DOWNLOAD_CHUNK", "Failed to find the chunk %s: %v", chunkID, err)
 			return false
 		}
 
@@ -319,7 +393,8 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 			// No chunk is found.  Have to find it in the fossil pool again.
 			fossilPath, exist, _, err := downloader.storage.FindChunk(threadIndex, chunkID, true)
 			if err != nil {
-				LOG_ERROR("DOWNLOAD_CHUNK", "Failed to find the chunk %s: %v", chunkID, err)
+				completeFailedChunk(chunk)
+				LOG_WERROR(downloader.allowFailures, "DOWNLOAD_CHUNK", "Failed to find the chunk %s: %v", chunkID, err)
 				return false
 			}
 
@@ -341,11 +416,12 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 					continue
 				}
 
+				completeFailedChunk(chunk)
 				// A chunk is not found.  This is a serious error and hopefully it will never happen.
 				if err != nil {
-					LOG_FATAL("DOWNLOAD_CHUNK", "Chunk %s can't be found: %v", chunkID, err)
+					LOG_WERROR(downloader.allowFailures,  "DOWNLOAD_CHUNK", "Chunk %s can't be found: %v", chunkID, err)
 				} else {
-					LOG_FATAL("DOWNLOAD_CHUNK", "Chunk %s can't be found", chunkID)
+					LOG_WERROR(downloader.allowFailures, "DOWNLOAD_CHUNK", "Chunk %s can't be found", chunkID)
 				}
 				return false
 			}
@@ -354,7 +430,8 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 			// downloading again.
 			err = downloader.storage.MoveFile(threadIndex, fossilPath, chunkPath)
 			if err != nil {
-				LOG_FATAL("DOWNLOAD_CHUNK", "Failed to resurrect chunk %s: %v", chunkID, err)
+				completeFailedChunk(chunk)
+				LOG_WERROR(downloader.allowFailures, "DOWNLOAD_CHUNK", "Failed to resurrect chunk %s: %v", chunkID, err)
 				return false
 			}
 
@@ -371,7 +448,8 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 				chunk.Reset(false)
 				continue
 			} else {
-				LOG_ERROR("DOWNLOAD_CHUNK", "Failed to download the chunk %s: %v", chunkID, err)
+				completeFailedChunk(chunk)
+				LOG_WERROR(downloader.allowFailures, "DOWNLOAD_CHUNK", "Failed to download the chunk %s: %v", chunkID, err)
 				return false
 			}
 		}
@@ -383,7 +461,8 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 				chunk.Reset(false)
 				continue
 			} else {
-				LOG_ERROR("DOWNLOAD_DECRYPT", "Failed to decrypt the chunk %s: %v", chunkID, err)
+				completeFailedChunk(chunk)
+				LOG_WERROR(downloader.allowFailures, "DOWNLOAD_DECRYPT", "Failed to decrypt the chunk %s: %v", chunkID, err)
 				return false
 			}
 		}
@@ -395,7 +474,8 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 				chunk.Reset(false)
 				continue
 			} else {
-				LOG_FATAL("DOWNLOAD_CORRUPTED", "The chunk %s has a hash id of %s", chunkID, actualChunkID)
+				completeFailedChunk(chunk)
+				LOG_WERROR(downloader.allowFailures, "DOWNLOAD_CORRUPTED", "The chunk %s has a hash id of %s", chunkID, actualChunkID)
 				return false
 			}
 		}

@@ -57,7 +57,7 @@ func CreateFossilCollection(allSnapshots map[string][]*Snapshot) *FossilCollecti
 	}
 
 	return &FossilCollection{
-		LastRevisions: lastRevisions,
+		LastRevisions:    lastRevisions,
 		DeletedRevisions: make(map[string][]int),
 	}
 }
@@ -270,7 +270,7 @@ func (reader *sequenceReader) Read(data []byte) (n int, err error) {
 
 func (manager *SnapshotManager) CreateChunkDownloader() {
 	if manager.chunkDownloader == nil {
-		manager.chunkDownloader = CreateChunkDownloader(manager.config, manager.storage, manager.snapshotCache, false, 1)
+		manager.chunkDownloader = CreateChunkDownloader(manager.config, manager.storage, manager.snapshotCache, false, 1, false)
 	}
 }
 
@@ -381,12 +381,19 @@ func (manager *SnapshotManager) DownloadSnapshotContents(snapshot *Snapshot, pat
 	return true
 }
 
+// ClearSnapshotContents removes contents loaded by DownloadSnapshotContents
+func (manager *SnapshotManager) ClearSnapshotContents(snapshot *Snapshot) {
+	snapshot.ChunkHashes = nil
+	snapshot.ChunkLengths = nil
+	snapshot.Files = nil
+}
+
 // CleanSnapshotCache removes all files not referenced by the specified 'snapshot' in the snapshot cache.
 func (manager *SnapshotManager) CleanSnapshotCache(latestSnapshot *Snapshot, allSnapshots map[string][]*Snapshot) bool {
 
 	if allSnapshots == nil {
 		// If the 'fossils' directory exists then don't clean the cache as all snapshots will be needed later
-		// during the fossil collection phase.  The deletion procedure creates this direcotry.
+		// during the fossil collection phase.  The deletion procedure creates this directory.
 		// We only check this condition when allSnapshots is nil because
 		// in thise case it is the deletion procedure that is trying to clean the snapshot cache.
 		exist, _, _, err := manager.snapshotCache.GetFileInfo(0, "fossils")
@@ -653,6 +660,51 @@ func (manager *SnapshotManager) GetSnapshotChunks(snapshot *Snapshot, keepChunkH
 	return chunks
 }
 
+// GetSnapshotChunkHashes has an option to retrieve chunk hashes in addition to chunk ids.
+func (manager *SnapshotManager) GetSnapshotChunkHashes(snapshot *Snapshot, chunkHashes *map[string]bool, chunkIDs map[string]bool) {
+
+	for _, chunkHash := range snapshot.FileSequence {
+		if chunkHashes != nil {
+			(*chunkHashes)[chunkHash] = true
+		}
+		chunkIDs[manager.config.GetChunkIDFromHash(chunkHash)] = true
+	}
+
+	for _, chunkHash := range snapshot.ChunkSequence {
+		if chunkHashes != nil {
+			(*chunkHashes)[chunkHash] = true
+		}
+		chunkIDs[manager.config.GetChunkIDFromHash(chunkHash)] = true
+	}
+
+	for _, chunkHash := range snapshot.LengthSequence {
+		if chunkHashes != nil {
+			(*chunkHashes)[chunkHash] = true
+		}
+		chunkIDs[manager.config.GetChunkIDFromHash(chunkHash)] = true
+	}
+
+	if len(snapshot.ChunkHashes) == 0 {
+
+		description := manager.DownloadSequence(snapshot.ChunkSequence)
+		err := snapshot.LoadChunks(description)
+		if err != nil {
+			LOG_ERROR("SNAPSHOT_CHUNK", "Failed to load chunks for snapshot %s at revision %d: %v",
+				snapshot.ID, snapshot.Revision, err)
+			return
+		}
+	}
+
+	for _, chunkHash := range snapshot.ChunkHashes {
+		if chunkHashes != nil {
+			(*chunkHashes)[chunkHash] = true
+		}
+		chunkIDs[manager.config.GetChunkIDFromHash(chunkHash)] = true
+	}
+
+	snapshot.ClearChunks()
+}
+
 // ListSnapshots shows the information about a snapshot.
 func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList []int, tag string,
 	showFiles bool, showChunks bool) int {
@@ -689,6 +741,9 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 		for _, revision := range revisions {
 
 			snapshot := manager.DownloadSnapshot(snapshotID, revision)
+			if tag != "" && snapshot.Tag != tag {
+				continue
+			}
 			creationTime := time.Unix(snapshot.StartTime, 0).Format("2006-01-02 15:04")
 			tagWithSpace := ""
 			if len(snapshot.Tag) > 0 {
@@ -697,15 +752,16 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 			LOG_INFO("SNAPSHOT_INFO", "Snapshot %s revision %d created at %s %s%s",
 				snapshotID, revision, creationTime, tagWithSpace, snapshot.Options)
 
-			if tag != "" && snapshot.Tag != tag {
-				continue
-			}
-
 			if showFiles {
 				manager.DownloadSnapshotFileSequence(snapshot, nil, false)
 			}
 
 			if showFiles {
+
+				if snapshot.NumberOfFiles > 0 {
+					LOG_INFO("SNAPSHOT_STATS", "Files: %d", snapshot.NumberOfFiles)
+				}
+
 				maxSize := int64(9)
 				maxSizeDigits := 1
 				totalFiles := 0
@@ -753,10 +809,12 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 
 // ListSnapshots shows the information about a snapshot.
 func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToCheck []int, tag string, showStatistics bool, showTabular bool,
-	checkFiles bool, searchFossils bool, resurrect bool) bool {
+	checkFiles bool, checkChunks, searchFossils bool, resurrect bool, threads int, allowFailures bool) bool {
 
-	LOG_DEBUG("LIST_PARAMETERS", "id: %s, revisions: %v, tag: %s, showStatistics: %t, checkFiles: %t, searchFossils: %t, resurrect: %t",
-		snapshotID, revisionsToCheck, tag, showStatistics, checkFiles, searchFossils, resurrect)
+	manager.chunkDownloader = CreateChunkDownloader(manager.config, manager.storage, manager.snapshotCache, false, threads, allowFailures)
+
+	LOG_DEBUG("LIST_PARAMETERS", "id: %s, revisions: %v, tag: %s, showStatistics: %t, showTabular: %t, checkFiles: %t, searchFossils: %t, resurrect: %t",
+		snapshotID, revisionsToCheck, tag, showStatistics, showTabular, checkFiles, searchFossils, resurrect)
 
 	snapshotMap := make(map[string][]*Snapshot)
 	var err error
@@ -769,6 +827,8 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 
 	// Store the index of the snapshot that references each chunk; if the chunk is shared by multiple chunks, the index is -1
 	chunkSnapshotMap := make(map[string]int)
+
+	emptyChunks := 0
 
 	LOG_INFO("SNAPSHOT_CHECK", "Listing all chunks")
 	allChunks, allSizes := manager.ListAllFiles(manager.storage, chunkDir)
@@ -784,9 +844,14 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 
 		chunk = strings.Replace(chunk, "/", "", -1)
 		chunkSizeMap[chunk] = allSizes[i]
+
+		if allSizes[i] == 0 && !strings.HasSuffix(chunk, ".tmp") {
+			LOG_WARN("SNAPSHOT_CHECK", "Chunk %s has a size of 0", chunk)
+			emptyChunks++
+		}
 	}
 
-	if snapshotID == "" || showStatistics {
+	if snapshotID == "" || showStatistics || showTabular {
 		snapshotIDs, err := manager.ListSnapshotIDs()
 		if err != nil {
 			LOG_ERROR("SNAPSHOT_LIST", "Failed to list all snapshots: %v", err)
@@ -803,10 +868,10 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 
 	snapshotIDIndex := 0
 	totalMissingChunks := 0
-	for snapshotID, _ = range snapshotMap {
+	for snapshotID = range snapshotMap {
 
 		revisions := revisionsToCheck
-		if len(revisions) == 0 || showStatistics {
+		if len(revisions) == 0 || showStatistics || showTabular {
 			revisions, err = manager.ListSnapshotRevisions(snapshotID)
 			if err != nil {
 				LOG_ERROR("SNAPSHOT_LIST", "Failed to list all revisions for snapshot %s: %v", snapshotID, err)
@@ -816,40 +881,76 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 
 		for _, revision := range revisions {
 			snapshot := manager.DownloadSnapshot(snapshotID, revision)
-			snapshotMap[snapshotID] = append(snapshotMap[snapshotID], snapshot)
-
 			if tag != "" && snapshot.Tag != tag {
 				continue
 			}
+			snapshotMap[snapshotID] = append(snapshotMap[snapshotID], snapshot)
+		}
+	}
+
+	totalRevisions := 0
+	for _, snapshotList := range snapshotMap {
+		totalRevisions += len(snapshotList)
+	}
+	LOG_INFO("SNAPSHOT_CHECK", "%d snapshots and %d revisions", len(snapshotMap), totalRevisions)
+
+	var totalChunkSize int64
+	for _, size := range chunkSizeMap {
+		totalChunkSize += size
+	}
+	LOG_INFO("SNAPSHOT_CHECK", "Total chunk size is %s in %d chunks", PrettyNumber(totalChunkSize), len(chunkSizeMap))
+
+	var allChunkHashes *map[string]bool
+	if checkChunks && !checkFiles {
+		m := make(map[string]bool)
+		allChunkHashes = &m
+	}
+
+	for snapshotID = range snapshotMap {
+
+		for _, snapshot := range snapshotMap[snapshotID] {
 
 			if checkFiles {
 				manager.DownloadSnapshotContents(snapshot, nil, false)
 				manager.VerifySnapshot(snapshot)
+				manager.ClearSnapshotContents(snapshot)
 				continue
 			}
 
 			chunks := make(map[string]bool)
-			for _, chunkID := range manager.GetSnapshotChunks(snapshot, false) {
-				chunks[chunkID] = true
-			}
+			manager.GetSnapshotChunkHashes(snapshot, allChunkHashes, chunks)
 
 			missingChunks := 0
-			for chunkID, _ := range chunks {
+			for chunkID := range chunks {
 
 				_, found := chunkSizeMap[chunkID]
 
 				if !found {
+
+					// Look up the chunk again in case it actually exists, but only if there aren't
+					// too many missing chunks.
+					if missingChunks < 100 {
+						_, exist, _, err := manager.storage.FindChunk(0, chunkID, false)
+						if err != nil {
+							LOG_WARN("SNAPSHOT_VALIDATE", "Failed to check the existence of chunk %s: %v",
+							         chunkID, err)
+						} else if exist {
+							LOG_INFO("SNAPSHOT_VALIDATE", "Chunk %s is confirmed to exist", chunkID)
+							continue
+						}
+					}
+
 					if !searchFossils {
 						missingChunks += 1
 						LOG_WARN("SNAPSHOT_VALIDATE",
 							"Chunk %s referenced by snapshot %s at revision %d does not exist",
-							chunkID, snapshotID, revision)
+							chunkID, snapshotID, snapshot.Revision)
 						continue
 					}
 
 					chunkPath, exist, size, err := manager.storage.FindChunk(0, chunkID, true)
 					if err != nil {
-						LOG_ERROR("SNAPSHOT_VALIDATE", "Failed to check the existence of chunk %s: %v",
+						LOG_ERROR("SNAPSHOT_VALIDATE", "Failed to check the existence of fossil %s: %v",
 							chunkID, err)
 						return false
 					}
@@ -858,7 +959,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 						missingChunks += 1
 						LOG_WARN("SNAPSHOT_VALIDATE",
 							"Chunk %s referenced by snapshot %s at revision %d does not exist",
-							chunkID, snapshotID, revision)
+							chunkID, snapshotID, snapshot.Revision)
 						continue
 					}
 
@@ -866,7 +967,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 						manager.resurrectChunk(chunkPath, chunkID)
 					} else {
 						LOG_WARN("SNAPSHOT_FOSSIL", "Chunk %s referenced by snapshot %s at revision %d "+
-							"has been marked as a fossil", chunkID, snapshotID, revision)
+							"has been marked as a fossil", chunkID, snapshotID, snapshot.Revision)
 					}
 
 					chunkSizeMap[chunkID] = size
@@ -889,11 +990,11 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 
 			if missingChunks > 0 {
 				LOG_WARN("SNAPSHOT_CHECK", "Some chunks referenced by snapshot %s at revision %d are missing",
-					snapshotID, revision)
+					snapshotID, snapshot.Revision)
 				totalMissingChunks += missingChunks
 			} else {
 				LOG_INFO("SNAPSHOT_CHECK", "All chunks referenced by snapshot %s at revision %d exist",
-					snapshotID, revision)
+					snapshotID, snapshot.Revision)
 			}
 		}
 
@@ -905,12 +1006,61 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 		return false
 	}
 
+	if emptyChunks > 0 {
+		LOG_ERROR("SNAPSHOT_CHECK", "%d chunks have a size of 0", emptyChunks)
+		return false
+	}
+
 	if showTabular {
 		manager.ShowStatisticsTabular(snapshotMap, chunkSizeMap, chunkUniqueMap, chunkSnapshotMap)
 	} else if showStatistics {
 		manager.ShowStatistics(snapshotMap, chunkSizeMap, chunkUniqueMap, chunkSnapshotMap)
 	}
 
+	if checkChunks && !checkFiles {
+		manager.chunkDownloader.snapshotCache = nil
+		LOG_INFO("SNAPSHOT_VERIFY", "Verifying %d chunks", len(*allChunkHashes))
+
+		startTime := time.Now()
+		var chunkHashes []string
+
+		// The index of the first chunk to add to the downloader, which may have already downloaded
+		// some metadata chunks so the index doesn't start with 0.
+		chunkIndex := -1
+
+		for chunkHash := range *allChunkHashes {
+			chunkHashes = append(chunkHashes, chunkHash)
+			if chunkIndex == -1 {
+				chunkIndex = manager.chunkDownloader.AddChunk(chunkHash)
+			} else {
+				manager.chunkDownloader.AddChunk(chunkHash)
+			}
+		}
+
+		var downloadedChunkSize int64
+		totalChunks := len(*allChunkHashes)
+		for i := 0; i < totalChunks; i++ {
+			chunk := manager.chunkDownloader.WaitForChunk(i + chunkIndex)
+			if chunk.isBroken {
+				continue
+			}
+			downloadedChunkSize += int64(chunk.GetLength())
+
+			elapsedTime := time.Now().Sub(startTime).Seconds()
+			speed := int64(float64(downloadedChunkSize) / elapsedTime)
+			remainingTime := int64(float64(totalChunks - i - 1) / float64(i + 1) * elapsedTime)
+			percentage := float64(i + 1) / float64(totalChunks) * 100.0
+			LOG_INFO("VERIFY_PROGRESS", "Verified chunk %s (%d/%d), %sB/s %s %.1f%%",
+					 manager.config.GetChunkIDFromHash(chunkHashes[i]), i + 1, totalChunks,
+					 PrettySize(speed), PrettyTime(remainingTime), percentage)
+		}
+
+		if manager.chunkDownloader.NumberOfFailedChunks > 0 {
+			LOG_ERROR("SNAPSHOT_VERIFY", "%d out of %d chunks are corrupted", manager.chunkDownloader.NumberOfFailedChunks, totalChunks)
+		} else {
+			LOG_INFO("SNAPSHOT_VERIFY", "All %d chunks have been successfully verified", totalChunks)
+		}
+	}
 	return true
 }
 
@@ -932,7 +1082,7 @@ func (manager *SnapshotManager) ShowStatistics(snapshotMap map[string][]*Snapsho
 			var totalChunkSize int64
 			var uniqueChunkSize int64
 
-			for chunkID, _ := range chunks {
+			for chunkID := range chunks {
 				chunkSize := chunkSizeMap[chunkID]
 				totalChunkSize += chunkSize
 				if chunkUniqueMap[chunkID] {
@@ -950,7 +1100,7 @@ func (manager *SnapshotManager) ShowStatistics(snapshotMap map[string][]*Snapsho
 
 		var totalChunkSize int64
 		var uniqueChunkSize int64
-		for chunkID, _ := range snapshotChunks {
+		for chunkID := range snapshotChunks {
 			chunkSize := chunkSizeMap[chunkID]
 			totalChunkSize += chunkSize
 
@@ -977,18 +1127,20 @@ func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string][]*
 		earliestSeenChunks := make(map[string]int)
 
 		for _, snapshot := range snapshotList {
-			for _, chunkID := range manager.GetSnapshotChunks(snapshot, true) {
+			for _, chunkID := range manager.GetSnapshotChunks(snapshot, false) {
 				if earliestSeenChunks[chunkID] == 0 {
 					earliestSeenChunks[chunkID] = math.MaxInt32
 				}
-				earliestSeenChunks[chunkID] = MinInt(earliestSeenChunks[chunkID], snapshot.Revision)
+				if earliestSeenChunks[chunkID] > snapshot.Revision {
+					earliestSeenChunks[chunkID] = snapshot.Revision
+				}
 			}
 		}
 
 		for _, snapshot := range snapshotList {
 
 			chunks := make(map[string]bool)
-			for _, chunkID := range manager.GetSnapshotChunks(snapshot, true) {
+			for _, chunkID := range manager.GetSnapshotChunks(snapshot, false) {
 				chunks[chunkID] = true
 				snapshotChunks[chunkID] = true
 			}
@@ -1000,7 +1152,7 @@ func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string][]*
 			var newChunkCount int64
 			var newChunkSize int64
 
-			for chunkID, _ := range chunks {
+			for chunkID := range chunks {
 				chunkSize := chunkSizeMap[chunkID]
 				totalChunkSize += chunkSize
 				totalChunkCount += 1
@@ -1028,7 +1180,7 @@ func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string][]*
 		var uniqueChunkSize int64
 		var totalChunkCount int64
 		var uniqueChunkCount int64
-		for chunkID, _ := range snapshotChunks {
+		for chunkID := range snapshotChunks {
 			chunkSize := chunkSizeMap[chunkID]
 			totalChunkSize += chunkSize
 			totalChunkCount += 1
@@ -1133,7 +1285,7 @@ func (manager *SnapshotManager) VerifySnapshot(snapshot *Snapshot) bool {
 	}
 }
 
-// RetrieveFile retrieve the file in the specifed snapshot.
+// RetrieveFile retrieves the file in the specified snapshot.
 func (manager *SnapshotManager) RetrieveFile(snapshot *Snapshot, file *Entry, output func([]byte)) bool {
 
 	if file.Size == 0 {
@@ -1157,7 +1309,6 @@ func (manager *SnapshotManager) RetrieveFile(snapshot *Snapshot, file *Entry, ou
 	}
 
 	var chunk *Chunk
-	currentHash := ""
 
 	for i := file.StartChunk; i <= file.EndChunk; i++ {
 		start := 0
@@ -1170,10 +1321,12 @@ func (manager *SnapshotManager) RetrieveFile(snapshot *Snapshot, file *Entry, ou
 		}
 
 		hash := snapshot.ChunkHashes[i]
-		if currentHash != hash {
+		lastChunk, lastChunkHash := manager.chunkDownloader.GetLastDownloadedChunk()
+		if lastChunkHash != hash {
 			i := manager.chunkDownloader.AddChunk(hash)
 			chunk = manager.chunkDownloader.WaitForChunk(i)
-			currentHash = hash
+		} else {
+			chunk = lastChunk
 		}
 
 		output(chunk.GetBytes()[start:end])
@@ -1248,21 +1401,20 @@ func (manager *SnapshotManager) PrintFile(snapshotID string, revision int, path 
 	}
 
 	file := manager.FindFile(snapshot, path, false)
-	var content []byte
-	if !manager.RetrieveFile(snapshot, file, func(chunk []byte) { content = append(content, chunk...) }) {
+	if !manager.RetrieveFile(snapshot, file, func(chunk []byte) {
+			fmt.Printf("%s", chunk)
+		}) {
 		LOG_ERROR("SNAPSHOT_RETRIEVE", "File %s is corrupted in snapshot %s at revision %d",
 			path, snapshot.ID, snapshot.Revision)
 		return false
 	}
-
-	fmt.Printf("%s", string(content))
 
 	return true
 }
 
 // Diff compares two snapshots, or two revision of a file if the file argument is given.
 func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []int,
-	filePath string, compareByHash bool, nobackupFile string, excludeByAttribute bool) bool {
+	filePath string, compareByHash bool, nobackupFile string, filtersFile string, excludeByAttribute bool) bool {
 
 	LOG_DEBUG("DIFF_PARAMETERS", "top: %s, id: %s, revision: %v, path: %s, compareByHash: %t",
 		top, snapshotID, revisions, filePath, compareByHash)
@@ -1275,7 +1427,7 @@ func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []
 	if len(revisions) <= 1 {
 		// Only scan the repository if filePath is not provided
 		if len(filePath) == 0 {
-			rightSnapshot, _, _, err = CreateSnapshotFromDirectory(snapshotID, top, nobackupFile, excludeByAttribute)
+			rightSnapshot, _, _, err = CreateSnapshotFromDirectory(snapshotID, top, nobackupFile, filtersFile, excludeByAttribute)
 			if err != nil {
 				LOG_ERROR("SNAPSHOT_LIST", "Failed to list the directory %s: %v", top, err)
 				return false
@@ -1446,7 +1598,11 @@ func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []
 						same = right.IsSameAs(left)
 					}
 				} else {
-					same = left.Hash == right.Hash
+					if left.Size == 0 && right.Size == 0 {
+						same = true
+					} else {
+						same = left.Hash == right.Hash
+					}
 				}
 
 				if !same {
@@ -1817,7 +1973,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 				if _, found := newChunks[chunk]; found {
 					// The fossil is referenced so it can't be deleted.
 					if dryRun {
-						LOG_INFO("FOSSIL_RESURRECT", "Fossil %s would be resurrected: %v", chunk)
+						LOG_INFO("FOSSIL_RESURRECT", "Fossil %s would be resurrected", chunk)
 						continue
 					}
 
@@ -2200,7 +2356,7 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[s
 						continue
 					}
 
-					manager.chunkOperator.Resurrect(chunk, chunkDir + file)
+					manager.chunkOperator.Resurrect(chunk, chunkDir+file)
 					fmt.Fprintf(logFile, "Found referenced fossil %s\n", file)
 
 				} else {
@@ -2211,7 +2367,7 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[s
 					}
 
 					if exclusive {
-						manager.chunkOperator.Delete(chunk, chunkDir + file)
+						manager.chunkOperator.Delete(chunk, chunkDir+file)
 					} else {
 						collection.AddFossil(chunkDir + file)
 						LOG_DEBUG("FOSSIL_FIND", "Found unreferenced fossil %s", file)
@@ -2226,7 +2382,7 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[s
 		chunk := strings.Replace(file, "/", "", -1)
 
 		if !chunkRegex.MatchString(chunk) {
-			LOG_WARN("CHUNK_UNKONWN_FILE", "File %s is not a chunk", file)
+			LOG_WARN("CHUNK_UNKNOWN_FILE", "File %s is not a chunk", file)
 			continue
 		}
 
@@ -2388,7 +2544,7 @@ func (manager *SnapshotManager) DownloadFile(path string, derivationKey string) 
 	}
 
 	if len(derivationKey) > 64 {
-		derivationKey = derivationKey[len(derivationKey) - 64:]
+		derivationKey = derivationKey[len(derivationKey)-64:]
 	}
 
 	err = manager.fileChunk.Decrypt(manager.config.FileKey, derivationKey)
@@ -2422,10 +2578,10 @@ func (manager *SnapshotManager) UploadFile(path string, derivationKey string, co
 	}
 
 	if len(derivationKey) > 64 {
-		derivationKey = derivationKey[len(derivationKey) - 64:]
+		derivationKey = derivationKey[len(derivationKey)-64:]
 	}
 
-	err := manager.fileChunk.Encrypt(manager.config.FileKey, derivationKey)
+	err := manager.fileChunk.Encrypt(manager.config.FileKey, derivationKey, true)
 	if err != nil {
 		LOG_ERROR("UPLOAD_File", "Failed to encrypt the file %s: %v", path, err)
 		return false

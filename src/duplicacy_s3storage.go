@@ -210,7 +210,7 @@ func (storage *S3Storage) DownloadFile(threadIndex int, filePath string, chunk *
 
 	defer output.Body.Close()
 
-	_, err = RateLimitedCopy(chunk, output.Body, storage.DownloadRateLimit/len(storage.bucket))
+	_, err = RateLimitedCopy(chunk, output.Body, storage.DownloadRateLimit/storage.numberOfThreads)
 	return err
 
 }
@@ -225,7 +225,7 @@ func (storage *S3Storage) UploadFile(threadIndex int, filePath string, content [
 			Bucket:      aws.String(storage.bucket),
 			Key:         aws.String(storage.storageDir + filePath),
 			ACL:         aws.String(s3.ObjectCannedACLPrivate),
-			Body:        CreateRateLimitedReader(content, storage.UploadRateLimit/len(storage.bucket)),
+			Body:        CreateRateLimitedReader(content, storage.UploadRateLimit/storage.numberOfThreads),
 			ContentType: aws.String("application/duplicacy"),
 		}
 
@@ -237,8 +237,6 @@ func (storage *S3Storage) UploadFile(threadIndex int, filePath string, content [
 		LOG_INFO("S3_RETRY", "Retrying on %s: %v", reflect.TypeOf(err), err)
 		attempts += 1
 	}
-
-	return err
 }
 
 // If a local snapshot cache is needed for the storage to avoid downloading/uploading chunks too often when

@@ -295,7 +295,7 @@ func (entry *Entry) IsLink() bool {
 }
 
 func (entry *Entry) GetPermissions() os.FileMode {
-	return os.FileMode(entry.Mode)&fileModeMask
+	return os.FileMode(entry.Mode) & fileModeMask
 }
 
 func (entry *Entry) IsSameAs(other *Entry) bool {
@@ -331,7 +331,7 @@ func (entry *Entry) RestoreMetadata(fullPath string, fileInfo *os.FileInfo, setO
 	}
 
 	// Only set the permission if the file is not a symlink
-	if !entry.IsLink() && (*fileInfo).Mode() & fileModeMask != entry.GetPermissions() {
+	if !entry.IsLink() && (*fileInfo).Mode()&fileModeMask != entry.GetPermissions() {
 		err := os.Chmod(fullPath, entry.GetPermissions())
 		if err != nil {
 			LOG_ERROR("RESTORE_CHMOD", "Failed to set the file permissions: %v", err)
@@ -479,10 +479,10 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 	if err != nil {
 		return directoryList, nil, err
 	}
-	
+
 	// This binary search works because ioutil.ReadDir returns files sorted by Name() by default
 	if nobackupFile != "" {
-		ii := sort.Search(len(files), func(ii int) bool { return strings.Compare(files[ii].Name(), nobackupFile) >= 0})
+		ii := sort.Search(len(files), func(ii int) bool { return strings.Compare(files[ii].Name(), nobackupFile) >= 0 })
 		if ii < len(files) && files[ii].Name() == nobackupFile {
 			LOG_DEBUG("LIST_NOBACKUP", "%s is excluded due to nobackup file", path)
 			return directoryList, skippedFiles, nil
@@ -513,7 +513,7 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 		}
 		if entry.IsLink() {
 			isRegular := false
-			isRegular, entry.Link, err = Readlink(filepath.Join(top, entry.Path))
+			isRegular, entry.Link, err = Readlink(joinPath(top, entry.Path))
 			if err != nil {
 				LOG_WARN("LIST_LINK", "Failed to read the symlink %s: %v", entry.Path, err)
 				skippedFiles = append(skippedFiles, entry.Path)
@@ -523,7 +523,7 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 			if isRegular {
 				entry.Mode ^= uint32(os.ModeSymlink)
 			} else if path == "" && (filepath.IsAbs(entry.Link) || filepath.HasPrefix(entry.Link, `\\`)) && !strings.HasPrefix(entry.Link, normalizedTop) {
-				stat, err := os.Stat(filepath.Join(top, entry.Path))
+				stat, err := os.Stat(joinPath(top, entry.Path))
 				if err != nil {
 					LOG_WARN("LIST_LINK", "Failed to read the symlink: %v", err)
 					skippedFiles = append(skippedFiles, entry.Path)
@@ -535,6 +535,9 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 					// On Windows, stat.Name() is the last component of the target, so we need to construct the correct
 					// path from f.Name(); note that a "/" is append assuming a symbolic link is always a directory
 					newEntry.Path = filepath.Join(normalizedPath, f.Name()) + "/"
+				}
+				if len(patterns) > 0 && !MatchPath(newEntry.Path, patterns) {
+					continue
 				}
 				entry = newEntry
 			}

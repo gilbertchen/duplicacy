@@ -11,32 +11,26 @@ import (
 type B2Storage struct {
 	StorageBase
 
-	clients []*B2Client
+	client *B2Client
 }
 
 // CreateB2Storage creates a B2 storage object.
-func CreateB2Storage(accountID string, applicationKey string, bucket string, threads int) (storage *B2Storage, err error) {
+func CreateB2Storage(accountID string, applicationKey string, downloadURL string, bucket string, storageDir string, threads int) (storage *B2Storage, err error) {
 
-	var clients []*B2Client
+	client := NewB2Client(accountID, applicationKey, downloadURL, storageDir, threads)
 
-	for i := 0; i < threads; i++ {
-		client := NewB2Client(accountID, applicationKey)
+	err, _ = client.AuthorizeAccount(0)
+	if err != nil {
+		return nil, err
+	}
 
-		err = client.AuthorizeAccount()
-		if err != nil {
-			return nil, err
-		}
-
-		err = client.FindBucket(bucket)
-		if err != nil {
-			return nil, err
-		}
-
-		clients = append(clients, client)
+	err = client.FindBucket(bucket)
+	if err != nil {
+		return nil, err
 	}
 
 	storage = &B2Storage{
-		clients: clients,
+		client: client,
 	}
 
 	storage.DerivedStorage = storage
@@ -56,7 +50,7 @@ func (storage *B2Storage) ListFiles(threadIndex int, dir string) (files []string
 		includeVersions = true
 	}
 
-	entries, err := storage.clients[threadIndex].ListFileNames(dir, false, includeVersions)
+	entries, err := storage.client.ListFileNames(threadIndex, dir, false, includeVersions)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -71,7 +65,7 @@ func (storage *B2Storage) ListFiles(threadIndex int, dir string) (files []string
 			subDirs[subDir+"/"] = true
 		}
 
-		for subDir, _ := range subDirs {
+		for subDir := range subDirs {
 			files = append(files, subDir)
 		}
 	} else if dir == "chunks" {
@@ -102,7 +96,7 @@ func (storage *B2Storage) DeleteFile(threadIndex int, filePath string) (err erro
 
 	if strings.HasSuffix(filePath, ".fsl") {
 		filePath = filePath[:len(filePath)-len(".fsl")]
-		entries, err := storage.clients[threadIndex].ListFileNames(filePath, true, true)
+		entries, err := storage.client.ListFileNames(threadIndex, filePath, true, true)
 		if err != nil {
 			return err
 		}
@@ -116,7 +110,7 @@ func (storage *B2Storage) DeleteFile(threadIndex int, filePath string) (err erro
 
 			toBeDeleted = true
 
-			err = storage.clients[threadIndex].DeleteFile(filePath, entry.FileID)
+			err = storage.client.DeleteFile(threadIndex, filePath, entry.FileID)
 			if err != nil {
 				return err
 			}
@@ -125,7 +119,7 @@ func (storage *B2Storage) DeleteFile(threadIndex int, filePath string) (err erro
 		return nil
 
 	} else {
-		entries, err := storage.clients[threadIndex].ListFileNames(filePath, true, false)
+		entries, err := storage.client.ListFileNames(threadIndex, filePath, true, false)
 		if err != nil {
 			return err
 		}
@@ -133,7 +127,7 @@ func (storage *B2Storage) DeleteFile(threadIndex int, filePath string) (err erro
 		if len(entries) == 0 {
 			return nil
 		}
-		return storage.clients[threadIndex].DeleteFile(filePath, entries[0].FileID)
+		return storage.client.DeleteFile(threadIndex, filePath, entries[0].FileID)
 	}
 }
 
@@ -160,10 +154,10 @@ func (storage *B2Storage) MoveFile(threadIndex int, from string, to string) (err
 	}
 
 	if filePath == from {
-		_, err = storage.clients[threadIndex].HideFile(from)
+		_, err = storage.client.HideFile(threadIndex, from)
 		return err
 	} else {
-		entries, err := storage.clients[threadIndex].ListFileNames(filePath, true, true)
+		entries, err := storage.client.ListFileNames(threadIndex, filePath, true, true)
 		if err != nil {
 			return err
 		}
@@ -171,7 +165,7 @@ func (storage *B2Storage) MoveFile(threadIndex int, from string, to string) (err
 			return nil
 		}
 
-		return storage.clients[threadIndex].DeleteFile(filePath, entries[0].FileID)
+		return storage.client.DeleteFile(threadIndex, filePath, entries[0].FileID)
 	}
 }
 
@@ -188,7 +182,7 @@ func (storage *B2Storage) GetFileInfo(threadIndex int, filePath string) (exist b
 		filePath = filePath[:len(filePath)-len(".fsl")]
 	}
 
-	entries, err := storage.clients[threadIndex].ListFileNames(filePath, true, isFossil)
+	entries, err := storage.client.ListFileNames(threadIndex, filePath, true, isFossil)
 	if err != nil {
 		return false, false, 0, err
 	}
@@ -210,22 +204,20 @@ func (storage *B2Storage) GetFileInfo(threadIndex int, filePath string) (exist b
 // DownloadFile reads the file at 'filePath' into the chunk.
 func (storage *B2Storage) DownloadFile(threadIndex int, filePath string, chunk *Chunk) (err error) {
 
-	filePath = strings.Replace(filePath, " ", "%20", -1)
-	readCloser, _, err := storage.clients[threadIndex].DownloadFile(filePath)
+	readCloser, _, err := storage.client.DownloadFile(threadIndex, filePath)
 	if err != nil {
 		return err
 	}
 
 	defer readCloser.Close()
 
-	_, err = RateLimitedCopy(chunk, readCloser, storage.DownloadRateLimit/len(storage.clients))
+	_, err = RateLimitedCopy(chunk, readCloser, storage.DownloadRateLimit/storage.client.Threads)
 	return err
 }
 
 // UploadFile writes 'content' to the file at 'filePath'.
 func (storage *B2Storage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
-	filePath = strings.Replace(filePath, " ", "%20", -1)
-	return storage.clients[threadIndex].UploadFile(filePath, content, storage.UploadRateLimit/len(storage.clients))
+	return storage.client.UploadFile(threadIndex, filePath, content, storage.UploadRateLimit/storage.client.Threads)
 }
 
 // If a local snapshot cache is needed for the storage to avoid downloading/uploading chunks too often when
@@ -243,7 +235,5 @@ func (storage *B2Storage) IsFastListing() bool { return true }
 
 // Enable the test mode.
 func (storage *B2Storage) EnableTestMode() {
-	for _, client := range storage.clients {
-		client.TestMode = true
-	}
+	storage.client.TestMode = true
 }

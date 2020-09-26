@@ -93,49 +93,49 @@ func (storage *WasabiStorage) DeleteFile(
 // rename.  It's designed to get the job done with as few dependencies
 // on other packages as possible rather than being somethng
 // general-purpose and reusable.
-func (storage *WasabiStorage) MoveFile(
-	threadIndex int, from string, to string,
-) (err error) {
+func (storage *WasabiStorage) MoveFile(threadIndex int, from string, to string) (err error) {
 
-	var from_path string
+	var fromPath string
 	// The from path includes the bucket.  Take care not to include an empty storageDir
 	// string as Wasabi's backend will return 404 on URLs with double slashes.
-	if (storage.storageDir == "") {
-		from_path = fmt.Sprintf("/%s/%s", storage.bucket, from)
+	if storage.storageDir == "" {
+		fromPath = fmt.Sprintf("/%s/%s", storage.bucket, from)
 	} else {
-		from_path = fmt.Sprintf("/%s/%s/%s", storage.bucket, storage.storageDir, from)
+		fromPath = fmt.Sprintf("/%s/%s/%s", storage.bucket, storage.storageDir, from)
 	}
 
-	object := fmt.Sprintf("https://%s@%s%s",
-		storage.region, storage.endpoint, from_path)
+	object := fmt.Sprintf("https://%s@%s%s", storage.region, storage.endpoint, fromPath)
 
+	toPath := to
 	// The object's new name is relative to the top of the bucket.
-	new_name := fmt.Sprintf("%s/%s", storage.storageDir, to)
+	if storage.storageDir != "" {
+		toPath = fmt.Sprintf("%s/%s", storage.storageDir, to)
+	}
 
 	timestamp := time.Now().Format(time.RFC1123Z)
 
-	signing_string := fmt.Sprintf("MOVE\n\n\n%s\n%s", timestamp, from_path)
+	signingString := fmt.Sprintf("MOVE\n\n\n%s\n%s", timestamp, fromPath)
 
 	signer := hmac.New(sha1.New, []byte(storage.secret))
-	signer.Write([]byte(signing_string))
+	signer.Write([]byte(signingString))
 
 	signature := base64.StdEncoding.EncodeToString(signer.Sum(nil))
 
 	authorization := fmt.Sprintf("AWS %s:%s", storage.key, signature)
 
-	request, error := http.NewRequest("MOVE", object, nil)
-	if error != nil {
-		return error
+	request, err := http.NewRequest("MOVE", object, nil)
+	if err != nil {
+		return err
 	}
 	request.Header.Add("Authorization", authorization)
 	request.Header.Add("Date", timestamp)
-	request.Header.Add("Destination", new_name)
+	request.Header.Add("Destination", toPath)
 	request.Header.Add("Host", storage.endpoint)
 	request.Header.Add("Overwrite", "true")
 
-	response, error := storage.client.Do(request)
-	if error != nil {
-		return error
+	response, err := storage.client.Do(request)
+	if err != nil {
+		return err
 	}
 	defer response.Body.Close()
 
