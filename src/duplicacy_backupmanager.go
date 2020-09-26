@@ -73,9 +73,9 @@ func CreateBackupManager(snapshotID string, storage Storage, top string, passwor
 
 		nobackupFile: nobackupFile,
 
-    filtersFile: filtersFile,
+		filtersFile: filtersFile,
 
-    excludeByAttribute: excludeByAttribute,
+		excludeByAttribute: excludeByAttribute,
 	}
 
 	if IsDebugging() {
@@ -198,6 +198,10 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 	if manager.config.rsaPublicKey != nil && len(manager.config.FileKey) > 0 {
 		LOG_INFO("BACKUP_KEY", "RSA encryption is enabled")
+	}
+
+	if manager.excludeByAttribute {
+		LOG_INFO("BACKUP_EXCLUDE", "Exclude files with no-backup attributes")
 	}
 
 	remoteSnapshot := manager.SnapshotManager.downloadLatestSnapshot(manager.snapshotID)

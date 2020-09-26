@@ -25,8 +25,8 @@ type Preference struct {
 	DoNotSavePassword bool              `json:"no_save_password"`
 	NobackupFile      string            `json:"nobackup_file"`
 	Keys              map[string]string `json:"keys"`
-	FiltersFile           string        `json:"filters"`
-	ExcludeByAttribute bool              `json:"exclude_by_attribute"`
+	FiltersFile       string            `json:"filters"`
+	ExcludeByAttribute bool             `json:"exclude_by_attribute"`
 }
 
 var preferencePath string

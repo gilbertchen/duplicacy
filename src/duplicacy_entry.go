@@ -28,29 +28,6 @@ var fileModeMask = os.ModePerm | os.ModeSetuid | os.ModeSetgid | os.ModeSticky
 // Regex for matching 'StartChunk:StartOffset:EndChunk:EndOffset'
 var contentRegex = regexp.MustCompile(`^([0-9]+):([0-9]+):([0-9]+):([0-9]+)`)
 
-// AttributeExcludeName attribute name to determine file exclusion
-var AttributeExcludeName = getDefaultAttributeExcludeName()
-
-// AttributeExcludeValue attribute value to determine file exclusion
-var AttributeExcludeValue = getDefaultAttributeExcludeValue()
-
-func getDefaultAttributeExcludeName() string {
-	if runtime.GOOS == "darwin" {
-		return "com.apple.metadata:com_apple_backup_excludeItem"
-	}
-	if runtime.GOOS == "linux" {
-		return "duplicacy_exclude"
-	}
-	return ""
-}
-
-func getDefaultAttributeExcludeValue() string {
-	if runtime.GOOS == "darwin" {
-		return "com.apple.backupd"
-	}
-	return ""
-}
-
 // Entry encapsulates information about a file or directory.
 type Entry struct {
 	Path string
@@ -547,15 +524,9 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 			entry.ReadAttributes(top)
 		}
 
-		if excludeByAttribute && (runtime.GOOS == "darwin" || runtime.GOOS == "linux") {
-			attrValue, ok := entry.Attributes[AttributeExcludeName]
-			if ok {
-				attrValueString := string(attrValue)
-				if strings.Contains(attrValueString, AttributeExcludeValue) {
-					LOG_WARN("LIST_NOBACKUPXATTR", "%s is excluded due to extended attribute: %s", entry.Path, AttributeExcludeName)
-					continue
-				}
-			}
+		if excludeByAttribute && excludedByAttribute(entry.Attributes) {
+			LOG_DEBUG("LIST_EXCLUDE", "%s is excluded by attribute", entry.Path)
+			continue
 		}
 
 		if f.Mode()&(os.ModeNamedPipe|os.ModeSocket|os.ModeDevice) != 0 {

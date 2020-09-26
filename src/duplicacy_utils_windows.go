@@ -131,3 +131,7 @@ func SplitDir(fullPath string) (dir string, file string) {
 	i := strings.LastIndex(fullPath, "\\")
 	return fullPath[:i+1], fullPath[i+1:]
 }
+
+func excludedByAttribute(attirbutes map[string][]byte) bool {
+	return false
+}

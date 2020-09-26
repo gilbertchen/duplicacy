@@ -58,7 +58,7 @@ func CreateEmptySnapshot(id string) (snapshto *Snapshot) {
 
 // CreateSnapshotFromDirectory creates a snapshot from the local directory 'top'.  Only 'Files'
 // will be constructed, while 'ChunkHashes' and 'ChunkLengths' can only be populated after uploading.
-func CreateSnapshotFromDirectory(id string, top string, nobackupFile string, filtersFile string, , excludeByAttribute bool) (snapshot *Snapshot, skippedDirectories []string,
+func CreateSnapshotFromDirectory(id string, top string, nobackupFile string, filtersFile string, excludeByAttribute bool) (snapshot *Snapshot, skippedDirectories []string,
 	skippedFiles []string, err error) {
 
 	snapshot = &Snapshot{
