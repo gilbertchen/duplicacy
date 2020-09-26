@@ -264,7 +264,7 @@ func TestEntryExcludeByAttribute(t *testing.T) {
 	for _, file := range DATA {
 		fullPath := filepath.Join(testDir, file)
 		if strings.Contains(file, "exclude") {
-			xattr.Setxattr(fullPath, AttributeExcludeName, []byte(AttributeExcludeValue))
+			xattr.Setxattr(fullPath, "com.apple.metadata:com_apple_backup_excludeItem", []byte("com.apple.backupd"))
 		}
 	}
 

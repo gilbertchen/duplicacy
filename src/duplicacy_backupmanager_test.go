@@ -503,7 +503,7 @@ func TestPersistRestore(t *testing.T) {
 	time.Sleep(time.Duration(delay) * time.Second)
 	cleanStorage(unencStorage)
 
-	if !ConfigStorage(unencStorage, 16384, 100, 64*1024, 256*1024, 16*1024, "", nil, false, "") {
+	if !ConfigStorage(unencStorage, 16384, 100, 64*1024, 256*1024, 16*1024, "", nil, false, "", 0, 0) {
 		t.Errorf("Failed to initialize the unencrypted storage")
 	}
 	time.Sleep(time.Duration(delay) * time.Second)
@@ -522,14 +522,14 @@ func TestPersistRestore(t *testing.T) {
 	time.Sleep(time.Duration(delay) * time.Second)
 	cleanStorage(storage)
 
-	if !ConfigStorage(storage, 16384, 100, 64*1024, 256*1024, 16*1024, password, unencConfig, true, "") {
+	if !ConfigStorage(storage, 16384, 100, 64*1024, 256*1024, 16*1024, password, unencConfig, true, "", 0, 0) {
 		t.Errorf("Failed to initialize the encrypted storage")
 	}
 	time.Sleep(time.Duration(delay) * time.Second)
 
 	// do unencrypted backup
 	SetDuplicacyPreferencePath(testDir + "/repository1/.duplicacy")
-	unencBackupManager := CreateBackupManager("host1", unencStorage, testDir, "", "", "")
+	unencBackupManager := CreateBackupManager("host1", unencStorage, testDir, "", "", "", false)
 	unencBackupManager.SetupSnapshotCache("default")
 
 	SetDuplicacyPreferencePath(testDir + "/repository1/.duplicacy")
@@ -539,7 +539,7 @@ func TestPersistRestore(t *testing.T) {
 
 	// do encrypted backup
 	SetDuplicacyPreferencePath(testDir + "/repository1/.duplicacy")
-	encBackupManager := CreateBackupManager("host1", storage, testDir, password, "", "")
+	encBackupManager := CreateBackupManager("host1", storage, testDir, password, "", "", false)
 	encBackupManager.SetupSnapshotCache("default")
 
 	SetDuplicacyPreferencePath(testDir + "/repository1/.duplicacy")
