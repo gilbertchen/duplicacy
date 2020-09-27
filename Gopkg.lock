@@ -114,6 +114,18 @@
   revision = "c2b33e84"
 
 [[projects]]
+  name = "github.com/klauspost/cpuid"
+  packages = ["."]
+  revision = "750c0591dbbd50ef88371c665ad49e426a4b830b"
+  version = "v1.3.1"
+
+[[projects]]
+  name = "github.com/klauspost/reedsolomon"
+  packages = ["."]
+  revision = "7daa20bf74337a939c54f892a2eca9d9b578eb7f"
+  version = "v1.9.9"
+
+[[projects]]
   name = "github.com/kr/fs"
   packages = ["."]
   revision = "1455def202f6e05b95cc7bfc7e8ae67ae5141eba"
@@ -130,6 +142,18 @@
   name = "github.com/minio/blake2b-simd"
   packages = ["."]
   revision = "3f5f724cb5b182a5c278d6d3d55b40e7f8c2efb4"
+
+[[projects]]
+  name = "github.com/minio/highwayhash"
+  packages = ["."]
+  revision = "86a2a969d04373bf05ca722517d30fb1c9a3e4f9"
+  version = "v1.0.1"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/mmcloughlin/avo"
+  packages = ["attr","build","buildtags","gotypes","internal/prnt","internal/stack","ir","operand","pass","printer","reg","src","x86"]
+  revision = "443f81d771042b019379ae4bfcd0a591cb47c88a"
 
 [[projects]]
   name = "github.com/ncw/swift"
@@ -174,6 +198,12 @@
   revision = "056763e48d71961566155f089ac0f02f1dda9b5a"
 
 [[projects]]
+  name = "golang.org/x/mod"
+  packages = ["semver"]
+  revision = "859b3ef565e237f9f1a0fb6b55385c497545680d"
+  version = "v0.3.0"
+
+[[projects]]
   branch = "master"
   name = "golang.org/x/net"
   packages = ["context","context/ctxhttp","http/httpguts","http2","http2/hpack","idna","internal/timeseries","trace"]
@@ -195,6 +225,18 @@
   packages = ["collate","collate/build","internal/colltab","internal/gen","internal/language","internal/language/compact","internal/tag","internal/triegen","internal/ucd","language","secure/bidirule","transform","unicode/bidi","unicode/cldr","unicode/norm","unicode/rangetable"]
   revision = "342b2e1fbaa52c93f31447ad2c6abc048c63e475"
   version = "v0.3.2"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/tools"
+  packages = ["go/ast/astutil","go/gcexportdata","go/internal/gcimporter","go/internal/packagesdriver","go/packages","go/types/typeutil","internal/event","internal/event/core","internal/event/keys","internal/event/label","internal/gocommand","internal/packagesinternal","internal/typesinternal"]
+  revision = "5d1fdd8fa3469142b9369713b23d8413d6d83189"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/xerrors"
+  packages = [".","internal"]
+  revision = "5ec99f83aff198f5fbd629d6c8d8eb38a04218ca"
 
 [[projects]]
   name = "google.golang.org/api"
@@ -223,6 +265,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e462352e0b0c726247078462e30a79330ac7a8b9dc62e9ed9d1e097b684224e9"
+  inputs-digest = "0e6ea2be64dedc36cb9192f1d410917ea72896302011e55b6df5e4c00c1c2f1c"
   solver-name = "gps-cdcl"
   solver-version = 1
