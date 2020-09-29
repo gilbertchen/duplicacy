@@ -165,8 +165,8 @@ func (storage *FileStorage) UploadFile(threadIndex int, filePath string, content
 				return err
 			}
 		} else {
-			if !stat.IsDir() {
-				return fmt.Errorf("The path %s is not a directory", dir)
+			if !stat.IsDir() && stat.Mode() & os.ModeSymlink == 0 {
+				return fmt.Errorf("The path %s is not a directory or symlink", dir)
 			}
 		}
 	}
