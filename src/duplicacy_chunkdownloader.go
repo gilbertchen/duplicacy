@@ -31,6 +31,9 @@ type ChunkDownloadCompletion struct {
 // corresponding ChunkDownloadTask is sent to the dowloading goroutine.  Once a chunk is downloaded, it will be
 // inserted in the completed task list.
 type ChunkDownloader struct {
+	totalChunkSize            int64 // Total chunk size
+	downloadedChunkSize       int64 // Downloaded chunk size
+
 	config         *Config      // Associated config
 	storage        Storage      // Download from this storage
 	snapshotCache  *FileStorage // Used as cache if not nil; usually for downloading snapshot chunks
@@ -47,8 +50,6 @@ type ChunkDownloader struct {
 	completionChannel chan ChunkDownloadCompletion // A downloading goroutine sends back the chunk via this channel after downloading
 
 	startTime                 int64 // The time it starts downloading
-	totalChunkSize            int64 // Total chunk size
-	downloadedChunkSize       int64 // Downloaded chunk size
 	numberOfDownloadedChunks  int   // The number of chunks that have been downloaded
 	numberOfDownloadingChunks int   // The number of chunks still being downloaded
 	numberOfActiveChunks      int   // The number of chunks that is being downloaded or has been downloaded but not reclaimed
