@@ -2,7 +2,7 @@
 
 Duplicacy is a new generation cross-platform cloud backup tool based on the idea of [Lock-Free Deduplication](https://github.com/gilbertchen/duplicacy/wiki/Lock-Free-Deduplication).  
 
-This repository hosts source code, design documents, and binary releases of the command line version of Duplicacy.  There is also a Duplicacy GUI frontend built for Windows and Mac OS X available from https://duplicacy.com.
+This repository hosts source code, design documents, and binary releases of the command line version of Duplicacy.  There is also a Web GUI frontend built for Windows, macOS, and Linux, available from https://duplicacy.com.
 
 There is a special edition of Duplicacy developed for VMware vSphere (ESXi) named [Vertical Backup](https://www.verticalbackup.com) that can back up virtual machine files on ESXi to local drives, network or cloud storages.
 
