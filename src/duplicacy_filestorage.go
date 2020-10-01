@@ -79,7 +79,7 @@ func (storage *FileStorage) ListFiles(threadIndex int, dir string) (files []stri
 
 	for _, f := range list {
 		name := f.Name()
-		if f.IsDir() && name[len(name)-1] != '/' {
+		if (f.IsDir() || f.Mode() & os.ModeSymlink != 0) && name[len(name)-1] != '/' {
 			name += "/"
 		}
 		files = append(files, name)
