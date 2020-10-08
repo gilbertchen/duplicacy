@@ -1017,49 +1017,102 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 		manager.ShowStatistics(snapshotMap, chunkSizeMap, chunkUniqueMap, chunkSnapshotMap)
 	}
 
-	if checkChunks && !checkFiles {
-		manager.chunkDownloader.snapshotCache = nil
-		LOG_INFO("SNAPSHOT_VERIFY", "Verifying %d chunks", len(*allChunkHashes))
+	// Don't verify chunks with -files
+	if !checkChunks || checkFiles {
+		return true
+	}
 
-		startTime := time.Now()
-		var chunkHashes []string
+	// This contains chunks that have been verifed in previous checks and is loaded from
+	// .duplicacy/cache/storage/verified_chunks.  Note that it contains the chunk ids not chunk
+	// hashes.
+	verifiedChunks := make(map[string]int64)
+	verifiedChunksFile := "verified_chunks"
 
-		// The index of the first chunk to add to the downloader, which may have already downloaded
-		// some metadata chunks so the index doesn't start with 0.
-		chunkIndex := -1
+	manager.fileChunk.Reset(false)
+	err = manager.snapshotCache.DownloadFile(0, verifiedChunksFile, manager.fileChunk)
+	if err != nil && !os.IsNotExist(err) {
+		LOG_WARN("SNAPSHOT_VERIFY", "Failed to load the file containing verified chunks: %v", err)
+	} else {
+		err = json.Unmarshal(manager.fileChunk.GetBytes(), &verifiedChunks)
+		if err != nil {
+			LOG_WARN("SNAPSHOT_VERIFY", "Failed to parse the file containing verified chunks: %v", err)
+		}
+	}
+	numberOfVerifiedChunks := len(verifiedChunks)
 
-		for chunkHash := range *allChunkHashes {
-			chunkHashes = append(chunkHashes, chunkHash)
-			if chunkIndex == -1 {
-				chunkIndex = manager.chunkDownloader.AddChunk(chunkHash)
+	saveVerifiedChunks := func() {
+		if len(verifiedChunks) > numberOfVerifiedChunks {
+			var description []byte
+			description, err = json.Marshal(verifiedChunks)
+			if err != nil {
+				LOG_WARN("SNAPSHOT_VERIFY", "Failed to create a json file for the set of verified chunks: %v", err)
 			} else {
-				manager.chunkDownloader.AddChunk(chunkHash)
+				err = manager.snapshotCache.UploadFile(0, verifiedChunksFile, description)
+				if err != nil {
+					LOG_WARN("SNAPSHOT_VERIFY", "Failed to save the verified chunks file: %v", err)
+				} else {
+					LOG_INFO("SNAPSHOT_VERIFY", "Added %d chunks to the list of verified chunks", len(verifiedChunks) - numberOfVerifiedChunks)
+				}
 			}
 		}
+	}
+	defer saveVerifiedChunks()
+	RunAtError = saveVerifiedChunks
 
-		var downloadedChunkSize int64
-		totalChunks := len(*allChunkHashes)
-		for i := 0; i < totalChunks; i++ {
-			chunk := manager.chunkDownloader.WaitForChunk(i + chunkIndex)
-			if chunk.isBroken {
+	manager.chunkDownloader.snapshotCache = nil
+	LOG_INFO("SNAPSHOT_VERIFY", "Verifying %d chunks", len(*allChunkHashes))
+
+	startTime := time.Now()
+	var chunkHashes []string
+
+	// The index of the first chunk to add to the downloader, which may have already downloaded
+	// some metadata chunks so the index doesn't start with 0.
+	chunkIndex := -1
+
+	skippedChunks := 0
+	for chunkHash := range *allChunkHashes {
+		if len(verifiedChunks) > 0 {
+			chunkID := manager.config.GetChunkIDFromHash(chunkHash)
+			if _, found := verifiedChunks[chunkID]; found {
+				skippedChunks++
 				continue
 			}
-			downloadedChunkSize += int64(chunk.GetLength())
-
-			elapsedTime := time.Now().Sub(startTime).Seconds()
-			speed := int64(float64(downloadedChunkSize) / elapsedTime)
-			remainingTime := int64(float64(totalChunks - i - 1) / float64(i + 1) * elapsedTime)
-			percentage := float64(i + 1) / float64(totalChunks) * 100.0
-			LOG_INFO("VERIFY_PROGRESS", "Verified chunk %s (%d/%d), %sB/s %s %.1f%%",
-					 manager.config.GetChunkIDFromHash(chunkHashes[i]), i + 1, totalChunks,
-					 PrettySize(speed), PrettyTime(remainingTime), percentage)
 		}
-
-		if manager.chunkDownloader.NumberOfFailedChunks > 0 {
-			LOG_ERROR("SNAPSHOT_VERIFY", "%d out of %d chunks are corrupted", manager.chunkDownloader.NumberOfFailedChunks, totalChunks)
+		chunkHashes = append(chunkHashes, chunkHash)
+		if chunkIndex == -1 {
+			chunkIndex = manager.chunkDownloader.AddChunk(chunkHash)
 		} else {
-			LOG_INFO("SNAPSHOT_VERIFY", "All %d chunks have been successfully verified", totalChunks)
+			manager.chunkDownloader.AddChunk(chunkHash)
 		}
+	}
+
+	if skippedChunks > 0 {
+		LOG_INFO("SNAPSHOT_VERIFY", "Skipped %d chunks that have already been verified before", skippedChunks)
+	}
+
+	var downloadedChunkSize int64
+	totalChunks := len(chunkHashes)
+	for i := 0; i < totalChunks; i++ {
+		chunk := manager.chunkDownloader.WaitForChunk(i + chunkIndex)
+		chunkID := manager.config.GetChunkIDFromHash(chunkHashes[i])
+		if chunk.isBroken {
+			continue
+		}
+		verifiedChunks[chunkID] = startTime.Unix()
+		downloadedChunkSize += int64(chunk.GetLength())
+
+		elapsedTime := time.Now().Sub(startTime).Seconds()
+		speed := int64(float64(downloadedChunkSize) / elapsedTime)
+		remainingTime := int64(float64(totalChunks - i - 1) / float64(i + 1) * elapsedTime)
+		percentage := float64(i + 1) / float64(totalChunks) * 100.0
+		LOG_INFO("VERIFY_PROGRESS", "Verified chunk %s (%d/%d), %sB/s %s %.1f%%",
+					chunkID, i + 1, totalChunks, PrettySize(speed), PrettyTime(remainingTime), percentage)
+	}
+
+	if manager.chunkDownloader.NumberOfFailedChunks > 0 {
+		LOG_ERROR("SNAPSHOT_VERIFY", "%d out of %d chunks are corrupted", manager.chunkDownloader.NumberOfFailedChunks, len(*allChunkHashes))
+	} else {
+		LOG_INFO("SNAPSHOT_VERIFY", "All %d chunks have been successfully verified", len(*allChunkHashes))
 	}
 	return true
 }
