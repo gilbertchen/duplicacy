@@ -1030,8 +1030,10 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 
 	manager.fileChunk.Reset(false)
 	err = manager.snapshotCache.DownloadFile(0, verifiedChunksFile, manager.fileChunk)
-	if err != nil && !os.IsNotExist(err) {
-		LOG_WARN("SNAPSHOT_VERIFY", "Failed to load the file containing verified chunks: %v", err)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			LOG_WARN("SNAPSHOT_VERIFY", "Failed to load the file containing verified chunks: %v", err)
+		}
 	} else {
 		err = json.Unmarshal(manager.fileChunk.GetBytes(), &verifiedChunks)
 		if err != nil {
