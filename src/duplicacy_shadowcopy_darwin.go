@@ -14,7 +14,6 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"strings"
 	"syscall"
 	"time"
 )
@@ -77,19 +76,19 @@ func DeleteShadowCopy() {
 
 	err := exec.Command("/sbin/umount", "-f", snapshotPath).Run()
 	if err != nil {
-		LOG_ERROR("VSS_DELETE", "Error while unmounting snapshot")
+		LOG_WARN("VSS_DELETE", "Error while unmounting snapshot: %v", err)
 		return
 	}
 
 	err = exec.Command("tmutil", "deletelocalsnapshots", snapshotDate).Run()
 	if err != nil {
-		LOG_ERROR("VSS_DELETE", "Error while deleting local snapshot")
+		LOG_WARN("VSS_DELETE", "Error while deleting local snapshot: %v", err)
 		return
 	}
 
 	err = os.RemoveAll(snapshotPath)
 	if err != nil {
-		LOG_ERROR("VSS_DELETE", "Error while deleting temporary mount directory")
+		LOG_WARN("VSS_DELETE", "Error while deleting temporary mount directory: %v", err)
 		return
 	}
 
@@ -150,12 +149,13 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 		return top
 	}
 
-	colonPos := strings.IndexByte(tmutilOutput, ':')
-	if colonPos < 0 {
+	snapshotDateRegex := regexp.MustCompile(`:\s+([0-9\-]+)`)
+	matched := snapshotDateRegex.FindStringSubmatch(tmutilOutput)
+	if matched == nil {
 		LOG_ERROR("VSS_CREATE", "Snapshot creation failed: %s", tmutilOutput)
 		return top
 	}
-	snapshotDate = strings.TrimSpace(tmutilOutput[colonPos+1:])
+	snapshotDate = matched[1]
 
 	tmutilOutput, err = CommandWithTimeout(timeoutInSeconds, "tmutil", "listlocalsnapshots", ".")
 	if err != nil {
@@ -164,17 +164,17 @@ func CreateShadowCopy(top string, shadowCopy bool, timeoutInSeconds int) (shadow
 	}
 	snapshotName := "com.apple.TimeMachine." + snapshotDate
  
-	r := regexp.MustCompile(`(?m)^(.+` + snapshotDate + `.*)$`)
-	snapshotNames := r.FindStringSubmatch(tmutilOutput)
-	if len(snapshotNames) > 0 {
-		snapshotName = snapshotNames[0]
+	snapshotNameRegex := regexp.MustCompile(`(?m)^(.+` + snapshotDate + `.*)$`)
+	matched = snapshotNameRegex.FindStringSubmatch(tmutilOutput)
+	if len(matched) > 0 {
+		snapshotName = matched[0]
 	} else {
-		LOG_WARN("VSS_CREATE", "Error while using 'tmutil listlocalsnapshots' to find snapshot name. Will fallback to 'com.apple.TimeMachine.SNAPSHOT_DATE'")
+		LOG_INFO("VSS_CREATE", "Can't find the snapshot name with 'tmutil listlocalsnapshots'; fallback to %s", snapshotName)
 	}
  
 	// Mount snapshot as readonly and hide from GUI i.e. Finder
 	_, err = CommandWithTimeout(timeoutInSeconds,
-		"/sbin/mount", "-t", "apfs", "-o", "nobrowse,-r,-s="+snapshotName, "/", snapshotPath)
+		"/sbin/mount", "-t", "apfs", "-o", "nobrowse,-r,-s="+snapshotName, "/System/Volumes/Data", snapshotPath)
 	if err != nil {
 		LOG_ERROR("VSS_CREATE", "Error while mounting snapshot: %v", err)
 		return top
