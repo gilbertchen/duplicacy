@@ -181,7 +181,7 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 			continue
 		} else if response.StatusCode == 409 {
 			return nil, 0, OneDriveError{Status: response.StatusCode, Message: "Conflict"}
-		} else if response.StatusCode > 401 && response.StatusCode != 404 {
+		} else {
 			delay := int((rand.Float32() * 0.5 + 0.5) * 1000.0 * float32(backoff))
 			if backoffList, found := response.Header["Retry-After"]; found && len(backoffList) > 0 {
 				retryAfter, _ := strconv.Atoi(backoffList[0])
@@ -197,13 +197,6 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 				backoff = 256
 			}
 			continue
-		} else {
-			if err := json.NewDecoder(response.Body).Decode(errorResponse); err != nil {
-				return nil, 0, OneDriveError{Status: response.StatusCode, Message: fmt.Sprintf("Unexpected response")}
-			}
-
-			errorResponse.Error.Status = response.StatusCode
-			return nil, 0, errorResponse.Error
 		}
 	}
 
