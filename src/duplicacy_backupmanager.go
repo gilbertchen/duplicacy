@@ -1377,7 +1377,7 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 			}
 
 			// fileHash != entry.Hash, warn/error depending on -overwrite option
-			if !overwrite {
+			if !overwrite && !isNewFile {
 				LOG_WERROR(allowFailures, "DOWNLOAD_OVERWRITE",
 							"File %s already exists.  Please specify the -overwrite option to overwrite", entry.Path)
 				return false, fmt.Errorf("file exists")
