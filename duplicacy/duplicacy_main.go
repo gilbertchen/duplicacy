@@ -274,6 +274,13 @@ func configRepository(context *cli.Context, init bool) {
 		}
 	}
 
+	snapshotIDRegex := regexp.MustCompile(`^[A-Za-z0-9_\-]+$`)
+	matched := snapshotIDRegex.FindStringSubmatch(snapshotID)
+	if matched == nil {
+		duplicacy.LOG_ERROR("PREFERENCE_INVALID", "'%s' is an invalid snapshot id", snapshotID)
+		return
+	}
+
 	var repository string
 	var err error
 
