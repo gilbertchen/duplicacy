@@ -47,7 +47,7 @@
 
 [[constraint]]
   name = "github.com/gilbertchen/go-dropbox"
-  revision = "0baa9015ac2547d8b69b2e88c709aa90cfb8fbc1"
+  revision = "2233fa1dd846b3a3e8060b6c1ea12883deb9d288"
 
 [[constraint]]
   name = "github.com/gilbertchen/go-ole"
