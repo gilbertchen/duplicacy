@@ -169,7 +169,15 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		}
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
+	} else if testStorageName == "fabric" {
+		storage, err := CreateFileFabricStorage(config["endpoint"], config["token"], config["storage_path"], threads)
+		if err != nil {
+			return nil, err
+		}
+		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
+		return storage, err
 	}
+
 	return nil, fmt.Errorf("Invalid storage named: %s", testStorageName)
 }
 
