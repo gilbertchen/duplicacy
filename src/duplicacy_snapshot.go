@@ -58,7 +58,7 @@ func CreateEmptySnapshot(id string) (snapshto *Snapshot) {
 
 // CreateSnapshotFromDirectory creates a snapshot from the local directory 'top'.  Only 'Files'
 // will be constructed, while 'ChunkHashes' and 'ChunkLengths' can only be populated after uploading.
-func CreateSnapshotFromDirectory(id string, top string, nobackupFile string, filtersFile string, excludeByAttribute bool) (snapshot *Snapshot, skippedDirectories []string,
+func CreateSnapshotFromDirectory(id string, top string, nobackupFile string, filtersFile string, excludeByAttribute bool, readBlockDevices bool) (snapshot *Snapshot, skippedDirectories []string,
 	skippedFiles []string, err error) {
 
 	snapshot = &Snapshot{
@@ -89,7 +89,7 @@ func CreateSnapshotFromDirectory(id string, top string, nobackupFile string, fil
 		directory := directories[len(directories)-1]
 		directories = directories[:len(directories)-1]
 		snapshot.Files = append(snapshot.Files, directory)
-		subdirectories, skipped, err := ListEntries(top, directory.Path, &snapshot.Files, patterns, nobackupFile, snapshot.discardAttributes, excludeByAttribute)
+		subdirectories, skipped, err := ListEntries(top, directory.Path, &snapshot.Files, patterns, nobackupFile, snapshot.discardAttributes, excludeByAttribute, readBlockDevices)
 		if err != nil {
 			if directory.Path == "" {
 				LOG_ERROR("LIST_FAILURE", "Failed to list the repository root: %v", err)

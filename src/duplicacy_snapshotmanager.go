@@ -1469,7 +1469,7 @@ func (manager *SnapshotManager) PrintFile(snapshotID string, revision int, path 
 
 // Diff compares two snapshots, or two revision of a file if the file argument is given.
 func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []int,
-	filePath string, compareByHash bool, nobackupFile string, filtersFile string, excludeByAttribute bool) bool {
+	filePath string, compareByHash bool, nobackupFile string, filtersFile string, excludeByAttribute bool, readBlockDevices bool) bool {
 
 	LOG_DEBUG("DIFF_PARAMETERS", "top: %s, id: %s, revision: %v, path: %s, compareByHash: %t",
 		top, snapshotID, revisions, filePath, compareByHash)
@@ -1482,7 +1482,7 @@ func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []
 	if len(revisions) <= 1 {
 		// Only scan the repository if filePath is not provided
 		if len(filePath) == 0 {
-			rightSnapshot, _, _, err = CreateSnapshotFromDirectory(snapshotID, top, nobackupFile, filtersFile, excludeByAttribute)
+			rightSnapshot, _, _, err = CreateSnapshotFromDirectory(snapshotID, top, nobackupFile, filtersFile, excludeByAttribute, readBlockDevices)
 			if err != nil {
 				LOG_ERROR("SNAPSHOT_LIST", "Failed to list the directory %s: %v", top, err)
 				return false

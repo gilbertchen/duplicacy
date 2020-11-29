@@ -595,6 +595,11 @@ func setPreference(context *cli.Context) {
 		newPreference.ExcludeByAttribute = triBool.IsTrue()
 	}
 
+	triBool = context.Generic("read-block-devices").(*TriBool)
+	if triBool.IsSet() {
+		newPreference.ReadBlockDevices = triBool.IsTrue()
+	}
+
 	key := context.String("key")
 	value := context.String("value")
 
@@ -776,7 +781,7 @@ func backupRepository(context *cli.Context) {
 	uploadRateLimit := context.Int("limit-rate")
 	enumOnly := context.Bool("enum-only")
 	storage.SetRateLimits(0, uploadRateLimit)
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.FiltersFile, preference.ExcludeByAttribute)
+	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.FiltersFile, preference.ExcludeByAttribute, preference.ReadBlockDevices)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	backupManager.SetupSnapshotCache(preference.Name)
@@ -854,7 +859,7 @@ func restoreRepository(context *cli.Context) {
 	duplicacy.LOG_INFO("SNAPSHOT_FILTER", "Loaded %d include/exclude pattern(s)", len(patterns))
 
 	storage.SetRateLimits(context.Int("limit-rate"), 0)
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.FiltersFile, preference.ExcludeByAttribute)
+	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.FiltersFile, preference.ExcludeByAttribute, preference.ReadBlockDevices)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), preference, backupManager, false)
@@ -900,7 +905,7 @@ func listSnapshots(context *cli.Context) {
 	tag := context.String("t")
 	revisions := getRevisions(context)
 
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", preference.ExcludeByAttribute)
+	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", preference.ExcludeByAttribute, preference.ReadBlockDevices)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	id := preference.SnapshotID
@@ -956,7 +961,7 @@ func checkSnapshots(context *cli.Context) {
 	tag := context.String("t")
 	revisions := getRevisions(context)
 
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false)
+	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false, false)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), preference, backupManager, false)
@@ -1016,7 +1021,7 @@ func printFile(context *cli.Context) {
 	}
 
 
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false)
+	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false, false)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), preference, backupManager, false)
@@ -1074,13 +1079,13 @@ func diff(context *cli.Context) {
 	}
 
 	compareByHash := context.Bool("hash")
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false)
+	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false, false)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), preference, backupManager, false)
 
 	backupManager.SetupSnapshotCache(preference.Name)
-	backupManager.SnapshotManager.Diff(repository, snapshotID, revisions, path, compareByHash, preference.NobackupFile, preference.FiltersFile, preference.ExcludeByAttribute)
+	backupManager.SnapshotManager.Diff(repository, snapshotID, revisions, path, compareByHash, preference.NobackupFile, preference.FiltersFile, preference.ExcludeByAttribute, preference.ReadBlockDevices)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1119,7 +1124,7 @@ func showHistory(context *cli.Context) {
 
 	revisions := getRevisions(context)
 	showLocalHash := context.Bool("hash")
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false)
+	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false, false)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	backupManager.SetupSnapshotCache(preference.Name)
@@ -1182,7 +1187,7 @@ func pruneSnapshots(context *cli.Context) {
 		os.Exit(ArgumentExitCode)
 	}
 
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false)
+	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false, false)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	backupManager.SetupSnapshotCache(preference.Name)
@@ -1227,7 +1232,7 @@ func copySnapshots(context *cli.Context) {
 		sourcePassword = duplicacy.GetPassword(*source, "password", "Enter source storage password:", false, false)
 	}
 
-	sourceManager := duplicacy.CreateBackupManager(source.SnapshotID, sourceStorage, repository, sourcePassword, "", "", false)
+	sourceManager := duplicacy.CreateBackupManager(source.SnapshotID, sourceStorage, repository, sourcePassword, "", "", false, false)
 	sourceManager.SetupSnapshotCache(source.Name)
 	duplicacy.SavePassword(*source, "password", sourcePassword)
 
@@ -1262,7 +1267,7 @@ func copySnapshots(context *cli.Context) {
 	destinationStorage.SetRateLimits(0, context.Int("upload-limit-rate"))
 
 	destinationManager := duplicacy.CreateBackupManager(destination.SnapshotID, destinationStorage, repository,
-		                                                  destinationPassword, "", "", false)
+		                                                  destinationPassword, "", "", false, false)
 	duplicacy.SavePassword(*destination, "password", destinationPassword)
 	destinationManager.SetupSnapshotCache(destination.Name)
 
@@ -1984,6 +1989,12 @@ func main() {
 				cli.GenericFlag{
 					Name:  "exclude-by-attribute",
 					Usage: "Exclude files based on file attributes. (macOS only, com_apple_backup_excludeItem)",
+					Value: &TriBool{},
+					Arg:   "true",
+				},
+				cli.GenericFlag{
+					Name:  "read-block-devices",
+					Usage: "Treat block devices as regular files during backup.",
 					Value: &TriBool{},
 					Arg:   "true",
 				},

@@ -86,6 +86,10 @@
   name = "golang.org/x/net"
 
 [[constraint]]
+  branch = "master"
+  name = "golang.org/x/sys"
+
+[[constraint]]
   name = "golang.org/x/oauth2"
   revision = "bf48bf16ab8d622ce64ec6ce98d2c98f916b6303"
 

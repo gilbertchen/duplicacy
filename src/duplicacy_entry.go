@@ -15,7 +15,11 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
+	"unsafe"
+
+	"golang.org/x/sys/unix"
 )
 
 // This is the hidden directory in the repository for storing various files.
@@ -46,6 +50,11 @@ type Entry struct {
 	EndOffset   int
 
 	Attributes map[string][]byte
+
+	// For block devices, the modification time refers to when the device node
+	// was created, which has no bearing on whether the data itself was actually modified.
+	// IsSameAs() needs to know this and return false accordingly.
+	IsBlockDevice bool
 }
 
 // CreateEntry creates an entry from file properties.
@@ -276,10 +285,16 @@ func (entry *Entry) GetPermissions() os.FileMode {
 }
 
 func (entry *Entry) IsSameAs(other *Entry) bool {
+	if entry.IsBlockDevice || other.IsBlockDevice {
+		return false
+	}
 	return entry.Size == other.Size && entry.Time <= other.Time+1 && entry.Time >= other.Time-1
 }
 
 func (entry *Entry) IsSameAsFileInfo(other os.FileInfo) bool {
+	if entry.IsBlockDevice {
+		return false
+	}
 	time := other.ModTime().Unix()
 	return entry.Size == other.Size() && entry.Time <= time+1 && entry.Time >= time-1
 }
@@ -443,7 +458,7 @@ func (files FileInfoCompare) Less(i, j int) bool {
 
 // ListEntries returns a list of entries representing file and subdirectories under the directory 'path'.  Entry paths
 // are normalized as relative to 'top'.  'patterns' are used to exclude or include certain files.
-func ListEntries(top string, path string, fileList *[]*Entry, patterns []string, nobackupFile string, discardAttributes bool, excludeByAttribute bool) (directoryList []*Entry,
+func ListEntries(top string, path string, fileList *[]*Entry, patterns []string, nobackupFile string, discardAttributes bool, excludeByAttribute bool, readBlockDevices bool) (directoryList []*Entry,
 	skippedFiles []string, err error) {
 
 	LOG_DEBUG("LIST_ENTRIES", "Listing %s", path)
@@ -529,7 +544,29 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 			continue
 		}
 
-		if f.Mode()&(os.ModeNamedPipe|os.ModeSocket|os.ModeDevice) != 0 {
+		if readBlockDevices && f.Mode() & os.ModeType == os.ModeDevice {
+			LOG_DEBUG("LIST_BLOCKDEVICES", "Treating block device %s as regular file", entry.Path)
+
+			disk, err := os.Open(entry.Path)
+			if err != nil {
+				LOG_WARN("LIST_BLOCKDEVICES", "Failed to open block device %s: %v", entry.Path, err)
+				continue
+			}
+
+			var size uint64
+			_, _, errno := syscall.Syscall(syscall.SYS_IOCTL, disk.Fd(), unix.BLKGETSIZE64, uintptr(unsafe.Pointer(&size)))
+			disk.Close()
+
+			if errno != 0 {
+				LOG_WARN("LIST_BLOCKDEVICES", "Failed to get size of block device %s: %v", entry.Path, errno)
+				continue
+			}
+
+			// Now that we have the device size, we can treat it like a regular file for all intents and purposes
+			entry.Size = int64(size)
+			entry.Mode &^= uint32(os.ModeType)
+			entry.IsBlockDevice = true
+		} else if f.Mode()&(os.ModeNamedPipe|os.ModeSocket|os.ModeDevice) != 0 {
 			LOG_WARN("LIST_SKIP", "Skipped non-regular file %s", entry.Path)
 			skippedFiles = append(skippedFiles, entry.Path)
 			continue

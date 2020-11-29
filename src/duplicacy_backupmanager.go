@@ -39,6 +39,7 @@ type BackupManager struct {
   filtersFile string  // the path to the filters file
 
   excludeByAttribute bool // don't backup file based on file attribute
+  readBlockDevices bool // treat block devices like regular files during backup
 
 }
 
@@ -49,7 +50,7 @@ func (manager *BackupManager) SetDryRun(dryRun bool) {
 // CreateBackupManager creates a backup manager using the specified 'storage'.  'snapshotID' is a unique id to
 // identify snapshots created for this repository.  'top' is the top directory of the repository.  'password' is the
 // master key which can be nil if encryption is not enabled.
-func CreateBackupManager(snapshotID string, storage Storage, top string, password string, nobackupFile string, filtersFile string, excludeByAttribute bool) *BackupManager {
+func CreateBackupManager(snapshotID string, storage Storage, top string, password string, nobackupFile string, filtersFile string, excludeByAttribute bool, readBlockDevices bool) *BackupManager {
 
 	config, _, err := DownloadConfig(storage, password)
 	if err != nil {
@@ -76,6 +77,7 @@ func CreateBackupManager(snapshotID string, storage Storage, top string, passwor
 		filtersFile: filtersFile,
 
 		excludeByAttribute: excludeByAttribute,
+		readBlockDevices: readBlockDevices,
 	}
 
 	if IsDebugging() {
@@ -204,6 +206,10 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 		LOG_INFO("BACKUP_EXCLUDE", "Exclude files with no-backup attributes")
 	}
 
+	if manager.readBlockDevices {
+		LOG_INFO("BACKUP_BLOCKDEVICES", "Treat block devices as regular files")
+	}
+
 	remoteSnapshot := manager.SnapshotManager.downloadLatestSnapshot(manager.snapshotID)
 	if remoteSnapshot == nil {
 		remoteSnapshot = CreateEmptySnapshot(manager.snapshotID)
@@ -217,7 +223,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 	LOG_INFO("BACKUP_INDEXING", "Indexing %s", top)
 	localSnapshot, skippedDirectories, skippedFiles, err := CreateSnapshotFromDirectory(manager.snapshotID, shadowTop,
-		                                                                                manager.nobackupFile, manager.filtersFile, manager.excludeByAttribute)
+		                                                                                manager.nobackupFile, manager.filtersFile, manager.excludeByAttribute, manager.readBlockDevices)
 	if err != nil {
 		LOG_ERROR("SNAPSHOT_LIST", "Failed to list the directory %s: %v", top, err)
 		return false
@@ -800,7 +806,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 	manager.SnapshotManager.DownloadSnapshotContents(remoteSnapshot, patterns, true)
 
 	localSnapshot, _, _, err := CreateSnapshotFromDirectory(manager.snapshotID, top, manager.nobackupFile,
-		                                                    manager.filtersFile, manager.excludeByAttribute)
+		                                                    manager.filtersFile, manager.excludeByAttribute, manager.readBlockDevices)
 	if err != nil {
 		LOG_ERROR("SNAPSHOT_LIST", "Failed to list the repository: %v", err)
 		return 0
