@@ -32,6 +32,12 @@
   version = "v1.0.0"
 
 [[projects]]
+  name = "github.com/cenkalti/backoff"
+  packages = ["."]
+  revision = "5267b6dd4d2666b980a911bf235efa276222cbe2"
+  version = "v2.2.1"
+
+[[projects]]
   name = "github.com/dgrijalva/jwt-go"
   packages = ["."]
   revision = "06ea1031745cb8b3dab3f6a236daf2b0aa468b7e"
@@ -271,6 +277,41 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "e46f7c2dac527af6d5a0d47f1444421a6738d28252eb5d6084fc1c65f2b41bd8"
+  input-imports = [
+    "cloud.google.com/go/storage",
+    "github.com/aryann/difflib",
+    "github.com/aws/aws-sdk-go/aws",
+    "github.com/aws/aws-sdk-go/aws/awserr",
+    "github.com/aws/aws-sdk-go/aws/credentials",
+    "github.com/aws/aws-sdk-go/aws/session",
+    "github.com/aws/aws-sdk-go/service/s3",
+    "github.com/bkaradzic/go-lz4",
+    "github.com/cenkalti/backoff",
+    "github.com/gilbertchen/azure-sdk-for-go/storage",
+    "github.com/gilbertchen/cli",
+    "github.com/gilbertchen/go-dropbox",
+    "github.com/gilbertchen/go-ole",
+    "github.com/gilbertchen/goamz/aws",
+    "github.com/gilbertchen/goamz/s3",
+    "github.com/gilbertchen/gopass",
+    "github.com/gilbertchen/keyring",
+    "github.com/gilbertchen/xattr",
+    "github.com/klauspost/reedsolomon",
+    "github.com/minio/blake2b-simd",
+    "github.com/minio/highwayhash",
+    "github.com/ncw/swift",
+    "github.com/pkg/sftp",
+    "github.com/pkg/xattr",
+    "golang.org/x/crypto/pbkdf2",
+    "golang.org/x/crypto/ssh",
+    "golang.org/x/crypto/ssh/agent",
+    "golang.org/x/net/context",
+    "golang.org/x/oauth2",
+    "golang.org/x/oauth2/google",
+    "google.golang.org/api/drive/v3",
+    "google.golang.org/api/googleapi",
+    "google.golang.org/api/iterator",
+    "google.golang.org/api/option",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1
