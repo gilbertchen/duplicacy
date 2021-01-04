@@ -2188,6 +2188,12 @@ func main() {
 	app.Usage = "A new generation cloud backup tool based on lock-free deduplication"
 	app.Version = "2.7.2" + " (" + GitCommit + ")"
 
+	// Exit with code 2 if an invalid command is provided
+	app.CommandNotFound = func(context *cli.Context, command string) {
+		fmt.Fprintf(context.App.Writer, "Invalid command: %s\n", command)
+		os.Exit(2)
+	}
+
 	// If the program is interrupted, call the RunAtError function.
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)
