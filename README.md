@@ -2,7 +2,7 @@
 
 Duplicacy is a new generation cross-platform cloud backup tool based on the idea of [Lock-Free Deduplication](https://github.com/gilbertchen/duplicacy/wiki/Lock-Free-Deduplication).
 
-Our paper explaining the inner works of Duplicacy has been published online by [IEEE Transactions on Cloud Computing](https://ieeexplore.ieee.org/document/9310668) and will appear in a future issue this year.  The final draft version is available [here](https://github.com/gilbertchen/duplicacy/blob/master/duplicacy_paper.pdf) or those who don't have IEEE subscriptions. 
+Our paper explaining the inner workings of Duplicacy has been accepted by [IEEE Transactions on Cloud Computing](https://ieeexplore.ieee.org/document/9310668) and will appear in a future issue this year.  The final draft version is available [here](https://github.com/gilbertchen/duplicacy/blob/master/duplicacy_paper.pdf) for those who don't have IEEE subscriptions. 
 
 This repository hosts source code, design documents, and binary releases of the command line version of Duplicacy.  There is also a Web GUI frontend built for Windows, macOS, and Linux, available from https://duplicacy.com.
 
