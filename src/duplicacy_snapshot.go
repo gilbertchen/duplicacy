@@ -95,7 +95,7 @@ func CreateSnapshotFromDirectory(id string, top string, nobackupFile string, fil
 				LOG_ERROR("LIST_FAILURE", "Failed to list the repository root: %v", err)
 				return nil, nil, nil, err
 			}
-			LOG_WARN("LIST_FAILURE", "Failed to list subdirectory: %v", err)
+			LOG_WARN("LIST_FAILURE", "Failed to list subdirectory %s: %v", directory.Path, err)
 			skippedDirectories = append(skippedDirectories, directory.Path)
 			continue
 		}
