@@ -147,7 +147,7 @@ func (collection *FossilCollection) IsDeletable(isStrongConsistent bool, ignored
 			// collection would have finsihed already, while a snapshot currently being created does not affect
 			// this fossil collection.
 			if lastSnapshotTime[hostID] > 0 && lastSnapshotTime[hostID] < time.Now().Unix()-maxSnapshotRunningTime*secondsInDay {
-				LOG_INFO("SNAPSHOT_INACTIVE", "Ignore snapshot %s whose last revision was created %d days ago",
+				LOG_INFO("SNAPSHOT_INACTIVE", "Ignore snapshot %s whose last revision was created more than %d days ago",
 					hostID, maxSnapshotRunningTime)
 				continue
 			}
