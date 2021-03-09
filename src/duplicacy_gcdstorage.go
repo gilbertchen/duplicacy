@@ -41,6 +41,7 @@ type GCDStorage struct {
 	backoffs    []int // desired backoff time in seconds for each thread
 	attempts    []int // number of failed attempts since last success for each thread
 	driveID     string // the ID of the shared drive or 'root' (GCDUserDrive) if the user's drive
+	spaces      string // 'appDataFolder' if scope is drive.appdata; 'drive' otherwise
 
 	createDirectoryLock sync.Mutex
 	isConnected         bool
@@ -199,7 +200,7 @@ func (storage *GCDStorage) listFiles(threadIndex int, parentID string, listFiles
 		var err error
 
 		for {
-			q := storage.service.Files.List().Q(query).Fields("nextPageToken", "files(name, mimeType, id, size)").PageToken(startToken).PageSize(maxCount)
+			q := storage.service.Files.List().Q(query).Fields("nextPageToken", "files(name, mimeType, id, size)").PageToken(startToken).PageSize(maxCount).Spaces(storage.spaces)
 			if storage.driveID != GCDUserDrive {
 				q = q.DriveId(storage.driveID).IncludeItemsFromAllDrives(true).Corpora("drive").SupportsAllDrives(true)
 			}
@@ -231,7 +232,7 @@ func (storage *GCDStorage) listByName(threadIndex int, parentID string, name str
 
 	for {
 		query := "name = '" + name + "' and '" + parentID + "' in parents and trashed = false "
-		q := storage.service.Files.List().Q(query).Fields("files(name, mimeType, id, size)")
+		q := storage.service.Files.List().Q(query).Fields("files(name, mimeType, id, size)").Spaces(storage.spaces)
 		if storage.driveID != GCDUserDrive {
 			q = q.DriveId(storage.driveID).IncludeItemsFromAllDrives(true).Corpora("drive").SupportsAllDrives(true)
 		}
@@ -344,11 +345,23 @@ func CreateGCDStorage(tokenFile string, driveID string, storagePath string, thre
 
 	var tokenSource oauth2.TokenSource
 
+	scope := drive.DriveScope
+
 	if isServiceAccount {
-		config, err := google.JWTConfigFromJSON(description, drive.DriveScope)
+
+		if newScope, ok := object["scope"]; ok {
+			scope = newScope.(string)
+		}
+
+		config, err := google.JWTConfigFromJSON(description, scope)
 		if err != nil {
 			return nil, err
 		}
+
+		if subject, ok := object["subject"]; ok {
+		    config.Subject = subject.(string)
+		}
+
 		tokenSource = config.TokenSource(ctx)
 	} else {
 		gcdConfig := &GCDConfig{}
@@ -398,6 +411,7 @@ func CreateGCDStorage(tokenFile string, driveID string, storagePath string, thre
 		backoffs:        make([]int, threads),
 		attempts:        make([]int, threads),
 		driveID:         driveID,
+		spaces:          "drive",
 	}
 
 	for i := range storage.backoffs {
@@ -405,7 +419,14 @@ func CreateGCDStorage(tokenFile string, driveID string, storagePath string, thre
 		storage.attempts[i] = 0
 	}
 
-	storage.savePathID("", driveID)
+
+	if scope == drive.DriveAppdataScope {
+		storage.spaces = "appDataFolder"
+		storage.savePathID("", "appDataFolder")
+	} else {
+		storage.savePathID("", driveID)
+	}
+
 	storagePathID, err := storage.getIDFromPath(0, storagePath, true)
 	if err != nil {
 		return nil, err
