@@ -256,6 +256,29 @@ func (storage *GCDStorage) listByName(threadIndex int, parentID string, name str
 	return file.Id, file.MimeType == GCDDirectoryMimeType, file.Size, nil
 }
 
+// Returns the id of the shared folder with the given name if it exists
+func (storage *GCDStorage) findSharedFolder(threadIndex int, name string) (string, error) {
+
+	query := "name = '" + name + "' and sharedWithMe and trashed = false and mimeType = 'application/vnd.google-apps.folder'"
+	q := storage.service.Files.List().Q(query).Fields("files(name, mimeType, id, size)").Spaces(storage.spaces)
+	if storage.driveID != GCDUserDrive {
+		q = q.DriveId(storage.driveID).IncludeItemsFromAllDrives(true).Corpora("drive").SupportsAllDrives(true)
+	}
+
+	fileList, err := q.Do()
+	if err != nil {
+		return "", err
+	}
+
+	if len(fileList.Files) == 0 {
+		return "", nil
+	}
+
+	file := fileList.Files[0]
+
+	return file.Id, nil
+}
+
 // getIDFromPath returns the id of the given path.  If 'createDirectories' is true, create the given path and all its
 // parent directories if they don't exist.  Note that if 'createDirectories' is false, it may return an empty 'fileID'
 // if the file doesn't exist.
@@ -427,9 +450,21 @@ func CreateGCDStorage(tokenFile string, driveID string, storagePath string, thre
 		storage.savePathID("", driveID)
 	}
 
-	storagePathID, err := storage.getIDFromPath(0, storagePath, true)
-	if err != nil {
-		return nil, err
+	storagePathID := ""
+
+	// When using service acount, check if storagePath is a shared folder which takes priority over regular folders.
+	if isServiceAccount && !strings.Contains(storagePath, "/") {
+		storagePathID, err = storage.findSharedFolder(0, storagePath)
+		if err != nil {
+			LOG_WARN("GCD_STORAGE", "Failed to check if %s is a shared folder: %v", storagePath, err)
+		}
+	}
+
+	if storagePathID == "" {
+		storagePathID, err = storage.getIDFromPath(0, storagePath, true)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Reset the id cache and start with 'storagePathID' as the root
