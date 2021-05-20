@@ -18,7 +18,29 @@ import (
 
 	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/net/proxy"
+	"github.com/magisterquis/connectproxy"
 )
+
+var registerDialerTypes sync.Once;
+func proxyableDial(network, addr string, config *ssh.ClientConfig) (*ssh.Client, error) {
+        registerDialerTypes.Do(func() {
+                proxy.RegisterDialerType("http", connectproxy.New)
+                proxy.RegisterDialerType("https", connectproxy.New)
+        })
+
+        conn, err := proxy.FromEnvironment().Dial(network, addr)
+        if err != nil {
+                return nil, err
+        }
+
+        c, chans, reqs, err := ssh.NewClientConn(conn, addr, config)
+        if err != nil {
+                return nil, err
+        }
+
+        return ssh.NewClient(c, chans, reqs), nil
+}
 
 type SFTPStorage struct {
 	StorageBase
@@ -75,7 +97,7 @@ func CreateSFTPStorage(compatibilityMode bool, server string, port int, username
 	}
 
 	serverAddress := fmt.Sprintf("%s:%d", server, port)
-	connection, err := ssh.Dial("tcp", serverAddress, sftpConfig)
+	connection, err := proxyableDial("tcp", serverAddress, sftpConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +164,7 @@ func (storage *SFTPStorage) retry(f func () error) error {
 			delay *= 2
 
 			storage.clientLock.Lock()
-			connection, err := ssh.Dial("tcp", storage.serverAddress, storage.sftpConfig)
+			connection, err := proxyableDial("tcp", storage.serverAddress, storage.sftpConfig)
 			if err != nil {
 				LOG_WARN("SFT_RECONNECT", "Failed to connect to %s: %v; retrying", storage.serverAddress, err)
 				storage.clientLock.Unlock()
