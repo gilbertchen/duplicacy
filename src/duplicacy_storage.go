@@ -455,7 +455,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			SavePassword(preference, "ssh_password", password)
 		}
 		return sftpStorage
-	} else if matched[1] == "s3" || matched[1] == "s3c" || matched[1] == "minio" || matched[1] == "minios" {
+	} else if matched[1] == "s3" || matched[1] == "s3c" || matched[1] == "minio" || matched[1] == "minios" || matched[1] == "s3-token" {
 
 		// urlRegex := regexp.MustCompile(`^(\w+)://([\w\-]+@)?([^/]+)(/(.+))?`)
 
@@ -492,7 +492,12 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		} else {
 			isMinioCompatible := (matched[1] == "minio" || matched[1] == "minios")
 			isSSLSupported := (matched[1] == "s3" || matched[1] == "minios")
-			storage, err = CreateS3Storage(region, endpoint, bucket, storageDir, accessKey, secretKey, threads, isSSLSupported, isMinioCompatible)
+			if matched[1] == "s3-token" {
+				token := GetPassword(preference, "s3_token", "Enter S3 Token (Optional):", true, resetPassword)
+				storage, err = CreateS3StorageWithToken(region, endpoint, bucket, storageDir, accessKey, secretKey, token, threads, isSSLSupported, isMinioCompatible)
+			} else {
+				storage, err = CreateS3Storage(region, endpoint, bucket, storageDir, accessKey, secretKey, threads, isSSLSupported, isMinioCompatible)
+			}
 			if err != nil {
 				LOG_ERROR("STORAGE_CREATE", "Failed to load the S3 storage at %s: %v", storageURL, err)
 				return nil
