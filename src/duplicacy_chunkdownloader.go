@@ -427,17 +427,10 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 				return false
 			}
 
-			// We can't download the fossil directly.  We have to turn it back into a regular chunk and try
-			// downloading again.
-			err = downloader.storage.MoveFile(threadIndex, fossilPath, chunkPath)
-			if err != nil {
-				completeFailedChunk(chunk)
-				LOG_WERROR(downloader.allowFailures, "DOWNLOAD_CHUNK", "Failed to resurrect chunk %s: %v", chunkID, err)
-				return false
-			}
-
-			LOG_WARN("DOWNLOAD_RESURRECT", "Fossil %s has been resurrected", chunkID)
-			continue
+			// Don't try to resurrect the fossil as we did before.  This is to avoid the potential read-after-rename
+			// consistency issue.  Instead, download the fossil directly; resurrection should be taken care of later.
+			chunkPath = fossilPath
+			LOG_WARN("DOWNLOAD_FOSSIL", "Chunk %s is a fossil", chunkID)
 		}
 
 		err = downloader.storage.DownloadFile(threadIndex, chunkPath, chunk)
