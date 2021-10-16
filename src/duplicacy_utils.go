@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+        "runtime"
 
 	"github.com/gilbertchen/gopass"
 	"golang.org/x/crypto/pbkdf2"
@@ -459,4 +460,17 @@ func AtoSize(sizeString string) int {
 	}
 
 	return size
+}
+
+func PrintMemoryUsage() {
+
+	for {
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+
+		LOG_INFO("MEMORY_STATS", "Currently allocated: %s, total allocated: %s, system memory: %s, number of GCs: %d",
+		         PrettySize(int64(m.Alloc)), PrettySize(int64(m.TotalAlloc)), PrettySize(int64(m.Sys)), m.NumGC)
+
+		time.Sleep(time.Second)
+	}
 }

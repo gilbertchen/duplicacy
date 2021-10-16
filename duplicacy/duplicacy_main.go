@@ -147,6 +147,10 @@ func setGlobalOptions(context *cli.Context) {
 		duplicacy.SetLoggingLevel(duplicacy.DEBUG)
 	}
 
+	if context.GlobalBool("print-memory-usage") {
+		go duplicacy.PrintMemoryUsage()
+	}
+
 	ScriptEnabled = true
 	if context.GlobalBool("no-script") {
 		ScriptEnabled = false
@@ -2179,6 +2183,10 @@ func main() {
 			Name:  "suppress, s",
 			Usage: "suppress logs with the specified id",
 			Argument: "<id>",
+		},
+		cli.BoolFlag{
+			Name:  "print-memory-usage",
+			Usage: "print memory usage every second",
 		},
 	}
 
