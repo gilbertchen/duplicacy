@@ -11,8 +11,9 @@ import (
 	"io"
 )
 
-// ChunkMaker breaks data into chunks using buzhash.  To save memory, the chunk maker only use a circular buffer
-// whose size is double the minimum chunk size.
+// ChunkMaker breaks data into chunks at file boundaries appearing
+// within chunksize size limits, or using buzhash to make artificial
+// breaks for larger files
 type ChunkMaker struct {
 	maximumChunkSize int
 	minimumChunkSize int
@@ -48,7 +49,7 @@ func CreateChunkMaker(config *Config, hashOnly bool) *ChunkMaker {
 		hashMask:         uint64(config.AverageChunkSize - 1),
 		maximumChunkSize: config.MaximumChunkSize,
 		minimumChunkSize: config.MinimumChunkSize,
-		bufferCapacity:   2 * config.MinimumChunkSize,
+		bufferCapacity:   config.MaximumChunkSize,
 		config:           config,
 		hashOnly:         hashOnly,
 	}
@@ -66,7 +67,7 @@ func CreateChunkMaker(config *Config, hashOnly bool) *ChunkMaker {
 		randomData = sha256.Sum256(randomData[:])
 	}
 
-	maker.buffer = make([]byte, 2*config.MinimumChunkSize)
+	maker.buffer = make([]byte, maker.bufferCapacity)
 
 	return maker
 }
@@ -189,7 +190,7 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
 	for {
 
 		// If the buffer still has some space left and EOF is not seen, read more data.
-		for maker.bufferSize < maker.bufferCapacity && !isEOF {
+		for maker.bufferSize < maker.bufferCapacity {
 			start := maker.bufferStart + maker.bufferSize
 			count := maker.bufferCapacity - start
 			if start >= maker.bufferCapacity {
@@ -213,11 +214,19 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
 				var ok bool
 				reader, ok = nextReader(fileSize, hex.EncodeToString(fileHasher.Sum(nil)))
 				if !ok {
-					isEOF = true
+					fill(maker.bufferSize)
+					endOfChunk(chunk, true)
+					return
 				} else {
 					fileSize = 0
 					fileHasher = maker.config.NewFileHasher()
-					isEOF = false
+				}
+
+				// make new chunk if minimum chunksize has been gathered
+				if maker.bufferSize >= maker.minimumChunkSize {
+					fill(maker.bufferSize)
+					endOfChunk(chunk, false)
+					startNewChunk()
 				}
 			}
 		}
