@@ -11,7 +11,32 @@ import (
 	"io"
 )
 
-// ChunkMaker breaks data into chunks using buzhash.  To save memory, the chunk maker only use a circular buffer
+// MaskArray is a mask list which u can choose satisfied mask for different avg chunk size
+
+var MaskArray = [...]uint64{
+	0, 0, 0, 0, 0, 0,
+	0x00001803110,      // 64B
+	0x000018035100,     // 128B
+	0x00001800035300,   // 256B
+	0x000019000353000,  // 512B
+	0x0000590003530000, // 1KB
+	0x0000d90003530000, // 2KB
+	0x0000d90103530000, // 4KB
+	0x0000d90303530000, // 8KB
+	0x0000d90313530000, // 16KB
+	0x0000d90f03530000, // 32KB
+	0x0000d90303537000, // 64KB
+	0x0000d90703537000, // 128KB
+	0x0000d90707537000, // 256KB
+	0x0000d91707537000, // 512KB
+	0x0000d91747537000, // 1MB
+	0x0000d91767537000, // 2MB
+	0x0000d93767537000, // 4MB
+	0x0000d93777537000, // 8MB
+	0x0000d93777577000, // 16MB
+}
+
+// ChunkMaker breaks data into chunks using fastcdc.  To save memory, the chunk maker only use a circular buffer
 // whose size is double the minimum chunk size.
 type ChunkMaker struct {
 	maximumChunkSize int
@@ -19,6 +44,7 @@ type ChunkMaker struct {
 	bufferCapacity   int
 
 	hashMask    uint64
+	hashMask2   uint64
 	randomTable [256]uint64
 
 	buffer      []byte
@@ -32,11 +58,13 @@ type ChunkMaker struct {
 }
 
 // CreateChunkMaker creates a chunk maker.  'randomSeed' is used to generate the character-to-integer table needed by
-// buzhash.
+// fastcdc.
 func CreateChunkMaker(config *Config, hashOnly bool) *ChunkMaker {
 	size := 1
+	count := 0
 	for size*2 <= config.AverageChunkSize {
 		size *= 2
+		count += 1
 	}
 
 	if size != config.AverageChunkSize {
@@ -45,7 +73,8 @@ func CreateChunkMaker(config *Config, hashOnly bool) *ChunkMaker {
 	}
 
 	maker := &ChunkMaker{
-		hashMask:         uint64(config.AverageChunkSize - 1),
+		hashMask:         MaskArray[count+2],
+		hashMask2:        MaskArray[count-2],
 		maximumChunkSize: config.MaximumChunkSize,
 		minimumChunkSize: config.MinimumChunkSize,
 		bufferCapacity:   2 * config.MinimumChunkSize,
@@ -71,25 +100,6 @@ func CreateChunkMaker(config *Config, hashOnly bool) *ChunkMaker {
 	return maker
 }
 
-func rotateLeft(value uint64, bits uint) uint64 {
-	return (value << (bits & 0x3f)) | (value >> (64 - (bits & 0x3f)))
-}
-
-func rotateLeftByOne(value uint64) uint64 {
-	return (value << 1) | (value >> 63)
-}
-
-func (maker *ChunkMaker) buzhashSum(sum uint64, data []byte) uint64 {
-	for i := 0; i < len(data); i++ {
-		sum = rotateLeftByOne(sum) ^ maker.randomTable[data[i]]
-	}
-	return sum
-}
-
-func (maker *ChunkMaker) buzhashUpdate(sum uint64, out byte, in byte, length int) uint64 {
-	return rotateLeftByOne(sum) ^ rotateLeft(maker.randomTable[out], uint(length)) ^ maker.randomTable[in]
-}
-
 // ForEachChunk reads data from 'reader'.  If EOF is encountered, it will call 'nextReader' to ask for next file.  If
 // 'nextReader' returns false, it will process remaining data in the buffer and then quit.  When a chunk is identified,
 // it will call 'endOfChunk' to return the chunk size and a boolean flag indicating if it is the last chunk.
@@ -99,7 +109,7 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
 	maker.bufferStart = 0
 	maker.bufferSize = 0
 
-	var minimumReached bool
+	//var minimumReached bool
 	var hashSum uint64
 	var chunk *Chunk
 
@@ -109,7 +119,7 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
 	// Start a new chunk.
 	startNewChunk := func() {
 		hashSum = 0
-		minimumReached = false
+		//minimumReached = false
 		if maker.hashOnly {
 			chunk = maker.hashOnlyChunk
 			chunk.Reset(true)
@@ -229,6 +239,39 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
 			return
 		}
 
+		begin := maker.minimumChunkSize
+		mid := maker.minimumChunkSize + maker.config.AverageChunkSize
+		end := maker.bufferSize
+		isEOC := false
+		bytes := maker.minimumChunkSize
+
+		if end > maker.maximumChunkSize {
+			end = maker.maximumChunkSize
+		} else if end < mid {
+			mid = end
+		}
+
+		for begin < mid {
+			hashSum = (hashSum << 1) + maker.randomTable[maker.buffer[begin]]
+			if hashSum&maker.hashMask == 0 {
+				bytes = begin
+				isEOC = true
+				break
+			}
+			begin++
+		}
+
+		for !isEOC && begin < end {
+			hashSum = (hashSum << 1) + maker.randomTable[maker.buffer[begin]]
+			if hashSum&maker.hashMask2 == 0 {
+				bytes = begin
+				isEOC = true
+				break
+			}
+			begin++
+		}
+
+		/**
 		// Minimum chunk size has been reached.  Calculate the buzhash for the minimum size chunk.
 		if !minimumReached {
 
@@ -275,6 +318,8 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
 				break
 			}
 		}
+
+		*/
 
 		fill(bytes)
 
