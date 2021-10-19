@@ -152,7 +152,7 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
 
 				if err != nil {
 					if err != io.EOF {
-						LOG_ERROR("CHUNK_MAKER", "Failed to read %d bytes: %s", count, err.Error())
+						LOG_ERROR("CHUNK_MAKER", "Failed after read %d bytes: %s", fileSize+int64(count), err.Error())
 						return
 					} else {
 						isEOF = true
@@ -171,9 +171,13 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
 				if !ok {
 					endOfChunk(chunk, true)
 					return
-				} else {
-					endOfChunk(chunk, false)
-					startNewChunk()
+				} else { // new file started.
+					// If previous file was an exact multiple of chunk size, the last read returned EOF with zero bytes in the chunk buffer.
+					//   Don't save a zero-length chunk, it can confuse downstream processing! (Also, no need to reset a zero-length chunk.)
+					if chunk.GetLength() > 0 {
+						endOfChunk(chunk, false)
+						startNewChunk()
+					}
 					fileSize = 0
 					fileHasher = maker.config.NewFileHasher()
 					isEOF = false
@@ -200,7 +204,7 @@ func (maker *ChunkMaker) ForEachChunk(reader io.Reader, endOfChunk func(chunk *C
 			count, err = reader.Read(maker.buffer[start : start+count])
 
 			if err != nil && err != io.EOF {
-				LOG_ERROR("CHUNK_MAKER", "Failed to read %d bytes: %s", count, err.Error())
+				LOG_ERROR("CHUNK_MAKER", "Failed after read %d bytes: %s", fileSize+int64(count), err.Error())
 				return
 			}
 

@@ -152,6 +152,11 @@ func setEntryContent(entries []*Entry, chunkLengths []int, offset int) {
 			if totalChunkSize+int64(length) == totalFileSize {
 				entries[i].StartChunk = j + 1 + offset
 				entries[i].StartOffset = 0
+				if entries[i].Size == 0 {
+					break // zero-length file at end of chunk, we need to exit inner loop to advance j to the next chunk
+					// otherwise, inner for-loop will assign EndChunk = j + offset (which would be before StartChunk = j + 1 + offset)
+					// this also covers the cases where the zero-length file is associated with a zero-length chunk, so we don't re-assign zero-length chunk to next file.
+				}
 			} else {
 				entries[i].StartChunk = j + offset
 				entries[i].StartOffset = int(totalFileSize - totalChunkSize)
@@ -338,7 +343,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 			local := localSnapshot.Files[i]
 
-			if !local.IsFile() || local.Size == 0 {
+			if !local.IsFile() { // || local.Size == 0 <- process zero-length files so we can count them same as we did on the initial backup.
 				i++
 				continue
 			}
@@ -386,6 +391,11 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	deletedChunks := 0
 	for _, entry := range preservedEntries {
 
+		// fix zero-size issues for storage saved by v2.1.2 or earlier (caused error in bundle_or_chunk, and possibly in main branch) JAK
+		//  note that Duplicacy had created an extraneous zero-length chunk and assigned it as the StartChunk of a non-zero-length file.
+		for remoteSnapshot.ChunkLengths[entry.StartChunk] == 0 && entry.Size != 0 {
+			entry.StartChunk++
+		}
 		if entry.StartChunk > last {
 			deletedChunks += entry.StartChunk - last - 1
 		}
@@ -694,7 +704,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	if showStatistics {
 
 		LOG_INFO("BACKUP_STATS", "Files: %d total, %s bytes; %d new, %s bytes",
-			len(preservedEntries)+len(uploadedEntries),
+			localSnapshot.NumberOfFiles,
 			PrettyNumber(preservedFileSize+uploadedFileSize),
 			len(uploadedEntries), PrettyNumber(uploadedFileSize))
 
