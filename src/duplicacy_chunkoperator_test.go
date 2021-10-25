@@ -15,11 +15,11 @@ import (
 	"math/rand"
 )
 
-func TestUploaderAndDownloader(t *testing.T) {
+func TestChunkOperator(t *testing.T) {
 
 	rand.Seed(time.Now().UnixNano())
 	setTestingT(t)
-	SetLoggingLevel(INFO)
+	SetLoggingLevel(DEBUG)
 
 	defer func() {
 		if r := recover(); r != nil {
@@ -87,35 +87,25 @@ func TestUploaderAndDownloader(t *testing.T) {
 		totalFileSize += chunk.GetLength()
 	}
 
-	completionFunc := func(chunk *Chunk, chunkIndex int, skipped bool, chunkSize int, uploadSize int) {
+	chunkOperator := CreateChunkOperator(config, storage, nil, false, testThreads, false)
+	chunkOperator.UploadCompletionFunc = func(chunk *Chunk, chunkIndex int, skipped bool, chunkSize int, uploadSize int) {
 		t.Logf("Chunk %s size %d (%d/%d) uploaded", chunk.GetID(), chunkSize, chunkIndex, len(chunks))
 	}
 
-	chunkUploader := CreateChunkUploader(config, storage, nil, testThreads, nil)
-	chunkUploader.completionFunc = completionFunc
-	chunkUploader.Start()
-
 	for i, chunk := range chunks {
-		chunkUploader.StartChunk(chunk, i)
+		chunkOperator.Upload(chunk, i, false)
 	}
 
-	chunkUploader.Stop()
-
-	chunkDownloader := CreateChunkDownloader(config, storage, nil, true, testThreads, false)
-	chunkDownloader.totalChunkSize = int64(totalFileSize)
-
-	for _, chunk := range chunks {
-		chunkDownloader.AddChunk(chunk.GetHash())
-	}
+	chunkOperator.WaitForCompletion()
 
 	for i, chunk := range chunks {
-		downloaded := chunkDownloader.WaitForChunk(i)
+		downloaded := chunkOperator.Download(chunk.GetHash(), i, false)
 		if downloaded.GetID() != chunk.GetID() {
 			t.Errorf("Uploaded: %s, downloaded: %s", chunk.GetID(), downloaded.GetID())
 		}
 	}
 
-	chunkDownloader.Stop()
+	chunkOperator.Stop()
 
 	for _, file := range listChunks(storage) {
 		err = storage.DeleteFile(0, "chunks/"+file)

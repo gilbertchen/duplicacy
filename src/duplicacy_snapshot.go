@@ -8,17 +8,22 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
+	"sort"
+	"bytes"
+
+    "github.com/vmihailenco/msgpack"
+
 )
 
 // Snapshot represents a backup of the repository.
 type Snapshot struct {
+	Version       int
 	ID            string // the snapshot id; must be different for different repositories
 	Revision      int    // the revision number
 	Options       string // options used to create this snapshot (some not included)
@@ -37,14 +42,11 @@ type Snapshot struct {
 	// A sequence of chunks whose aggregated content is the json representation of 'ChunkLengths'.
 	LengthSequence []string
 
-	Files []*Entry // list of files and subdirectories
-
 	ChunkHashes  []string // a sequence of chunks representing the file content
 	ChunkLengths []int    // the length of each chunk
 
 	Flag bool // used to mark certain snapshots for deletion or copy
 
-	discardAttributes bool
 }
 
 // CreateEmptySnapshot creates an empty snapshot.
@@ -56,16 +58,14 @@ func CreateEmptySnapshot(id string) (snapshto *Snapshot) {
 	}
 }
 
-// CreateSnapshotFromDirectory creates a snapshot from the local directory 'top'.  Only 'Files'
-// will be constructed, while 'ChunkHashes' and 'ChunkLengths' can only be populated after uploading.
-func CreateSnapshotFromDirectory(id string, top string, nobackupFile string, filtersFile string, excludeByAttribute bool) (snapshot *Snapshot, skippedDirectories []string,
-	skippedFiles []string, err error) {
+type DirectoryListing struct {
+	directory string
+	files *[]Entry
+}
 
-	snapshot = &Snapshot{
-		ID:        id,
-		Revision:  0,
-		StartTime: time.Now().Unix(),
-	}
+func (snapshot *Snapshot) ListLocalFiles(top string, nobackupFile string,
+								         filtersFile string, excludeByAttribute bool, listingChannel chan *Entry,
+								         skippedDirectories *[]string, skippedFiles *[]string) {
 
 	var patterns []string
 
@@ -77,45 +77,128 @@ func CreateSnapshotFromDirectory(id string, top string, nobackupFile string, fil
 	directories := make([]*Entry, 0, 256)
 	directories = append(directories, CreateEntry("", 0, 0, 0))
 
-	snapshot.Files = make([]*Entry, 0, 256)
-
-	attributeThreshold := 1024 * 1024
-	if attributeThresholdValue, found := os.LookupEnv("DUPLICACY_ATTRIBUTE_THRESHOLD"); found && attributeThresholdValue != "" {
-		attributeThreshold, _ = strconv.Atoi(attributeThresholdValue)
-	}
-
 	for len(directories) > 0 {
 
 		directory := directories[len(directories)-1]
 		directories = directories[:len(directories)-1]
-		snapshot.Files = append(snapshot.Files, directory)
-		subdirectories, skipped, err := ListEntries(top, directory.Path, &snapshot.Files, patterns, nobackupFile, snapshot.discardAttributes, excludeByAttribute)
+		subdirectories, skipped, err := ListEntries(top, directory.Path, patterns, nobackupFile, excludeByAttribute, listingChannel)
 		if err != nil {
 			if directory.Path == "" {
 				LOG_ERROR("LIST_FAILURE", "Failed to list the repository root: %v", err)
-				return nil, nil, nil, err
+				return
 			}
 			LOG_WARN("LIST_FAILURE", "Failed to list subdirectory %s: %v", directory.Path, err)
-			skippedDirectories = append(skippedDirectories, directory.Path)
+			if skippedDirectories != nil {
+				*skippedDirectories = append(*skippedDirectories, directory.Path)
+			}
 			continue
 		}
 
 		directories = append(directories, subdirectories...)
-		skippedFiles = append(skippedFiles, skipped...)
 
-		if !snapshot.discardAttributes && len(snapshot.Files) > attributeThreshold {
-			LOG_INFO("LIST_ATTRIBUTES", "Discarding file attributes")
-			snapshot.discardAttributes = true
-			for _, file := range snapshot.Files {
-				file.Attributes = nil
-			}
+		if skippedFiles != nil {
+			*skippedFiles = append(*skippedFiles, skipped...)
 		}
+
+	}
+	close(listingChannel)
+}
+
+func (snapshot *Snapshot)ListRemoteFiles(config *Config, chunkOperator *ChunkOperator, entryOut func(*Entry) bool) {
+
+	var chunks []string
+	for _, chunkHash := range snapshot.FileSequence {
+		chunks = append(chunks, chunkOperator.config.GetChunkIDFromHash(chunkHash))
 	}
 
-	// Remove the root entry
-	snapshot.Files = snapshot.Files[1:]
+	var chunk *Chunk
+	reader := sequenceReader{
+		sequence: snapshot.FileSequence,
+		buffer:   new(bytes.Buffer),
+		refillFunc: func(chunkHash string) []byte {
+			if chunk != nil {
+				config.PutChunk(chunk)
+			}
+			chunk = chunkOperator.Download(chunkHash, 0, true)
+			return chunk.GetBytes()
+		},
+	}
 
-	return snapshot, skippedDirectories, skippedFiles, nil
+	if snapshot.Version == 0 {
+		LOG_INFO("SNAPSHOT_VERSION", "snapshot %s at revision %d is encoded in an old version format", snapshot.ID, snapshot.Revision)
+		files := make([]*Entry, 0)
+		decoder := json.NewDecoder(&reader)
+
+		// read open bracket
+		_, err := decoder.Token()
+		if err != nil {
+			LOG_ERROR("SNAPSHOT_PARSE", "Failed to open the snapshot %s at revision %d: not a list of entries",
+				snapshot.ID, snapshot.Revision)
+			return
+		}
+
+		for decoder.More() {
+			var entry Entry
+			err = decoder.Decode(&entry)
+			if err != nil {
+				LOG_ERROR("SNAPSHOT_PARSE", "Failed to load files specified in the snapshot %s at revision %d: %v",
+					snapshot.ID, snapshot.Revision, err)
+				return
+			}
+			files = append(files, &entry)
+		}
+
+		sort.Sort(ByName(files))
+
+		for _, file := range files {
+			if !entryOut(file) {
+				return
+			}
+		}
+	} else if snapshot.Version == 1 {
+		decoder := msgpack.NewDecoder(&reader)
+
+		lastEndChunk := 0
+
+		// while the array contains values
+		for _, err := decoder.PeekCode(); err != io.EOF; _, err = decoder.PeekCode() {
+			if err != nil {
+				LOG_ERROR("SNAPSHOT_PARSE", "Failed to parse the snapshot %s at revision %d: %v",
+					snapshot.ID, snapshot.Revision, err)
+				return
+			}
+			var entry Entry
+			err = decoder.Decode(&entry)
+			if err != nil {
+				LOG_ERROR("SNAPSHOT_PARSE", "Failed to load the snapshot %s at revision %d: %v",
+					snapshot.ID, snapshot.Revision, err)
+				return
+			}
+
+			if entry.IsFile() {
+				entry.StartChunk += lastEndChunk
+				entry.EndChunk += entry.StartChunk
+				lastEndChunk = entry.EndChunk
+			}
+
+			err = entry.check(snapshot.ChunkLengths)
+			if err != nil {
+				LOG_ERROR("SNAPSHOT_ENTRY", "Failed to load the snapshot %s at revision %d: %v",
+					snapshot.ID, snapshot.Revision, err)
+				return
+			}
+
+			if !entryOut(&entry) {
+				return
+			}
+		}
+
+	} else {
+		LOG_ERROR("SNAPSHOT_VERSION", "snapshot %s at revision %d is encoded in unsupported version %d format",
+				  snapshot.ID, snapshot.Revision, snapshot.Version)
+		return
+	}
+
 }
 
 func AppendPattern(patterns []string, new_pattern string) (new_patterns []string) {
@@ -215,100 +298,6 @@ func ProcessFilterLines(patternFileLines []string, includedFiles []string) (patt
 	return patterns
 }
 
-// This is the struct used to save/load incomplete snapshots
-type IncompleteSnapshot struct {
-	Files        []*Entry
-	ChunkHashes  []string
-	ChunkLengths []int
-}
-
-// LoadIncompleteSnapshot loads the incomplete snapshot if it exists
-func LoadIncompleteSnapshot() (snapshot *Snapshot) {
-	snapshotFile := path.Join(GetDuplicacyPreferencePath(), "incomplete")
-	description, err := ioutil.ReadFile(snapshotFile)
-	if err != nil {
-		LOG_DEBUG("INCOMPLETE_LOCATE", "Failed to locate incomplete snapshot: %v", err)
-		return nil
-	}
-
-	var incompleteSnapshot IncompleteSnapshot
-
-	err = json.Unmarshal(description, &incompleteSnapshot)
-	if err != nil {
-		LOG_DEBUG("INCOMPLETE_PARSE", "Failed to parse incomplete snapshot: %v", err)
-		return nil
-	}
-
-	var chunkHashes []string
-	for _, chunkHash := range incompleteSnapshot.ChunkHashes {
-		hash, err := hex.DecodeString(chunkHash)
-		if err != nil {
-			LOG_DEBUG("INCOMPLETE_DECODE", "Failed to decode incomplete snapshot: %v", err)
-			return nil
-		}
-		chunkHashes = append(chunkHashes, string(hash))
-	}
-
-	snapshot = &Snapshot{
-		Files:        incompleteSnapshot.Files,
-		ChunkHashes:  chunkHashes,
-		ChunkLengths: incompleteSnapshot.ChunkLengths,
-	}
-	LOG_INFO("INCOMPLETE_LOAD", "Incomplete snapshot loaded from %s", snapshotFile)
-	return snapshot
-}
-
-// SaveIncompleteSnapshot saves the incomplete snapshot under the preference directory
-func SaveIncompleteSnapshot(snapshot *Snapshot) {
-	var files []*Entry
-	for _, file := range snapshot.Files {
-		// All unprocessed files will have a size of -1
-		if file.Size >= 0 {
-			file.Attributes = nil
-			files = append(files, file)
-		} else {
-			break
-		}
-	}
-	var chunkHashes []string
-	for _, chunkHash := range snapshot.ChunkHashes {
-		chunkHashes = append(chunkHashes, hex.EncodeToString([]byte(chunkHash)))
-	}
-
-	incompleteSnapshot := IncompleteSnapshot{
-		Files:        files,
-		ChunkHashes:  chunkHashes,
-		ChunkLengths: snapshot.ChunkLengths,
-	}
-
-	description, err := json.MarshalIndent(incompleteSnapshot, "", "  ")
-	if err != nil {
-		LOG_WARN("INCOMPLETE_ENCODE", "Failed to encode the incomplete snapshot: %v", err)
-		return
-	}
-
-	snapshotFile := path.Join(GetDuplicacyPreferencePath(), "incomplete")
-	err = ioutil.WriteFile(snapshotFile, description, 0644)
-	if err != nil {
-		LOG_WARN("INCOMPLETE_WRITE", "Failed to save the incomplete snapshot: %v", err)
-		return
-	}
-
-	LOG_INFO("INCOMPLETE_SAVE", "Incomplete snapshot saved to %s", snapshotFile)
-}
-
-func RemoveIncompleteSnapshot() {
-	snapshotFile := path.Join(GetDuplicacyPreferencePath(), "incomplete")
-	if stat, err := os.Stat(snapshotFile); err == nil && !stat.IsDir() {
-		err = os.Remove(snapshotFile)
-		if err != nil {
-			LOG_INFO("INCOMPLETE_SAVE", "Failed to remove ncomplete snapshot: %v", err)
-		} else {
-			LOG_INFO("INCOMPLETE_SAVE", "Removed incomplete snapshot %s", snapshotFile)
-		}
-	}
-}
-
 // CreateSnapshotFromDescription creates a snapshot from json decription.
 func CreateSnapshotFromDescription(description []byte) (snapshot *Snapshot, err error) {
 
@@ -320,6 +309,14 @@ func CreateSnapshotFromDescription(description []byte) (snapshot *Snapshot, err 
 	}
 
 	snapshot = &Snapshot{}
+
+	if value, ok := root["version"]; !ok {
+		snapshot.Version = 0
+	} else if version, ok := value.(float64); !ok {
+		return nil, fmt.Errorf("Invalid version is specified in the snapshot")
+	} else {
+		snapshot.Version = int(version)
+	}
 
 	if value, ok := root["id"]; !ok {
 		return nil, fmt.Errorf("No id is specified in the snapshot")
@@ -437,6 +434,7 @@ func (snapshot *Snapshot) MarshalJSON() ([]byte, error) {
 
 	object := make(map[string]interface{})
 
+	object["version"] = 1
 	object["id"] = snapshot.ID
 	object["revision"] = snapshot.Revision
 	object["options"] = snapshot.Options
@@ -458,9 +456,7 @@ func (snapshot *Snapshot) MarshalJSON() ([]byte, error) {
 // MarshalSequence creates a json represetion for the specified chunk sequence.
 func (snapshot *Snapshot) MarshalSequence(sequenceType string) ([]byte, error) {
 
-	if sequenceType == "files" {
-		return json.Marshal(snapshot.Files)
-	} else if sequenceType == "chunks" {
+	if sequenceType == "chunks" {
 		return json.Marshal(encodeSequence(snapshot.ChunkHashes))
 	} else {
 		return json.Marshal(snapshot.ChunkLengths)
@@ -489,3 +485,4 @@ func encodeSequence(sequence []string) []string {
 
 	return sequenceInHex
 }
+

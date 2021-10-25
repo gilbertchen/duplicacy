@@ -65,8 +65,8 @@ type Chunk struct {
 	config *Config // Every chunk is associated with a Config object.  Which hashing algorithm to use is determined
 	// by the config
 
-	isSnapshot bool // Indicates if the chunk is a snapshot chunk (instead of a file chunk).  This is only used by RSA
-	                // encryption, where a snapshot chunk is not encrypted by RSA
+	isMetadata bool // Indicates if the chunk is a metadata chunk (instead of a file chunk).  This is primarily used by RSA
+	                // encryption, where a metadata chunk is not encrypted by RSA
 	
 	isBroken bool // Indicates the chunk did not download correctly. This is only used for -persist (allowFailures) mode
 }
@@ -127,7 +127,7 @@ func (chunk *Chunk) Reset(hashNeeded bool) {
 	chunk.hash = nil
 	chunk.id = ""
 	chunk.size = 0
-	chunk.isSnapshot = false
+	chunk.isMetadata = false
 	chunk.isBroken = false
 }
 
@@ -186,7 +186,7 @@ func (chunk *Chunk) VerifyID() {
 
 // Encrypt encrypts the plain data stored in the chunk buffer.  If derivationKey is not nil, the actual
 // encryption key will be HMAC-SHA256(encryptionKey, derivationKey).
-func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string, isSnapshot bool) (err error) {
+func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string, isMetadata bool) (err error) {
 
 	var aesBlock cipher.Block
 	var gcm cipher.AEAD
@@ -203,8 +203,8 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string, isSnapsh
 
 		key := encryptionKey
 		usingRSA := false
-		// Enable RSA encryption only when the chunk is not a snapshot chunk
-		if chunk.config.rsaPublicKey != nil && !isSnapshot && !chunk.isSnapshot {
+		// Enable RSA encryption only when the chunk is not a metadata chunk
+		if chunk.config.rsaPublicKey != nil && !isMetadata && !chunk.isMetadata {
 			randomKey := make([]byte, 32)
 			_, err := rand.Read(randomKey)
 			if err != nil {

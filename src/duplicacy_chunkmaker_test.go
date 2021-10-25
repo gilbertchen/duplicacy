@@ -7,14 +7,12 @@ package duplicacy
 import (
 	"bytes"
 	crypto_rand "crypto/rand"
-	"io"
 	"math/rand"
 	"sort"
 	"testing"
 )
 
-func splitIntoChunks(content []byte, n, averageChunkSize, maxChunkSize, minChunkSize,
-	bufferCapacity int) ([]string, int) {
+func splitIntoChunks(content []byte, n, averageChunkSize, maxChunkSize, minChunkSize int) ([]string, int) {
 
 	config := CreateConfig()
 
@@ -27,13 +25,11 @@ func splitIntoChunks(content []byte, n, averageChunkSize, maxChunkSize, minChunk
 	config.HashKey = DEFAULT_KEY
 	config.IDKey = DEFAULT_KEY
 
-	maker := CreateChunkMaker(config, false)
+	maker := CreateFileChunkMaker(config, false)
 
 	var chunks []string
 	totalChunkSize := 0
 	totalFileSize := int64(0)
-
-	//LOG_INFO("CHUNK_SPLIT", "bufferCapacity: %d", bufferCapacity)
 
 	buffers := make([]*bytes.Buffer, n)
 	sizes := make([]int, n)
@@ -42,7 +38,7 @@ func splitIntoChunks(content []byte, n, averageChunkSize, maxChunkSize, minChunk
 		same := true
 		for same {
 			same = false
-			sizes[i] = rand.Int() % n
+			sizes[i] = rand.Int() % len(content)
 			for j := 0; j < i; j++ {
 				if sizes[i] == sizes[j] {
 					same = true
@@ -59,22 +55,17 @@ func splitIntoChunks(content []byte, n, averageChunkSize, maxChunkSize, minChunk
 	}
 	buffers[n-1] = bytes.NewBuffer(content[sizes[n-1]:])
 
-	i := 0
+	chunkFunc := func(chunk *Chunk) {
+		chunks = append(chunks, chunk.GetHash())
+		totalChunkSize += chunk.GetLength()
+		config.PutChunk(chunk)
+	}
 
-	maker.ForEachChunk(buffers[0],
-		func(chunk *Chunk, final bool) {
-			//LOG_INFO("CHUNK_SPLIT", "i: %d, chunk: %s, size: %d", i, chunk.GetHash(), size)
-			chunks = append(chunks, chunk.GetHash())
-			totalChunkSize += chunk.GetLength()
-		},
-		func(size int64, hash string) (io.Reader, bool) {
-			totalFileSize += size
-			i++
-			if i >= len(buffers) {
-				return nil, false
-			}
-			return buffers[i], true
-		})
+	for _, buffer := range buffers {
+		fileSize, _ := maker.AddData(buffer, chunkFunc)
+		totalFileSize += fileSize
+	}
+	maker.AddData(nil, chunkFunc)
 
 	if totalFileSize != int64(totalChunkSize) {
 		LOG_ERROR("CHUNK_SPLIT", "total chunk size: %d, total file size: %d", totalChunkSize, totalFileSize)
@@ -96,35 +87,28 @@ func TestChunkMaker(t *testing.T) {
 			continue
 		}
 
-		chunkArray1, totalSize1 := splitIntoChunks(content, 10, 32, 64, 16, 32)
+		chunkArray1, totalSize1 := splitIntoChunks(content, 10, 32, 64, 16)
 
-		capacities := [...]int{32, 33, 34, 61, 62, 63, 64, 65, 66, 126, 127, 128, 129, 130,
-			255, 256, 257, 511, 512, 513, 1023, 1024, 1025,
-			32, 48, 64, 128, 256, 512, 1024, 2048}
 
-		//capacities := [...]int { 32 }
+		for _, n := range [...]int{6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16} {
+			chunkArray2, totalSize2 := splitIntoChunks(content, n, 32, 64, 16)
 
-		for _, capacity := range capacities {
+			if totalSize1 != totalSize2 {
+				t.Errorf("[size %d] total size is %d instead of %d",
+					size, totalSize2, totalSize1)
+			}
 
-			for _, n := range [...]int{6, 7, 8, 9, 10} {
-				chunkArray2, totalSize2 := splitIntoChunks(content, n, 32, 64, 16, capacity)
-
-				if totalSize1 != totalSize2 {
-					t.Errorf("[size %d, capacity %d] total size is %d instead of %d",
-						size, capacity, totalSize2, totalSize1)
-				}
-
-				if len(chunkArray1) != len(chunkArray2) {
-					t.Errorf("[size %d, capacity %d] number of chunks is %d instead of %d",
-						size, capacity, len(chunkArray2), len(chunkArray1))
-				} else {
-					for i := 0; i < len(chunkArray1); i++ {
-						if chunkArray1[i] != chunkArray2[i] {
-							t.Errorf("[size %d, capacity %d, chunk %d] chunk is different", size, capacity, i)
-						}
+			if len(chunkArray1) != len(chunkArray2) {
+				t.Errorf("[size %d] number of chunks is %d instead of %d",
+					size, len(chunkArray2), len(chunkArray1))
+			} else {
+				for i := 0; i < len(chunkArray1); i++ {
+					if chunkArray1[i] != chunkArray2[i] {
+						t.Errorf("[size %d, chunk %d] chunk is different", size, i)
 					}
 				}
 			}
+
 		}
 	}
 

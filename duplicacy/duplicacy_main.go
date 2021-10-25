@@ -147,6 +147,10 @@ func setGlobalOptions(context *cli.Context) {
 		duplicacy.SetLoggingLevel(duplicacy.DEBUG)
 	}
 
+	if context.GlobalBool("print-memory-usage") {
+		go duplicacy.PrintMemoryUsage()
+	}
+
 	ScriptEnabled = true
 	if context.GlobalBool("no-script") {
 		ScriptEnabled = false
@@ -781,7 +785,10 @@ func backupRepository(context *cli.Context) {
 
 	backupManager.SetupSnapshotCache(preference.Name)
 	backupManager.SetDryRun(dryRun)
-	backupManager.Backup(repository, quickMode, threads, context.String("t"), showStatistics, enableVSS, vssTimeout, enumOnly)
+
+	metadataChunkSize := context.Int("metadata-chunk-size")
+	maximumInMemoryEntries := context.Int("max-in-memory-entries")
+	backupManager.Backup(repository, quickMode, threads, context.String("t"), showStatistics, enableVSS, vssTimeout, enumOnly, metadataChunkSize, maximumInMemoryEntries)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1506,6 +1513,19 @@ func main() {
 					Name:  "enum-only",
 					Usage: "enumerate the repository recursively and then exit",
 				},
+				cli.IntFlag{
+					Name:     "metadata-chunk-size",
+					Value:    1024 * 1024,
+					Usage:    "the average size of metadata chunks (defaults to 1M)",
+					Argument: "<size>",
+				},
+				cli.IntFlag{
+					Name:     "max-in-memory-entries",
+					Value:    1024 * 1024,
+					Usage:    "the maximum number of entries kept in memory (defaults to 1M)",
+					Argument: "<number>",
+				},
+
 			},
 			Usage:     "Save a snapshot of the repository to the storage",
 			ArgsUsage: " ",
@@ -2179,6 +2199,10 @@ func main() {
 			Name:  "suppress, s",
 			Usage: "suppress logs with the specified id",
 			Argument: "<id>",
+		},
+		cli.BoolFlag{
+			Name:  "print-memory-usage",
+			Usage: "print memory usage every second",
 		},
 	}
 

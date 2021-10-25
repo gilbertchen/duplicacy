@@ -16,6 +16,11 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"bytes"
+	"crypto/sha256"
+
+    "github.com/vmihailenco/msgpack"
+
 )
 
 // This is the hidden directory in the repository for storing various files.
@@ -45,7 +50,7 @@ type Entry struct {
 	EndChunk    int
 	EndOffset   int
 
-	Attributes map[string][]byte
+	Attributes *map[string][]byte
 }
 
 // CreateEntry creates an entry from file properties.
@@ -91,6 +96,27 @@ func CreateEntryFromFileInfo(fileInfo os.FileInfo, directory string) *Entry {
 	GetOwner(entry, &fileInfo)
 
 	return entry
+}
+
+func (entry *Entry) Copy() *Entry {
+	return &Entry{
+		Path: entry.Path,
+		Size: entry.Size,
+		Time: entry.Time,
+		Mode: entry.Mode,
+		Link: entry.Link,
+		Hash: entry.Hash,
+
+		UID: entry.UID,
+		GID: entry.GID,
+
+		StartChunk: entry.StartChunk,
+		StartOffset: entry.StartOffset,
+		EndChunk: entry.EndChunk,
+		EndOffset: entry.EndOffset,
+
+		Attributes: entry.Attributes,
+	}
 }
 
 // CreateEntryFromJSON creates an entry from a json description.
@@ -175,17 +201,17 @@ func (entry *Entry) UnmarshalJSON(description []byte) (err error) {
 		if attributes, ok := value.(map[string]interface{}); !ok {
 			return fmt.Errorf("Attributes are invalid for file '%s' in the snapshot", entry.Path)
 		} else {
-			entry.Attributes = make(map[string][]byte)
+			entry.Attributes = &map[string][]byte{}
 			for name, object := range attributes {
 				if object == nil {
-					entry.Attributes[name] = []byte("")
+					(*entry.Attributes)[name] = []byte("")
 				} else if attributeInBase64, ok := object.(string); !ok {
 					return fmt.Errorf("Attribute '%s' is invalid for file '%s' in the snapshot", name, entry.Path)
 				} else if attribute, err := base64.StdEncoding.DecodeString(attributeInBase64); err != nil {
 					return fmt.Errorf("Failed to decode attribute '%s' for file '%s' in the snapshot: %v",
 						name, entry.Path, err)
 				} else {
-					entry.Attributes[name] = attribute
+					(*entry.Attributes)[name] = attribute
 				}
 			}
 		}
@@ -244,7 +270,7 @@ func (entry *Entry) convertToObject(encodeName bool) map[string]interface{} {
 		object["gid"] = entry.GID
 	}
 
-	if len(entry.Attributes) > 0 {
+	if entry.Attributes != nil && len(*entry.Attributes) > 0 {
 		object["attributes"] = entry.Attributes
 	}
 
@@ -259,6 +285,197 @@ func (entry *Entry) MarshalJSON() ([]byte, error) {
 	return description, err
 }
 
+var _ msgpack.CustomEncoder = (*Entry)(nil)
+var _ msgpack.CustomDecoder = (*Entry)(nil)
+
+func (entry *Entry) EncodeMsgpack(encoder *msgpack.Encoder) error {
+
+	err := encoder.EncodeString(entry.Path)
+	if err != nil {
+		return err
+	}
+
+	err = encoder.EncodeInt(entry.Size)
+	if err != nil {
+		return err
+	}
+
+	err = encoder.EncodeInt(entry.Time)
+	if err != nil {
+		return err
+	}
+
+	err = encoder.EncodeInt(int64(entry.Mode))
+	if err != nil {
+		return err
+	}
+
+	err = encoder.EncodeString(entry.Link)
+	if err != nil {
+		return err
+	}
+
+	err = encoder.EncodeString(entry.Hash)
+	if err != nil {
+		return err
+	}
+
+	err = encoder.EncodeInt(int64(entry.StartChunk))
+	if err != nil {
+		return err
+	}
+
+	err = encoder.EncodeInt(int64(entry.StartOffset))
+	if err != nil {
+		return err
+	}
+
+	err = encoder.EncodeInt(int64(entry.EndChunk))
+	if err != nil {
+		return err
+	}
+
+	err = encoder.EncodeInt(int64(entry.EndOffset))
+	if err != nil {
+		return err
+	}
+
+	err = encoder.EncodeInt(int64(entry.UID))
+	if err != nil {
+		return err
+	}
+
+	err = encoder.EncodeInt(int64(entry.GID))
+	if err != nil {
+		return err
+	}
+
+	var numberOfAttributes int64
+	if entry.Attributes != nil {
+		numberOfAttributes = int64(len(*entry.Attributes))
+	}
+
+	err = encoder.EncodeInt(numberOfAttributes)
+	if err != nil {
+		return err
+	}
+
+	if entry.Attributes != nil {
+		attributes := make([]string, numberOfAttributes)
+        i := 0
+        for attribute := range *entry.Attributes {
+            attributes[i] = attribute
+            i++
+        }
+        sort.Strings(attributes)
+		for _, attribute := range attributes {
+			err = encoder.EncodeString(attribute)
+			if err != nil {
+				return err
+			}
+			err = encoder.EncodeString(string((*entry.Attributes)[attribute]))
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+    return nil
+}
+
+func (entry *Entry) DecodeMsgpack(decoder *msgpack.Decoder) error {
+
+	var err error
+
+	entry.Path, err = decoder.DecodeString()
+	if err != nil {
+		return err
+	}
+
+	entry.Size, err = decoder.DecodeInt64()
+	if err != nil {
+		return err
+	}
+
+	entry.Time, err = decoder.DecodeInt64()
+	if err != nil {
+		return err
+	}
+
+	mode, err := decoder.DecodeInt64()
+	if err != nil {
+		return err
+	}
+	entry.Mode = uint32(mode)
+
+	entry.Link, err = decoder.DecodeString()
+	if err != nil {
+		return err
+	}
+
+	entry.Hash, err = decoder.DecodeString()
+	if err != nil {
+		return err
+	}
+
+	startChunk, err := decoder.DecodeInt()
+	if err != nil {
+		return err
+	}
+	entry.StartChunk = int(startChunk)
+
+	startOffset, err := decoder.DecodeInt()
+	if err != nil {
+		return err
+	}
+	entry.StartOffset = int(startOffset)
+
+	endChunk, err := decoder.DecodeInt()
+	if err != nil {
+		return err
+	}
+	entry.EndChunk = int(endChunk)
+
+	endOffset, err := decoder.DecodeInt()
+	if err != nil {
+		return err
+	}
+	entry.EndOffset = int(endOffset)
+
+	uid, err := decoder.DecodeInt()
+	if err != nil {
+		return err
+	}
+	entry.UID = int(uid)
+
+	gid, err := decoder.DecodeInt()
+	if err != nil {
+		return err
+	}
+	entry.GID = int(gid)
+
+	numberOfAttributes, err := decoder.DecodeInt()
+	if err != nil {
+		return err
+	}
+
+	if numberOfAttributes > 0 {
+		entry.Attributes = &map[string][]byte{}
+		for i := 0; i < numberOfAttributes; i++ {
+			attribute, err := decoder.DecodeString()
+			if err != nil {
+				return err
+			}
+			value, err := decoder.DecodeString()
+			if err != nil {
+				return err
+			}
+			(*entry.Attributes)[attribute] = []byte(value)
+		}
+	}
+	return nil
+}
+
 func (entry *Entry) IsFile() bool {
 	return entry.Mode&uint32(os.ModeType) == 0
 }
@@ -271,8 +488,25 @@ func (entry *Entry) IsLink() bool {
 	return entry.Mode&uint32(os.ModeSymlink) != 0
 }
 
+func (entry *Entry) IsComplete() bool {
+	return entry.Size >= 0
+}
+
 func (entry *Entry) GetPermissions() os.FileMode {
 	return os.FileMode(entry.Mode) & fileModeMask
+}
+
+func (entry *Entry) GetParent() string {
+	path := entry.Path
+	if path != "" && path[len(path) - 1] == '/' {
+		path = path[:len(path) - 1]
+	}
+	i := strings.LastIndex(path, "/")
+	if i == -1 {
+		return ""
+	} else {
+		return path[:i]
+	}
 }
 
 func (entry *Entry) IsSameAs(other *Entry) bool {
@@ -326,7 +560,7 @@ func (entry *Entry) RestoreMetadata(fullPath string, fileInfo *os.FileInfo, setO
 		}
 	}
 
-	if len(entry.Attributes) > 0 {
+	if entry.Attributes != nil && len(*entry.Attributes) > 0 {
 		entry.SetAttributesToFile(fullPath)
 	}
 
@@ -335,47 +569,62 @@ func (entry *Entry) RestoreMetadata(fullPath string, fileInfo *os.FileInfo, setO
 
 // Return -1 if 'left' should appear before 'right', 1 if opposite, and 0 if they are the same.
 // Files are always arranged before subdirectories under the same parent directory.
-func (left *Entry) Compare(right *Entry) int {
 
-	path1 := left.Path
-	path2 := right.Path
-
+func ComparePaths(left string, right string) int {
 	p := 0
-	for ; p < len(path1) && p < len(path2); p++ {
-		if path1[p] != path2[p] {
+	for ; p < len(left) && p < len(right); p++ {
+		if left[p] != right[p] {
 			break
 		}
 	}
 
-	// c1, c2 is the first byte that differs
+	// c1, c2 are the first bytes that differ
 	var c1, c2 byte
-	if p < len(path1) {
-		c1 = path1[p]
+	if p < len(left) {
+		c1 = left[p]
 	}
-	if p < len(path2) {
-		c2 = path2[p]
+	if p < len(right) {
+		c2 = right[p]
 	}
 
-	// c3, c4 indicates how the current component ends
-	// c3 == '/':  the current component is a directory
-	// c3 != '/':  the current component is the last one
+	// c3, c4 indicate how the current component ends
+	// c3 == '/':  the current component is a directory; c3 != '/':  the current component is the last one
 	c3 := c1
-	for i := p; c3 != '/' && i < len(path1); i++ {
-		c3 = path1[i]
+
+	// last1, last2 means if the current compoent is the last component
+	last1 := true
+	for i := p; i < len(left); i++ {
+		c3 = left[i]
+		if c3 == '/' {
+			last1 = i == len(left) - 1
+			break
+		}
 	}
 
 	c4 := c2
-	for i := p; c4 != '/' && i < len(path2); i++ {
-		c4 = path2[i]
+	last2 := true
+	for i := p; i < len(right); i++ {
+		c4 = right[i]
+		if c4 == '/' {
+			last2 = i == len(right) - 1
+			break
+		}
+	}
+
+	if last1 != last2 {
+		if last1 {
+			return -1
+		} else {
+			return 1
+		}
 	}
 
 	if c3 == '/' {
 		if c4 == '/' {
 			// We are comparing two directory components
 			if c1 == '/' {
-				// left is shorter
-				// Note that c2 maybe smaller than c1 but c1 is '/' which is counted
-				// as 0
+				// left is shorter; note that c2 maybe smaller than c1 but c1 should be treated as 0 therefore
+				// this is a special case that must be handled separately
 				return -1
 			} else if c2 == '/' {
 				// right is shorter
@@ -395,6 +644,10 @@ func (left *Entry) Compare(right *Entry) int {
 			return int(c1) - int(c2)
 		}
 	}
+}
+
+func (left *Entry) Compare(right *Entry) int {
+	return ComparePaths(left.Path, right.Path)
 }
 
 // This is used to sort entries by their names.
@@ -443,7 +696,7 @@ func (files FileInfoCompare) Less(i, j int) bool {
 
 // ListEntries returns a list of entries representing file and subdirectories under the directory 'path'.  Entry paths
 // are normalized as relative to 'top'.  'patterns' are used to exclude or include certain files.
-func ListEntries(top string, path string, fileList *[]*Entry, patterns []string, nobackupFile string, discardAttributes bool, excludeByAttribute bool) (directoryList []*Entry,
+func ListEntries(top string, path string, patterns []string, nobackupFile string, excludeByAttribute bool, listingChannel chan *Entry) (directoryList []*Entry,
 	skippedFiles []string, err error) {
 
 	LOG_DEBUG("LIST_ENTRIES", "Listing %s", path)
@@ -477,8 +730,6 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 	}
 
 	sort.Sort(FileInfoCompare(files))
-
-	entries := make([]*Entry, 0, 4)
 
 	for _, f := range files {
 		if f.Name() == DUPLICACY_DIRECTORY {
@@ -520,11 +771,9 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 			}
 		}
 
-		if !discardAttributes {
-			entry.ReadAttributes(top)
-		}
+		entry.ReadAttributes(top)
 
-		if excludeByAttribute && excludedByAttribute(entry.Attributes) {
+		if excludeByAttribute && entry.Attributes != nil && excludedByAttribute(*entry.Attributes) {
 			LOG_DEBUG("LIST_EXCLUDE", "%s is excluded by attribute", entry.Path)
 			continue
 		}
@@ -535,20 +784,20 @@ func ListEntries(top string, path string, fileList *[]*Entry, patterns []string,
 			continue
 		}
 
-		entries = append(entries, entry)
+		if entry.IsDir() {
+			directoryList = append(directoryList, entry)
+		} else {
+			listingChannel <- entry
+		}
 	}
 
 	// For top level directory we need to sort again because symlinks may have been changed
 	if path == "" {
-		sort.Sort(ByName(entries))
+		sort.Sort(ByName(directoryList))
 	}
 
-	for _, entry := range entries {
-		if entry.IsDir() {
-			directoryList = append(directoryList, entry)
-		} else {
-			*fileList = append(*fileList, entry)
-		}
+	for _, entry := range directoryList {
+		listingChannel <- entry
 	}
 
 	for i, j := 0, len(directoryList)-1; i < j; i, j = i+1, j-1 {
@@ -596,4 +845,101 @@ func (entry *Entry) Diff(chunkHashes []string, chunkLengths []int,
 	}
 
 	return modifiedLength
+}
+
+func (entry *Entry) EncodeWithHash(encoder *msgpack.Encoder) error {
+	entryBytes, err := msgpack.Marshal(entry)
+	if err != nil {
+		return err
+	}
+	hash := sha256.Sum256(entryBytes)
+	err = encoder.EncodeBytes(entryBytes)
+	if err != nil {
+		return err
+	}
+	err = encoder.EncodeBytes(hash[:])
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func DecodeEntryWithHash(decoder *msgpack.Decoder) (*Entry, error) {
+	entryBytes, err := decoder.DecodeBytes()
+	if err != nil {
+		return nil, err
+	}
+	hashBytes, err := decoder.DecodeBytes()
+	if err != nil {
+		return nil, err
+	}
+	expectedHash := sha256.Sum256(entryBytes)
+	if bytes.Compare(expectedHash[:], hashBytes) != 0 {
+		return nil, fmt.Errorf("corrupted file metadata")
+	}
+
+	var entry Entry
+	err = msgpack.Unmarshal(entryBytes, &entry)
+	if err != nil {
+		return nil, err
+	}
+	return &entry, nil
+}
+
+func (entry *Entry) check(chunkLengths []int) error {
+
+	if entry.Size < 0 {
+		return fmt.Errorf("The file %s hash an invalid size (%d)", entry.Path, entry.Size)
+	}
+
+	if !entry.IsFile() || entry.Size == 0 {
+		return nil
+	}
+
+	if entry.StartChunk < 0 {
+		return fmt.Errorf("The file %s starts at chunk %d", entry.Path, entry.StartChunk)
+	}
+
+	if entry.EndChunk >= len(chunkLengths) {
+		return fmt.Errorf("The file %s ends at chunk %d while the number of chunks is %d",
+			entry.Path, entry.EndChunk, len(chunkLengths))
+	}
+
+	if entry.EndChunk < entry.StartChunk {
+		return fmt.Errorf("The file %s starts at chunk %d and ends at chunk %d",
+			entry.Path, entry.StartChunk, entry.EndChunk)
+	}
+
+	if entry.StartOffset >= chunkLengths[entry.StartChunk] {
+		return fmt.Errorf("The file %s starts at offset %d of chunk %d of length %d",
+			entry.Path, entry.StartOffset, entry.StartChunk, chunkLengths[entry.StartChunk])
+	}
+
+	if entry.EndOffset > chunkLengths[entry.EndChunk] {
+		return fmt.Errorf("The file %s ends at offset %d of chunk %d of length %d",
+			entry.Path, entry.EndOffset, entry.EndChunk, chunkLengths[entry.EndChunk])
+	}
+
+	fileSize := int64(0)
+
+	for i := entry.StartChunk; i <= entry.EndChunk; i++ {
+
+		start := 0
+		if i == entry.StartChunk {
+			start = entry.StartOffset
+		}
+		end := chunkLengths[i]
+		if i == entry.EndChunk {
+			end = entry.EndOffset
+		}
+
+		fileSize += int64(end - start)
+	}
+
+	if entry.Size != fileSize {
+		return fmt.Errorf("The file %s has a size of %d but the total size of chunks is %d",
+			entry.Path, entry.Size, fileSize)
+	}
+
+	return nil
 }

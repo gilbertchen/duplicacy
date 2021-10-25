@@ -52,11 +52,11 @@ func (entry *Entry) ReadAttributes(top string) {
 	fullPath := filepath.Join(top, entry.Path)
 	attributes, _ := xattr.List(fullPath)
 	if len(attributes) > 0 {
-		entry.Attributes = make(map[string][]byte)
+		entry.Attributes = &map[string][]byte{}
 		for _, name := range attributes {
 			attribute, err := xattr.Get(fullPath, name)
 			if err == nil {
-				entry.Attributes[name] = attribute
+				(*entry.Attributes)[name] = attribute
 			}
 		}
 	}
@@ -68,19 +68,19 @@ func (entry *Entry) SetAttributesToFile(fullPath string) {
 	for _, name := range names {
 
 
-		newAttribute, found := entry.Attributes[name]
+		newAttribute, found := (*entry.Attributes)[name]
 		if found {
 			oldAttribute, _ := xattr.Get(fullPath, name)
 			if !bytes.Equal(oldAttribute, newAttribute) {
 				xattr.Set(fullPath, name, newAttribute)
 			}
-			delete(entry.Attributes, name)
+			delete(*entry.Attributes, name)
 		} else {
 			xattr.Remove(fullPath, name)
 		}
 	}
 
-	for name, attribute := range entry.Attributes {
+	for name, attribute := range *entry.Attributes {
 		xattr.Set(fullPath, name, attribute)
 	}
 
