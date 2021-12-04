@@ -108,7 +108,7 @@ func CreateSwiftStorage(storageURL string, key string, threads int) (storage *Sw
 		arguments["protocol"] = "https"
 	}
 
-	ctx := context.Context()
+	ctx := context.TODO
 
 	// Please refer to https://godoc.org/github.com/ncw/swift#Connection
 	connection := swift.Connection{
