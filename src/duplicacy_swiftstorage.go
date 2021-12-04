@@ -16,7 +16,7 @@ import (
 type SwiftStorage struct {
 	StorageBase
 
-	ctx        *context.Context
+	ctx        context.Context
 	connection *swift.Connection
 	container  string
 	storageDir string
@@ -144,7 +144,7 @@ func CreateSwiftStorage(storageURL string, key string, threads int) (storage *Sw
 	}
 
 	storage = &SwiftStorage{
-		context:    &ctx,
+		ctx:        ctx,
 		connection: &connection,
 		container:  container,
 		storageDir: storageDir,
