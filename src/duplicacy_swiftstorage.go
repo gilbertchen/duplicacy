@@ -108,7 +108,8 @@ func CreateSwiftStorage(storageURL string, key string, threads int) (storage *Sw
 		arguments["protocol"] = "https"
 	}
 
-	ctx, cancel := context.WithDeadline(context.Background(), time.Millisecond)
+	// This context ends up expired, which is fine.
+	ctx, cancel := context.WithDeadline(context.Background(), time.Now())
 	defer cancel()
 
 	// Please refer to https://godoc.org/github.com/ncw/swift#Connection
