@@ -12,11 +12,11 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"net/http"
-	"strings"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
-	"path/filepath"
 
 	"golang.org/x/oauth2"
 )
@@ -44,9 +44,9 @@ type OneDriveClient struct {
 	IsConnected bool
 	TestMode    bool
 
-	IsBusiness bool
+	IsBusiness      bool
 	RefreshTokenURL string
-	APIURL string
+	APIURL          string
 }
 
 func NewOneDriveClient(tokenFile string, isBusiness bool) (*OneDriveClient, error) {
@@ -118,7 +118,7 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 
 		if reader, ok := inputReader.(*RateLimitedReader); ok {
 			request.ContentLength = reader.Length()
-			request.Header.Set("Content-Range", fmt.Sprintf("bytes 0-%d/%d", reader.Length() - 1, reader.Length()))
+			request.Header.Set("Content-Range", fmt.Sprintf("bytes 0-%d/%d", reader.Length()-1, reader.Length()))
 		}
 
 		if url != client.RefreshTokenURL {
@@ -182,10 +182,10 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 		} else if response.StatusCode == 409 {
 			return nil, 0, OneDriveError{Status: response.StatusCode, Message: "Conflict"}
 		} else if response.StatusCode > 401 && response.StatusCode != 404 {
-			delay := int((rand.Float32() * 0.5 + 0.5) * 1000.0 * float32(backoff))
+			delay := int((rand.Float32()*0.5 + 0.5) * 1000.0 * float32(backoff))
 			if backoffList, found := response.Header["Retry-After"]; found && len(backoffList) > 0 {
 				retryAfter, _ := strconv.Atoi(backoffList[0])
-				if retryAfter * 1000 > delay {
+				if retryAfter*1000 > delay {
 					delay = retryAfter * 1000
 				}
 			}
@@ -330,7 +330,7 @@ func (client *OneDriveClient) UploadFile(path string, content []byte, rateLimit 
 
 	// Upload file using the simple method; this is only possible for OneDrive Personal or if the file
 	// is smaller than 4MB for OneDrive Business
-	if !client.IsBusiness || (client.TestMode && rand.Int() % 2 == 0) {
+	if !client.IsBusiness || (client.TestMode && rand.Int()%2 == 0) {
 		url := client.APIURL + "/drive/root:/" + path + ":/content"
 
 		readCloser, _, err := client.call(url, "PUT", CreateRateLimitedReader(content, rateLimit), "application/octet-stream")
@@ -355,17 +355,17 @@ func (client *OneDriveClient) CreateUploadSession(path string) (uploadURL string
 
 	type CreateUploadSessionItem struct {
 		ConflictBehavior string `json:"@microsoft.graph.conflictBehavior"`
-		Name string `json:"name"`
+		Name             string `json:"name"`
 	}
 
-	input := map[string]interface{} {
-		"item": CreateUploadSessionItem {
+	input := map[string]interface{}{
+		"item": CreateUploadSessionItem{
 			ConflictBehavior: "replace",
-			Name: filepath.Base(path),
+			Name:             filepath.Base(path),
 		},
 	}
 
-	readCloser, _, err := client.call(client.APIURL + "/drive/root:/" + path + ":/createUploadSession", "POST", input, "application/json")
+	readCloser, _, err := client.call(client.APIURL+"/drive/root:/"+path+":/createUploadSession", "POST", input, "application/json")
 	if err != nil {
 		return "", err
 	}

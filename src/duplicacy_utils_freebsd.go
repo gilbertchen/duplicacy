@@ -4,9 +4,6 @@
 
 package duplicacy
 
-import (
-)
-
 func excludedByAttribute(attirbutes map[string][]byte) bool {
 	_, ok := attirbutes["duplicacy_exclude"]
 	return ok

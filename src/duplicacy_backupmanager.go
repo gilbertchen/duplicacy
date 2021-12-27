@@ -36,9 +36,9 @@ type BackupManager struct {
 
 	nobackupFile string // don't backup directory when this file name is found
 
-  filtersFile string  // the path to the filters file
+	filtersFile string // the path to the filters file
 
-  excludeByAttribute bool // don't backup file based on file attribute
+	excludeByAttribute bool // don't backup file based on file attribute
 
 }
 
@@ -117,7 +117,6 @@ func (manager *BackupManager) SetupSnapshotCache(storageName string) bool {
 	return true
 }
 
-
 // setEntryContent sets the 4 content pointers for each entry in 'entries'.  'offset' indicates the value
 // to be added to the StartChunk and EndChunk points, used when intending to append 'entries' to the
 // original unchanged entry list.
@@ -193,7 +192,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 	if manager.config.DataShards != 0 && manager.config.ParityShards != 0 {
 		LOG_INFO("BACKUP_ERASURECODING", "Erasure coding is enabled with %d data shards and %d parity shards",
-		         manager.config.DataShards, manager.config.ParityShards)
+			manager.config.DataShards, manager.config.ParityShards)
 	}
 
 	if manager.config.rsaPublicKey != nil && len(manager.config.FileKey) > 0 {
@@ -217,7 +216,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 	LOG_INFO("BACKUP_INDEXING", "Indexing %s", top)
 	localSnapshot, skippedDirectories, skippedFiles, err := CreateSnapshotFromDirectory(manager.snapshotID, shadowTop,
-		                                                                                manager.nobackupFile, manager.filtersFile, manager.excludeByAttribute)
+		manager.nobackupFile, manager.filtersFile, manager.excludeByAttribute)
 	if err != nil {
 		LOG_ERROR("SNAPSHOT_LIST", "Failed to list the directory %s: %v", top, err)
 		return false
@@ -800,7 +799,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 	manager.SnapshotManager.DownloadSnapshotContents(remoteSnapshot, patterns, true)
 
 	localSnapshot, _, _, err := CreateSnapshotFromDirectory(manager.snapshotID, top, manager.nobackupFile,
-		                                                    manager.filtersFile, manager.excludeByAttribute)
+		manager.filtersFile, manager.excludeByAttribute)
 	if err != nil {
 		LOG_ERROR("SNAPSHOT_LIST", "Failed to list the repository: %v", err)
 		return 0
@@ -833,7 +832,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 	var failedFiles int
 	var skippedFileSize int64
 	var skippedFiles int64
-	
+
 	var downloadedFiles []*Entry
 
 	i := 0
@@ -1202,8 +1201,8 @@ func (manager *BackupManager) UploadSnapshot(chunkMaker *ChunkMaker, uploader *C
 // Restore downloads a file from the storage.  If 'inPlace' is false, the download file is saved first to a temporary
 // file under the .duplicacy directory and then replaces the existing one.  Otherwise, the existing file will be
 // overwritten directly.
-// Return: true, nil:    Restored file; 
-//         false, nil:   Skipped file; 
+// Return: true, nil:    Restored file;
+//         false, nil:   Skipped file;
 //         false, error: Failure to restore file (only if allowFailures == true)
 func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chunkMaker *ChunkMaker, entry *Entry, top string, inPlace bool, overwrite bool,
 	showStatistics bool, totalFileSize int64, downloadedFileSize int64, startTime int64, allowFailures bool) (bool, error) {
@@ -1379,7 +1378,7 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 			// fileHash != entry.Hash, warn/error depending on -overwrite option
 			if !overwrite && !isNewFile {
 				LOG_WERROR(allowFailures, "DOWNLOAD_OVERWRITE",
-							"File %s already exists.  Please specify the -overwrite option to overwrite", entry.Path)
+					"File %s already exists.  Please specify the -overwrite option to overwrite", entry.Path)
 				return false, fmt.Errorf("file exists")
 			}
 
@@ -1625,7 +1624,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 
 	if otherManager.config.DataShards != 0 && otherManager.config.ParityShards != 0 {
 		LOG_INFO("BACKUP_ERASURECODING", "Erasure coding is enabled for the destination storage with %d data shards and %d parity shards",
-		         otherManager.config.DataShards, otherManager.config.ParityShards)
+			otherManager.config.DataShards, otherManager.config.ParityShards)
 	}
 
 	if otherManager.config.rsaPublicKey != nil && len(otherManager.config.FileKey) > 0 {
@@ -1712,7 +1711,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 	}
 
 	// These two maps store hashes of chunks in the source and destination storages, respectively.  Note that
-	// the value of 'chunks' is used to indicated if the chunk is a snapshot chunk, while the value of 'otherChunks' 
+	// the value of 'chunks' is used to indicated if the chunk is a snapshot chunk, while the value of 'otherChunks'
 	// is not used.
 	chunks := make(map[string]bool)
 	otherChunks := make(map[string]bool)
@@ -1726,15 +1725,15 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 		LOG_TRACE("SNAPSHOT_COPY", "Copying snapshot %s at revision %d", snapshot.ID, snapshot.Revision)
 
 		for _, chunkHash := range snapshot.FileSequence {
-			chunks[chunkHash] = true  // The chunk is a snapshot chunk
+			chunks[chunkHash] = true // The chunk is a snapshot chunk
 		}
 
 		for _, chunkHash := range snapshot.ChunkSequence {
-			chunks[chunkHash] = true  // The chunk is a snapshot chunk
+			chunks[chunkHash] = true // The chunk is a snapshot chunk
 		}
 
 		for _, chunkHash := range snapshot.LengthSequence {
-			chunks[chunkHash] = true  // The chunk is a snapshot chunk
+			chunks[chunkHash] = true // The chunk is a snapshot chunk
 		}
 
 		description := manager.SnapshotManager.DownloadSequence(snapshot.ChunkSequence)
@@ -1747,7 +1746,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 
 		for _, chunkHash := range snapshot.ChunkHashes {
 			if _, found := chunks[chunkHash]; !found {
-				chunks[chunkHash] = false  // The chunk is a file chunk
+				chunks[chunkHash] = false // The chunk is a file chunk
 			}
 		}
 
@@ -1779,7 +1778,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 		}
 	}
 
-	LOG_INFO("SNAPSHOT_COPY", "Chunks to copy: %d, to skip: %d, total: %d", len(chunksToCopy), len(chunks) - len(chunksToCopy), len(chunks))
+	LOG_INFO("SNAPSHOT_COPY", "Chunks to copy: %d, to skip: %d, total: %d", len(chunksToCopy), len(chunks)-len(chunksToCopy), len(chunks))
 
 	chunkDownloader := CreateChunkDownloader(manager.config, manager.storage, nil, false, downloadingThreads, false)
 
@@ -1799,11 +1798,11 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 
 			elapsedTime := time.Now().Sub(startTime).Seconds()
 			speed := int64(float64(atomic.LoadInt64(&uploadedBytes)) / elapsedTime)
-			remainingTime := int64(float64(len(chunksToCopy) - chunkIndex - 1) / float64(chunkIndex + 1) * elapsedTime)
-			percentage := float64(chunkIndex + 1) / float64(len(chunksToCopy)) * 100.0
+			remainingTime := int64(float64(len(chunksToCopy)-chunkIndex-1) / float64(chunkIndex+1) * elapsedTime)
+			percentage := float64(chunkIndex+1) / float64(len(chunksToCopy)) * 100.0
 			LOG_INFO("COPY_PROGRESS", "%s chunk %s (%d/%d) %sB/s %s %.1f%%",
-					action, chunk.GetID(), chunkIndex + 1, len(chunksToCopy),
-					PrettySize(speed), PrettyTime(remainingTime), percentage)
+				action, chunk.GetID(), chunkIndex+1, len(chunksToCopy),
+				PrettySize(speed), PrettyTime(remainingTime), percentage)
 			otherManager.config.PutChunk(chunk)
 		})
 
@@ -1827,7 +1826,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 	chunkDownloader.Stop()
 	chunkUploader.Stop()
 
-	LOG_INFO("SNAPSHOT_COPY", "Copied %d new chunks and skipped %d existing chunks", copiedChunks, len(chunks) - copiedChunks)
+	LOG_INFO("SNAPSHOT_COPY", "Copied %d new chunks and skipped %d existing chunks", copiedChunks, len(chunks)-copiedChunks)
 
 	for _, snapshot := range snapshots {
 		if revisionMap[snapshot.ID][snapshot.Revision] == false {

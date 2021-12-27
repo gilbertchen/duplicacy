@@ -31,8 +31,8 @@ type ChunkDownloadCompletion struct {
 // corresponding ChunkDownloadTask is sent to the dowloading goroutine.  Once a chunk is downloaded, it will be
 // inserted in the completed task list.
 type ChunkDownloader struct {
-	totalChunkSize            int64 // Total chunk size
-	downloadedChunkSize       int64 // Downloaded chunk size
+	totalChunkSize      int64 // Total chunk size
+	downloadedChunkSize int64 // Downloaded chunk size
 
 	config         *Config      // Associated config
 	storage        Storage      // Download from this storage
@@ -54,7 +54,7 @@ type ChunkDownloader struct {
 	numberOfDownloadingChunks int   // The number of chunks still being downloaded
 	numberOfActiveChunks      int   // The number of chunks that is being downloaded or has been downloaded but not reclaimed
 
-	NumberOfFailedChunks      int   // The number of chunks that can't be downloaded
+	NumberOfFailedChunks int // The number of chunks that can't be downloaded
 }
 
 func CreateChunkDownloader(config *Config, storage Storage, snapshotCache *FileStorage, showStatistics bool, threads int, allowFailures bool) *ChunkDownloader {
@@ -276,7 +276,7 @@ func (downloader *ChunkDownloader) WaitForCompletion() {
 	}
 
 	// Looping until there isn't a download task in progress
-	for downloader.numberOfActiveChunks > 0 || downloader.lastChunkIndex + 1 < len(downloader.taskList) {
+	for downloader.numberOfActiveChunks > 0 || downloader.lastChunkIndex+1 < len(downloader.taskList) {
 
 		// Wait for a completion event first
 		if downloader.numberOfActiveChunks > 0 {
@@ -291,8 +291,8 @@ func (downloader *ChunkDownloader) WaitForCompletion() {
 		}
 
 		// Pass the tasks one by one to the download queue
-		if downloader.lastChunkIndex + 1 < len(downloader.taskList) {
-			task := &downloader.taskList[downloader.lastChunkIndex + 1]
+		if downloader.lastChunkIndex+1 < len(downloader.taskList) {
+			task := &downloader.taskList[downloader.lastChunkIndex+1]
 			if task.isDownloading {
 				downloader.lastChunkIndex++
 				continue
@@ -317,7 +317,7 @@ func (downloader *ChunkDownloader) Stop() {
 		if completion.chunk.isBroken {
 			downloader.NumberOfFailedChunks++
 		}
-}
+	}
 
 	for i := range downloader.completedTasks {
 		downloader.config.PutChunk(downloader.taskList[i].chunk)
@@ -420,7 +420,7 @@ func (downloader *ChunkDownloader) Download(threadIndex int, task ChunkDownloadT
 				completeFailedChunk(chunk)
 				// A chunk is not found.  This is a serious error and hopefully it will never happen.
 				if err != nil {
-					LOG_WERROR(downloader.allowFailures,  "DOWNLOAD_CHUNK", "Chunk %s can't be found: %v", chunkID, err)
+					LOG_WERROR(downloader.allowFailures, "DOWNLOAD_CHUNK", "Chunk %s can't be found: %v", chunkID, err)
 				} else {
 					LOG_WERROR(downloader.allowFailures, "DOWNLOAD_CHUNK", "Chunk %s can't be found", chunkID)
 				}

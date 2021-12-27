@@ -933,7 +933,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 						_, exist, _, err := manager.storage.FindChunk(0, chunkID, false)
 						if err != nil {
 							LOG_WARN("SNAPSHOT_VALIDATE", "Failed to check the existence of chunk %s: %v",
-							         chunkID, err)
+								chunkID, err)
 						} else if exist {
 							LOG_INFO("SNAPSHOT_VALIDATE", "Chunk %s is confirmed to exist", chunkID)
 							continue
@@ -1053,7 +1053,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 				if err != nil {
 					LOG_WARN("SNAPSHOT_VERIFY", "Failed to save the verified chunks file: %v", err)
 				} else {
-					LOG_INFO("SNAPSHOT_VERIFY", "Added %d chunks to the list of verified chunks", len(verifiedChunks) - numberOfVerifiedChunks)
+					LOG_INFO("SNAPSHOT_VERIFY", "Added %d chunks to the list of verified chunks", len(verifiedChunks)-numberOfVerifiedChunks)
 				}
 			}
 		}
@@ -1105,10 +1105,10 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 
 		elapsedTime := time.Now().Sub(startTime).Seconds()
 		speed := int64(float64(downloadedChunkSize) / elapsedTime)
-		remainingTime := int64(float64(totalChunks - i - 1) / float64(i + 1) * elapsedTime)
-		percentage := float64(i + 1) / float64(totalChunks) * 100.0
+		remainingTime := int64(float64(totalChunks-i-1) / float64(i+1) * elapsedTime)
+		percentage := float64(i+1) / float64(totalChunks) * 100.0
 		LOG_INFO("VERIFY_PROGRESS", "Verified chunk %s (%d/%d), %sB/s %s %.1f%%",
-					chunkID, i + 1, totalChunks, PrettySize(speed), PrettyTime(remainingTime), percentage)
+			chunkID, i+1, totalChunks, PrettySize(speed), PrettyTime(remainingTime), percentage)
 	}
 
 	if manager.chunkDownloader.NumberOfFailedChunks > 0 {
@@ -1457,8 +1457,8 @@ func (manager *SnapshotManager) PrintFile(snapshotID string, revision int, path 
 
 	file := manager.FindFile(snapshot, path, false)
 	if !manager.RetrieveFile(snapshot, file, func(chunk []byte) {
-			fmt.Printf("%s", chunk)
-		}) {
+		fmt.Printf("%s", chunk)
+	}) {
 		LOG_ERROR("SNAPSHOT_RETRIEVE", "File %s is corrupted in snapshot %s at revision %d",
 			path, snapshot.ID, snapshot.Revision)
 		return false
