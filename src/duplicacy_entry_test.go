@@ -2,6 +2,8 @@
 // Free for personal use and commercial trial
 // Commercial use requires per-user licenses available from https://duplicacy.com
 
+//go:build linux || darwin || freebsd
+
 package duplicacy
 
 import (
