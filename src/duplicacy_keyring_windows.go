@@ -45,13 +45,14 @@ func keyringEncrypt(value []byte) ([]byte, error) {
 		return nil, err
 	}
 
+	encryptedData := make([]byte, dataOut.cbData)
+	size := unsafe.Sizeof(byte(0))
+	for i := 0; i < len(encryptedData); i++ {
+		encryptedData[i] = *(*byte)(unsafe.Pointer(uintptr(unsafe.Pointer(dataOut.pbData)) + uintptr(i)*size))
+	}
 	address := uintptr(unsafe.Pointer(dataOut.pbData))
 	defer procLocalFree.Call(address)
 
-	encryptedData := make([]byte, dataOut.cbData)
-	for i := 0; i < len(encryptedData); i++ {
-		encryptedData[i] = *(*byte)(unsafe.Pointer(uintptr(int(address) + i)))
-	}
 	return encryptedData, nil
 }
 
@@ -69,14 +70,14 @@ func keyringDecrypt(value []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	address := uintptr(unsafe.Pointer(dataOut.pbData))
-	defer procLocalFree.Call(address)
-
 	decryptedData := make([]byte, dataOut.cbData)
+	size := unsafe.Sizeof(byte(0))
 	for i := 0; i < len(decryptedData); i++ {
-		address := int(uintptr(unsafe.Pointer(dataOut.pbData)))
-		decryptedData[i] = *(*byte)(unsafe.Pointer(uintptr(int(address) + i)))
+		decryptedData[i] = *(*byte)(unsafe.Pointer(uintptr(unsafe.Pointer(dataOut.pbData)) + uintptr(i)*size))
 	}
+	address := uintptr(unsafe.Pointer(dataOut.pbData))
+
+	defer procLocalFree.Call(address)
 	return decryptedData, nil
 }
 

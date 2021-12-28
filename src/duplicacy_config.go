@@ -72,8 +72,8 @@ type Config struct {
 	FileKey []byte `json:"-"`
 
 	// for erasure coding
-	DataShards   int `json:'data-shards'`
-	ParityShards int `json:'parity-shards'`
+	DataShards   int `json:"data-shards"`
+	ParityShards int `json:"parity-shards"`
 
 	// for RSA encryption
 	rsaPrivateKey *rsa.PrivateKey
