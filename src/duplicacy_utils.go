@@ -142,7 +142,9 @@ func RateLimitedCopy(writer io.Writer, reader io.Reader, rate int) (written int6
 	if rate <= 0 {
 		return io.Copy(writer, reader)
 	}
-	for range time.Tick(time.Second / 5) {
+	ticker := time.NewTicker(time.Second / 5)
+	defer ticker.Stop()
+	for range ticker.C {
 		n, err := io.CopyN(writer, reader, int64(rate*1024/5))
 		written += n
 		if err != nil {
