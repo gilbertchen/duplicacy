@@ -627,7 +627,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		// Handle writing directly to the root of the drive
 		// For gcd://driveid@/, driveid@ is match[3] not match[2]
 		if matched[2] == "" && strings.HasSuffix(matched[3], "@") {
-			matched[2], matched[3]  = matched[3], matched[2]
+			matched[2], matched[3] = matched[3], matched[2]
 		}
 		driveID := matched[2]
 		if driveID != "" {
@@ -646,13 +646,13 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	} else if matched[1] == "one" || matched[1] == "odb" {
 		storagePath := matched[3] + matched[4]
 		prompt := fmt.Sprintf("Enter the path of the OneDrive token file (downloadable from https://duplicacy.com/one_start):")
-		tokenFile := GetPassword(preference, matched[1] + "_token", prompt, true, resetPassword)
+		tokenFile := GetPassword(preference, matched[1]+"_token", prompt, true, resetPassword)
 		oneDriveStorage, err := CreateOneDriveStorage(tokenFile, matched[1] == "odb", storagePath, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the OneDrive storage at %s: %v", storageURL, err)
 			return nil
 		}
-		SavePassword(preference, matched[1] + "_token", tokenFile)
+		SavePassword(preference, matched[1]+"_token", tokenFile)
 		return oneDriveStorage
 	} else if matched[1] == "hubic" {
 		storagePath := matched[3] + matched[4]

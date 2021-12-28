@@ -5,22 +5,22 @@
 package duplicacy
 
 import (
-	"io"
-	"os"
-	"fmt"
 	"bytes"
-	"time"
-	"sync"
-	"strconv"
-	"strings"
-	"net/url"
-	"net/http"
-	"math/rand"
-	"io/ioutil"
 	"crypto/sha1"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
-	"encoding/base64"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"math/rand"
+	"net/http"
+	"net/url"
+	"os"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
 )
 
 type B2Error struct {
@@ -41,14 +41,14 @@ type B2UploadArgument struct {
 var B2AuthorizationURL = "https://api.backblazeb2.com/b2api/v1/b2_authorize_account"
 
 type B2Client struct {
-	HTTPClient         *http.Client
+	HTTPClient *http.Client
 
-	AccountID          string
-	ApplicationKeyID   string
-	ApplicationKey     string
-	BucketName         string
-	BucketID           string
-	StorageDir         string
+	AccountID        string
+	ApplicationKeyID string
+	ApplicationKey   string
+	BucketName       string
+	BucketID         string
+	StorageDir       string
 
 	Lock               sync.Mutex
 	AuthorizationToken string
@@ -56,12 +56,12 @@ type B2Client struct {
 	DownloadURL        string
 	IsAuthorized       bool
 
-	UploadURLs         []string
-	UploadTokens       []string
+	UploadURLs   []string
+	UploadTokens []string
 
-	Threads            int
-	MaximumRetries     int
-	TestMode           bool
+	Threads        int
+	MaximumRetries int
+	TestMode       bool
 
 	LastAuthorizationTime int64
 }
@@ -81,7 +81,7 @@ func NewB2Client(applicationKeyID string, applicationKey string, downloadURL str
 		storageDir = storageDir[1:]
 	}
 
-	if storageDir != "" && storageDir[len(storageDir) - 1] != '/' {
+	if storageDir != "" && storageDir[len(storageDir)-1] != '/' {
 		storageDir += "/"
 	}
 
@@ -128,7 +128,7 @@ func (client *B2Client) retry(retries int, response *http.Response) int {
 		}
 	}
 
-	if retries >= client.MaximumRetries + 1 {
+	if retries >= client.MaximumRetries+1 {
 		return 0
 	}
 	retries++
@@ -143,7 +143,7 @@ func (client *B2Client) retry(retries int, response *http.Response) int {
 }
 
 func (client *B2Client) call(threadIndex int, requestURL string, method string, requestHeaders map[string]string, input interface{}) (
-	                         io.ReadCloser, http.Header, int64, error) {
+	io.ReadCloser, http.Header, int64, error) {
 
 	var response *http.Response
 
@@ -170,7 +170,6 @@ func (client *B2Client) call(threadIndex int, requestURL string, method string, 
 			rateLimitedReader.Reset()
 			inputReader = rateLimitedReader
 		}
-
 
 		if isUpload {
 			if client.UploadURLs[threadIndex] == "" || client.UploadTokens[threadIndex] == "" {
@@ -303,7 +302,7 @@ func (client *B2Client) AuthorizeAccount(threadIndex int) (err error, allowed bo
 	defer client.Lock.Unlock()
 
 	// Don't authorize if the previous one was done less than 30 seconds ago
-	if client.LastAuthorizationTime != 0 && client.LastAuthorizationTime > time.Now().Unix() - 30 {
+	if client.LastAuthorizationTime != 0 && client.LastAuthorizationTime > time.Now().Unix()-30 {
 		return nil, false
 	}
 
@@ -426,7 +425,7 @@ func (client *B2Client) ListFileNames(threadIndex int, startFileName string, sin
 			apiURL = client.getAPIURL() + "/b2api/v1/b2_list_file_versions"
 		} else if singleFile {
 			// handle a single file with no versions as a special case to download the last byte of the file
-			apiURL = client.getDownloadURL() + "/file/" + client.BucketName + "/" + B2Escape(client.StorageDir + startFileName)
+			apiURL = client.getDownloadURL() + "/file/" + client.BucketName + "/" + B2Escape(client.StorageDir+startFileName)
 			// requesting byte -1 works for empty files where 0-0 fails with a 416 error
 			requestHeaders["Range"] = "bytes=-1"
 			// HEAD request
@@ -584,7 +583,7 @@ func (client *B2Client) HideFile(threadIndex int, fileName string) (fileID strin
 
 func (client *B2Client) DownloadFile(threadIndex int, filePath string) (io.ReadCloser, int64, error) {
 
-	url := client.getDownloadURL() + "/file/" + client.BucketName + "/" + B2Escape(client.StorageDir + filePath)
+	url := client.getDownloadURL() + "/file/" + client.BucketName + "/" + B2Escape(client.StorageDir+filePath)
 
 	readCloser, _, len, err := client.call(threadIndex, url, http.MethodGet, make(map[string]string), 0)
 	return readCloser, len, err

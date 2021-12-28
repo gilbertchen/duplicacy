@@ -15,7 +15,11 @@ import (
 )
 
 //507C37B4-CF5B-4e95-B0AF-14EB9767467E
-var IID_IVSS_ASYNC = &ole.GUID{0x507C37B4, 0xCF5B, 0x4e95, [8]byte{0xb0, 0xaf, 0x14, 0xeb, 0x97, 0x67, 0x46, 0x7e}}
+var IID_IVSS_ASYNC = &ole.GUID{
+	Data1: 0x507C37B4,
+	Data2: 0xCF5B,
+	Data3: 0x4e95,
+	Data4: [8]byte{0xb0, 0xaf, 0x14, 0xeb, 0x97, 0x67, 0x46, 0x7e}}
 
 type IVSSAsync struct {
 	ole.IUnknown
@@ -78,7 +82,11 @@ func getIVSSAsync(unknown *ole.IUnknown, iid *ole.GUID) (async *IVSSAsync) {
 }
 
 //665c1d5f-c218-414d-a05d-7fef5f9d5c86
-var IID_IVSS = &ole.GUID{0x665c1d5f, 0xc218, 0x414d, [8]byte{0xa0, 0x5d, 0x7f, 0xef, 0x5f, 0x9d, 0x5c, 0x86}}
+var IID_IVSS = &ole.GUID{
+	Data1: 0x665c1d5f,
+	Data2: 0xc218,
+	Data3: 0x414d,
+	Data4: [8]byte{0xa0, 0x5d, 0x7f, 0xef, 0x5f, 0x9d, 0x5c, 0x86}}
 
 type IVSS struct {
 	ole.IUnknown
@@ -240,13 +248,13 @@ type SnapshotProperties struct {
 func (vss *IVSS) GetSnapshotProperties(snapshotSetID ole.GUID, properties *SnapshotProperties) int {
 	var ret uintptr
 	if runtime.GOARCH == "386" {
-		address := uint(uintptr(unsafe.Pointer(&snapshotSetID)))
+		size := unsafe.Sizeof(uint32(4))
 		ret, _, _ = syscall.Syscall6(vss.VTable().getSnapshotProperties, 6,
 			uintptr(unsafe.Pointer(vss)),
-			uintptr(*(*uint32)(unsafe.Pointer(uintptr(address)))),
-			uintptr(*(*uint32)(unsafe.Pointer(uintptr(address + 4)))),
-			uintptr(*(*uint32)(unsafe.Pointer(uintptr(address + 8)))),
-			uintptr(*(*uint32)(unsafe.Pointer(uintptr(address + 12)))),
+			uintptr(*(*uint32)(unsafe.Pointer(&snapshotSetID))),
+			uintptr(*(*uint32)(unsafe.Pointer(uintptr(unsafe.Pointer(&snapshotSetID)) + size))),
+			uintptr(*(*uint32)(unsafe.Pointer(uintptr(unsafe.Pointer(&snapshotSetID)) + 2*size))),
+			uintptr(*(*uint32)(unsafe.Pointer(uintptr(unsafe.Pointer(&snapshotSetID)) + 3*size))),
 			uintptr(unsafe.Pointer(properties)))
 	} else {
 		ret, _, _ = syscall.Syscall(vss.VTable().getSnapshotProperties, 3,
@@ -267,13 +275,13 @@ func (vss *IVSS) DeleteSnapshots(snapshotID ole.GUID) (int, int, ole.GUID) {
 
 	var ret uintptr
 	if runtime.GOARCH == "386" {
-		address := uint(uintptr(unsafe.Pointer(&snapshotID)))
+		size := unsafe.Sizeof(uint32(4))
 		ret, _, _ = syscall.Syscall9(vss.VTable().deleteSnapshots, 9,
 			uintptr(unsafe.Pointer(vss)),
-			uintptr(*(*uint32)(unsafe.Pointer(uintptr(address)))),
-			uintptr(*(*uint32)(unsafe.Pointer(uintptr(address + 4)))),
-			uintptr(*(*uint32)(unsafe.Pointer(uintptr(address + 8)))),
-			uintptr(*(*uint32)(unsafe.Pointer(uintptr(address + 12)))),
+			uintptr(*(*uint32)(unsafe.Pointer(&snapshotID))),
+			uintptr(*(*uint32)(unsafe.Pointer(uintptr(unsafe.Pointer(&snapshotID)) + size))),
+			uintptr(*(*uint32)(unsafe.Pointer(uintptr(unsafe.Pointer(&snapshotID)) + 2*size))),
+			uintptr(*(*uint32)(unsafe.Pointer(uintptr(unsafe.Pointer(&snapshotID)) + 3*size))),
 			uintptr(VSS_OBJECT_SNAPSHOT),
 			uintptr(1),
 			uintptr(unsafe.Pointer(&deleted)),
@@ -296,15 +304,16 @@ func uint16ArrayToString(p *uint16) string {
 		return ""
 	}
 	s := make([]uint16, 0)
-	address := uintptr(unsafe.Pointer(p))
+	size := unsafe.Sizeof(uint16(0))
+	i := uintptr(0)
 	for {
-		c := *(*uint16)(unsafe.Pointer(address))
+		c := *(*uint16)(unsafe.Pointer(uintptr(unsafe.Pointer(p)) + i*size))
 		if c == 0 {
 			break
 		}
 
 		s = append(s, c)
-		address = uintptr(int(address) + 2)
+		i++
 	}
 
 	return syscall.UTF16ToString(s)

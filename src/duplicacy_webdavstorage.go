@@ -17,11 +17,11 @@ import (
 	"math/rand"
 	"net/http"
 	//"net/http/httputil"
+	"io/ioutil"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"io/ioutil"
 )
 
 type WebDAVStorage struct {
@@ -323,7 +323,7 @@ func (storage *WebDAVStorage) ListFiles(threadIndex int, dir string) (files []st
 
 			// Add the directory to the directory cache
 			storage.directoryCacheLock.Lock()
-			storage.directoryCache[dir + file] = 1
+			storage.directoryCache[dir+file] = 1
 			storage.directoryCacheLock.Unlock()
 
 		}
@@ -350,8 +350,8 @@ func (storage *WebDAVStorage) GetFileInfo(threadIndex int, filePath string) (exi
 	m, exist := properties["/"+storage.storageDir+filePath]
 
 	// If no properties exist for the given filePath, remove the trailing / from filePath and search again
-	if !exist && filePath != "" && filePath[len(filePath) - 1] == '/' {
-		m, exist = properties["/"+storage.storageDir+filePath[:len(filePath) - 1]]
+	if !exist && filePath != "" && filePath[len(filePath)-1] == '/' {
+		m, exist = properties["/"+storage.storageDir+filePath[:len(filePath)-1]]
 	}
 
 	if !exist {

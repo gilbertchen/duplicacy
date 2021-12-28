@@ -79,7 +79,7 @@ func (storage *FileStorage) ListFiles(threadIndex int, dir string) (files []stri
 
 	for _, f := range list {
 		name := f.Name()
-		if (f.IsDir() || f.Mode() & os.ModeSymlink != 0) && name[len(name)-1] != '/' {
+		if (f.IsDir() || f.Mode()&os.ModeSymlink != 0) && name[len(name)-1] != '/' {
 			name += "/"
 		}
 		files = append(files, name)
@@ -165,7 +165,7 @@ func (storage *FileStorage) UploadFile(threadIndex int, filePath string, content
 				return err
 			}
 		} else {
-			if !stat.IsDir() && stat.Mode() & os.ModeSymlink == 0 {
+			if !stat.IsDir() && stat.Mode()&os.ModeSymlink == 0 {
 				return fmt.Errorf("The path %s is not a directory or symlink", dir)
 			}
 		}

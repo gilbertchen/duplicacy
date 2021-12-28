@@ -67,7 +67,6 @@ func (entry *Entry) SetAttributesToFile(fullPath string) {
 
 	for _, name := range names {
 
-
 		newAttribute, found := entry.Attributes[name]
 		if found {
 			oldAttribute, _ := xattr.Get(fullPath, name)

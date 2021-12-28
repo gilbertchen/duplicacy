@@ -21,7 +21,7 @@ func TestErasureCoding(t *testing.T) {
 	config.MinimumChunkSize = 100
 	config.CompressionLevel = DEFAULT_COMPRESSION_LEVEL
 	config.DataShards = 5
-    config.ParityShards = 2
+	config.ParityShards = 2
 
 	chunk := CreateChunk(config, true)
 	chunk.Reset(true)
@@ -99,13 +99,13 @@ func TestChunkBasic(t *testing.T) {
 		copy(encryptedData, chunk.GetBytes())
 
 		if testErasureCoding {
-			offset := 24 + 32 * 7
-			start := rand.Int() % (len(encryptedData) - offset) + offset
+			offset := 24 + 32*7
+			start := rand.Int()%(len(encryptedData)-offset) + offset
 			length := (len(encryptedData) - offset) / 7
-			if start + length > len(encryptedData) {
+			if start+length > len(encryptedData) {
 				length = len(encryptedData) - start
 			}
-			crypto_rand.Read(encryptedData[start: start+length])
+			crypto_rand.Read(encryptedData[start : start+length])
 		}
 
 		chunk.Reset(false)

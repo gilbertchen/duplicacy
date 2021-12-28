@@ -11,10 +11,10 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
-        "runtime"
 
 	"github.com/gilbertchen/gopass"
 	"golang.org/x/crypto/pbkdf2"
@@ -56,7 +56,7 @@ func IsEmptyFilter(pattern string) bool {
 }
 
 func IsUnspecifiedFilter(pattern string) bool {
-	if pattern[0] != '+' && pattern[0] != '-' && !strings.HasPrefix(pattern, "i:") && !strings.HasPrefix(pattern, "e:")  {
+	if pattern[0] != '+' && pattern[0] != '-' && !strings.HasPrefix(pattern, "i:") && !strings.HasPrefix(pattern, "e:") {
 		return true
 	} else {
 		return false
@@ -142,7 +142,9 @@ func RateLimitedCopy(writer io.Writer, reader io.Reader, rate int) (written int6
 	if rate <= 0 {
 		return io.Copy(writer, reader)
 	}
-	for range time.Tick(time.Second / 5) {
+	ticker := time.NewTicker(time.Second / 5)
+	defer ticker.Stop()
+	for range ticker.C {
 		n, err := io.CopyN(writer, reader, int64(rate*1024/5))
 		written += n
 		if err != nil {
@@ -469,7 +471,7 @@ func PrintMemoryUsage() {
 		runtime.ReadMemStats(&m)
 
 		LOG_INFO("MEMORY_STATS", "Currently allocated: %s, total allocated: %s, system memory: %s, number of GCs: %d",
-		         PrettySize(int64(m.Alloc)), PrettySize(int64(m.TotalAlloc)), PrettySize(int64(m.Sys)), m.NumGC)
+			PrettySize(int64(m.Alloc)), PrettySize(int64(m.TotalAlloc)), PrettySize(int64(m.Sys)), m.NumGC)
 
 		time.Sleep(time.Second)
 	}
