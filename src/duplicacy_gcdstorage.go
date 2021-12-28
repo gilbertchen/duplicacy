@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/net/context"
+	"context"
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
 	"google.golang.org/api/drive/v3"
