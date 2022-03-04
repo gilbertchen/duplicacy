@@ -95,6 +95,7 @@ func (downloader *ChunkDownloader) AddFiles(snapshot *Snapshot, files []*Entry) 
 			maximumChunks = file.EndChunk - file.StartChunk
 		}
 	}
+	downloader.operator.totalChunkSize = downloader.totalChunkSize
 }
 
 // Prefetch adds up to 'threads' chunks needed by a file to the download list
