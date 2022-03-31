@@ -256,4 +256,3 @@ func (downloader *ChunkDownloader) WaitForCompletion() {
 		}
 	}
 }
-
