@@ -116,7 +116,7 @@ func createTestSnapshotManager(testDir string) *SnapshotManager {
 
 func uploadTestChunk(manager *SnapshotManager, content []byte) string {
 
-	chunkOperator := CreateChunkOperator(manager.config, manager.storage, nil, false, testThreads, false)
+	chunkOperator := CreateChunkOperator(manager.config, manager.storage, nil, false, *testThreads, false)
 	chunkOperator.UploadCompletionFunc = func(chunk *Chunk, chunkIndex int, skipped bool, chunkSize int, uploadSize int) {
 		LOG_INFO("UPLOAD_CHUNK", "Chunk %s size %d uploaded", chunk.GetID(), chunkSize)
 	}
