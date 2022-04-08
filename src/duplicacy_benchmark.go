@@ -29,29 +29,29 @@ func benchmarkSplit(reader *bytes.Reader, fileSize int64, chunkSize int, compres
 	config.HashKey = DEFAULT_KEY
 	config.IDKey = DEFAULT_KEY
 
-	maker := CreateChunkMaker(config, false)
+	maker := CreateFileChunkMaker(config, false)
 
 	startTime := float64(time.Now().UnixNano()) / 1e9
 	numberOfChunks := 0
 	reader.Seek(0, os.SEEK_SET)
-	maker.ForEachChunk(reader,
-		func(chunk *Chunk, final bool) {
-			if compression {
-				key := ""
-				if encryption {
-					key = "0123456789abcdef0123456789abcdef"
-				}
-				err := chunk.Encrypt([]byte(key), "", false)
-				if err != nil {
-					LOG_ERROR("BENCHMARK_ENCRYPT", "Failed to encrypt the chunk: %v", err)
-				}
+
+	chunkFunc := func(chunk *Chunk) {
+		if compression {
+			key := ""
+			if encryption {
+				key = "0123456789abcdef0123456789abcdef"
 			}
-			config.PutChunk(chunk)
-			numberOfChunks++
-		},
-		func(size int64, hash string) (io.Reader, bool) {
-			return nil, false
-		})
+			err := chunk.Encrypt([]byte(key), "", false)
+			if err != nil {
+				LOG_ERROR("BENCHMARK_ENCRYPT", "Failed to encrypt the chunk: %v", err)
+			}
+		}
+		config.PutChunk(chunk)
+		numberOfChunks++
+	}
+
+	maker.AddData(reader, chunkFunc)
+	maker.AddData(nil, chunkFunc)
 
 	runningTime := float64(time.Now().UnixNano())/1e9 - startTime
 	speed := int64(float64(fileSize) / runningTime)

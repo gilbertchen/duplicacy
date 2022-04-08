@@ -14,7 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
-        "runtime"
+	"runtime"
 
 	"github.com/gilbertchen/gopass"
 	"golang.org/x/crypto/pbkdf2"

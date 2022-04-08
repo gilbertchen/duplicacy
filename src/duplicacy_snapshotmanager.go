@@ -20,6 +20,8 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
+	"sync"
+	"sync/atomic"
 
 	"github.com/aryann/difflib"
 )
@@ -189,7 +191,6 @@ type SnapshotManager struct {
 	fileChunk     *Chunk
 	snapshotCache *FileStorage
 
-	chunkDownloader *ChunkDownloader
 	chunkOperator   *ChunkOperator
 }
 
@@ -268,72 +269,26 @@ func (reader *sequenceReader) Read(data []byte) (n int, err error) {
 	return reader.buffer.Read(data)
 }
 
-func (manager *SnapshotManager) CreateChunkDownloader() {
-	if manager.chunkDownloader == nil {
-		manager.chunkDownloader = CreateChunkDownloader(manager.config, manager.storage, manager.snapshotCache, false, 1, false)
+func (manager *SnapshotManager) CreateChunkOperator(resurrect bool, threads int, allowFailures bool) {
+	if manager.chunkOperator == nil {
+		manager.chunkOperator = CreateChunkOperator(manager.config, manager.storage, manager.snapshotCache, resurrect, threads, allowFailures)
 	}
 }
 
 // DownloadSequence returns the content represented by a sequence of chunks.
 func (manager *SnapshotManager) DownloadSequence(sequence []string) (content []byte) {
-	manager.CreateChunkDownloader()
+	manager.CreateChunkOperator(false, 1, false)
 	for _, chunkHash := range sequence {
-		i := manager.chunkDownloader.AddChunk(chunkHash)
-		chunk := manager.chunkDownloader.WaitForChunk(i)
+		chunk := manager.chunkOperator.Download(chunkHash, 0, true)
 		content = append(content, chunk.GetBytes()...)
+		manager.config.PutChunk(chunk)
 	}
 
 	return content
 }
 
-func (manager *SnapshotManager) DownloadSnapshotFileSequence(snapshot *Snapshot, patterns []string, attributesNeeded bool) bool {
-
-	manager.CreateChunkDownloader()
-
-	reader := sequenceReader{
-		sequence: snapshot.FileSequence,
-		buffer:   new(bytes.Buffer),
-		refillFunc: func(chunkHash string) []byte {
-			i := manager.chunkDownloader.AddChunk(chunkHash)
-			chunk := manager.chunkDownloader.WaitForChunk(i)
-			return chunk.GetBytes()
-		},
-	}
-
-	files := make([]*Entry, 0)
-	decoder := json.NewDecoder(&reader)
-
-	// read open bracket
-	_, err := decoder.Token()
-	if err != nil {
-		LOG_ERROR("SNAPSHOT_PARSE", "Failed to load files specified in the snapshot %s at revision %d: not a list of entries",
-			snapshot.ID, snapshot.Revision)
-		return false
-	}
-
-	// while the array contains values
-	for decoder.More() {
-		var entry Entry
-		err = decoder.Decode(&entry)
-		if err != nil {
-			LOG_ERROR("SNAPSHOT_PARSE", "Failed to load files specified in the snapshot %s at revision %d: %v",
-				snapshot.ID, snapshot.Revision, err)
-			return false
-		}
-
-		// If we don't need the attributes or the file isn't included we clear the attributes to save memory
-		if !attributesNeeded || (len(patterns) != 0 && !MatchPath(entry.Path, patterns)) {
-			entry.Attributes = nil
-		}
-
-		files = append(files, &entry)
-	}
-	snapshot.Files = files
-	return true
-}
-
 // DownloadSnapshotSequence downloads the content represented by a sequence of chunks, and then unmarshal the content
-// using the specified 'loadFunction'.  It purpose is to decode the chunk sequences representing chunk hashes or chunk lengths
+// using the specified 'loadFunction'.  Its purpose is to decode the chunk sequences representing chunk hashes or chunk lengths
 // in a snapshot.
 func (manager *SnapshotManager) DownloadSnapshotSequence(snapshot *Snapshot, sequenceType string) bool {
 
@@ -362,30 +317,21 @@ func (manager *SnapshotManager) DownloadSnapshotSequence(snapshot *Snapshot, seq
 	return true
 }
 
-// DownloadSnapshotContents loads all chunk sequences in a snapshot.  A snapshot, when just created, only contains
-// some metadata and theree sequence representing files, chunk hashes, and chunk lengths.  This function must be called
-// for the actual content of the snapshot to be usable.
-func (manager *SnapshotManager) DownloadSnapshotContents(snapshot *Snapshot, patterns []string, attributesNeeded bool) bool {
+// DownloadSnapshotSequences loads all chunk sequences in a snapshot.  A snapshot, when just created, only contains
+// some metadata and three sequence representing files, chunk hashes, and chunk lengths.  This function must be called
+// for the chunk hash sequence and chunk length sequence to be usable.
+func (manager *SnapshotManager) DownloadSnapshotSequences(snapshot *Snapshot) bool {
 
-	manager.DownloadSnapshotFileSequence(snapshot, patterns, attributesNeeded)
 	manager.DownloadSnapshotSequence(snapshot, "chunks")
 	manager.DownloadSnapshotSequence(snapshot, "lengths")
-
-	err := manager.CheckSnapshot(snapshot)
-	if err != nil {
-		LOG_ERROR("SNAPSHOT_CHECK", "The snapshot %s at revision %d contains an error: %v",
-			snapshot.ID, snapshot.Revision, err)
-		return false
-	}
 
 	return true
 }
 
-// ClearSnapshotContents removes contents loaded by DownloadSnapshotContents
-func (manager *SnapshotManager) ClearSnapshotContents(snapshot *Snapshot) {
+// ClearSnapshotContents removes sequences loaded by DownloadSnapshotSequences
+func (manager *SnapshotManager) ClearSnapshotSequences(snapshot *Snapshot) {
 	snapshot.ChunkHashes = nil
 	snapshot.ChunkLengths = nil
-	snapshot.Files = nil
 }
 
 // CleanSnapshotCache removes all files not referenced by the specified 'snapshot' in the snapshot cache.
@@ -577,10 +523,6 @@ func (manager *SnapshotManager) downloadLatestSnapshot(snapshotID string) (remot
 		remote = manager.DownloadSnapshot(snapshotID, latest)
 	}
 
-	if remote != nil {
-		manager.DownloadSnapshotContents(remote, nil, false)
-	}
-
 	return remote
 }
 
@@ -712,6 +654,12 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 	LOG_DEBUG("LIST_PARAMETERS", "id: %s, revisions: %v, tag: %s, showFiles: %t, showChunks: %t",
 		snapshotID, revisionsToList, tag, showFiles, showChunks)
 
+	manager.CreateChunkOperator(false, 1, false)
+	defer func() {
+		manager.chunkOperator.Stop()
+		manager.chunkOperator = nil
+	}()
+
 	var snapshotIDs []string
 	var err error
 
@@ -749,14 +697,16 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 			if len(snapshot.Tag) > 0 {
 				tagWithSpace = snapshot.Tag + " "
 			}
-			LOG_INFO("SNAPSHOT_INFO", "Snapshot %s revision %d created at %s %s%s",
-				snapshotID, revision, creationTime, tagWithSpace, snapshot.Options)
-
-			if showFiles {
-				manager.DownloadSnapshotFileSequence(snapshot, nil, false)
+			options := snapshot.Options
+			if snapshot.Version == 0 {
+				options += " (0)"
 			}
+			LOG_INFO("SNAPSHOT_INFO", "Snapshot %s revision %d created at %s %s%s",
+				snapshotID, revision, creationTime, tagWithSpace, options)
 
 			if showFiles {
+				// We need to fill in ChunkHashes and ChunkLengths to verify that each entry is valid
+				manager.DownloadSnapshotSequences(snapshot)
 
 				if snapshot.NumberOfFiles > 0 {
 					LOG_INFO("SNAPSHOT_STATS", "Files: %d", snapshot.NumberOfFiles)
@@ -768,7 +718,7 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 				totalFileSize := int64(0)
 				lastChunk := 0
 
-				for _, file := range snapshot.Files {
+				snapshot.ListRemoteFiles(manager.config, manager.chunkOperator, func(file *Entry)bool {
 					if file.IsFile() {
 						totalFiles++
 						totalFileSize += file.Size
@@ -780,17 +730,18 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 							lastChunk = file.EndChunk
 						}
 					}
-				}
+					return true
+				})
 
-				for _, file := range snapshot.Files {
+				snapshot.ListRemoteFiles(manager.config, manager.chunkOperator, func(file *Entry)bool {
 					if file.IsFile() {
 						LOG_INFO("SNAPSHOT_FILE", "%s", file.String(maxSizeDigits))
 					}
-				}
+					return true
+				})
 
 				metaChunks := len(snapshot.FileSequence) + len(snapshot.ChunkSequence) + len(snapshot.LengthSequence)
-				LOG_INFO("SNAPSHOT_STATS", "Files: %d, total size: %d, file chunks: %d, metadata chunks: %d",
-					totalFiles, totalFileSize, lastChunk+1, metaChunks)
+				LOG_INFO("SNAPSHOT_STATS", "Total size: %d, file chunks: %d, metadata chunks: %d", totalFileSize, lastChunk+1, metaChunks)
 			}
 
 			if showChunks {
@@ -807,11 +758,15 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 
 }
 
-// ListSnapshots shows the information about a snapshot.
+// CheckSnapshots checks if there is any problem with a snapshot.
 func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToCheck []int, tag string, showStatistics bool, showTabular bool,
 	checkFiles bool, checkChunks, searchFossils bool, resurrect bool, threads int, allowFailures bool) bool {
 
-	manager.chunkDownloader = CreateChunkDownloader(manager.config, manager.storage, manager.snapshotCache, false, threads, allowFailures)
+	manager.CreateChunkOperator(resurrect, threads, allowFailures)
+	defer func() {
+		manager.chunkOperator.Stop()
+		manager.chunkOperator = nil
+	}()
 
 	LOG_DEBUG("LIST_PARAMETERS", "id: %s, revisions: %v, tag: %s, showStatistics: %t, showTabular: %t, checkFiles: %t, searchFossils: %t, resurrect: %t",
 		snapshotID, revisionsToCheck, tag, showStatistics, showTabular, checkFiles, searchFossils, resurrect)
@@ -911,9 +866,9 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 		for _, snapshot := range snapshotMap[snapshotID] {
 
 			if checkFiles {
-				manager.DownloadSnapshotContents(snapshot, nil, false)
+				manager.DownloadSnapshotSequences(snapshot)
 				manager.VerifySnapshot(snapshot)
-				manager.ClearSnapshotContents(snapshot)
+				manager.ClearSnapshotSequences(snapshot)
 				continue
 			}
 
@@ -1026,6 +981,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	// .duplicacy/cache/storage/verified_chunks.  Note that it contains the chunk ids not chunk
 	// hashes.
 	verifiedChunks := make(map[string]int64)
+	var verifiedChunksLock sync.Mutex
 	verifiedChunksFile := "verified_chunks"
 
 	manager.fileChunk.Reset(false)
@@ -1061,15 +1017,10 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	defer saveVerifiedChunks()
 	RunAtError = saveVerifiedChunks
 
-	manager.chunkDownloader.snapshotCache = nil
 	LOG_INFO("SNAPSHOT_VERIFY", "Verifying %d chunks", len(*allChunkHashes))
 
 	startTime := time.Now()
 	var chunkHashes []string
-
-	// The index of the first chunk to add to the downloader, which may have already downloaded
-	// some metadata chunks so the index doesn't start with 0.
-	chunkIndex := -1
 
 	skippedChunks := 0
 	for chunkHash := range *allChunkHashes {
@@ -1081,38 +1032,65 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 			}
 		}
 		chunkHashes = append(chunkHashes, chunkHash)
-		if chunkIndex == -1 {
-			chunkIndex = manager.chunkDownloader.AddChunk(chunkHash)
-		} else {
-			manager.chunkDownloader.AddChunk(chunkHash)
-		}
 	}
 
 	if skippedChunks > 0 {
 		LOG_INFO("SNAPSHOT_VERIFY", "Skipped %d chunks that have already been verified before", skippedChunks)
 	}
 
-	var downloadedChunkSize int64
-	totalChunks := len(chunkHashes)
-	for i := 0; i < totalChunks; i++ {
-		chunk := manager.chunkDownloader.WaitForChunk(i + chunkIndex)
-		chunkID := manager.config.GetChunkIDFromHash(chunkHashes[i])
-		if chunk.isBroken {
-			continue
-		}
-		verifiedChunks[chunkID] = startTime.Unix()
-		downloadedChunkSize += int64(chunk.GetLength())
+	var totalDownloadedChunkSize int64
+	var totalDownloadedChunks int64
+	totalChunks := int64(len(chunkHashes))
 
-		elapsedTime := time.Now().Sub(startTime).Seconds()
-		speed := int64(float64(downloadedChunkSize) / elapsedTime)
-		remainingTime := int64(float64(totalChunks - i - 1) / float64(i + 1) * elapsedTime)
-		percentage := float64(i + 1) / float64(totalChunks) * 100.0
-		LOG_INFO("VERIFY_PROGRESS", "Verified chunk %s (%d/%d), %sB/s %s %.1f%%",
-					chunkID, i + 1, totalChunks, PrettySize(speed), PrettyTime(remainingTime), percentage)
+	chunkChannel := make(chan int, threads)
+	var wg sync.WaitGroup
+
+	wg.Add(threads)
+	for i := 0; i < threads; i++ {
+		go func() {
+			defer CatchLogException()
+
+			for {
+				chunkIndex, ok := <- chunkChannel
+				if !ok {
+					wg.Done()
+					return
+				}
+
+				chunk := manager.chunkOperator.Download(chunkHashes[chunkIndex], chunkIndex, false)
+				if chunk == nil {
+					continue
+				}
+				chunkID := manager.config.GetChunkIDFromHash(chunkHashes[chunkIndex])
+				verifiedChunksLock.Lock()
+				verifiedChunks[chunkID] = startTime.Unix()
+				verifiedChunksLock.Unlock()
+
+				downloadedChunkSize := atomic.AddInt64(&totalDownloadedChunkSize, int64(chunk.GetLength()))
+				downloadedChunks := atomic.AddInt64(&totalDownloadedChunks, 1)
+
+				elapsedTime := time.Now().Sub(startTime).Seconds()
+				speed := int64(float64(downloadedChunkSize) / elapsedTime)
+				remainingTime := int64(float64(totalChunks - downloadedChunks) / float64(downloadedChunks) * elapsedTime)
+				percentage := float64(downloadedChunks) / float64(totalChunks) * 100.0
+				LOG_INFO("VERIFY_PROGRESS", "Verified chunk %s (%d/%d), %sB/s %s %.1f%%",
+						chunkID, downloadedChunks, totalChunks, PrettySize(speed), PrettyTime(remainingTime), percentage)
+
+				manager.config.PutChunk(chunk)
+			}
+		} ()
 	}
 
-	if manager.chunkDownloader.NumberOfFailedChunks > 0 {
-		LOG_ERROR("SNAPSHOT_VERIFY", "%d out of %d chunks are corrupted", manager.chunkDownloader.NumberOfFailedChunks, len(*allChunkHashes))
+	for chunkIndex := range chunkHashes {
+		chunkChannel <- chunkIndex
+	}
+
+	close(chunkChannel)
+	wg.Wait()
+	manager.chunkOperator.WaitForCompletion()
+
+	if manager.chunkOperator.NumberOfFailedChunks > 0 {
+		LOG_ERROR("SNAPSHOT_VERIFY", "%d out of %d chunks are corrupted", manager.chunkOperator.NumberOfFailedChunks, len(*allChunkHashes))
 	} else {
 		LOG_INFO("SNAPSHOT_VERIFY", "All %d chunks have been successfully verified", len(*allChunkHashes))
 	}
@@ -1280,14 +1258,6 @@ func (manager *SnapshotManager) PrintSnapshot(snapshot *Snapshot) bool {
 	object["chunks"] = manager.ConvertSequence(snapshot.ChunkHashes)
 	object["lengths"] = snapshot.ChunkLengths
 
-	// By default the json serialization of a file entry contains the path in base64 format.  This is
-	// to convert every file entry into an object which include the path in a more readable format.
-	var files []map[string]interface{}
-	for _, file := range snapshot.Files {
-		files = append(files, file.convertToObject(false))
-	}
-	object["files"] = files
-
 	description, err := json.MarshalIndent(object, "", "  ")
 
 	if err != nil {
@@ -1296,8 +1266,24 @@ func (manager *SnapshotManager) PrintSnapshot(snapshot *Snapshot) bool {
 		return false
 	}
 
-	fmt.Printf("%s\n", string(description))
+	// Don't print the ending bracket
+	fmt.Printf("%s", string(description[:len(description) - 2]))
+	fmt.Printf(",\n  \"files\": [\n")
+	isFirstFile := true
+	snapshot.ListRemoteFiles(manager.config, manager.chunkOperator, func (file *Entry) bool {
 
+		fileDescription, _ := json.MarshalIndent(file.convertToObject(false), "", "    ")
+
+		if isFirstFile {
+			fmt.Printf("%s", fileDescription)
+			isFirstFile = false
+		} else {
+			fmt.Printf(",\n%s", fileDescription)
+		}
+		return true
+	})
+
+	fmt.Printf("  ]\n}\n")
 	return true
 }
 
@@ -1313,17 +1299,20 @@ func (manager *SnapshotManager) VerifySnapshot(snapshot *Snapshot) bool {
 		return false
 	}
 
-	files := make([]*Entry, 0, len(snapshot.Files)/2)
-	for _, file := range snapshot.Files {
+	files := make([]*Entry, 0)
+	snapshot.ListRemoteFiles(manager.config, manager.chunkOperator, func (file *Entry) bool {
 		if file.IsFile() && file.Size != 0 {
+			file.Attributes = nil
 			files = append(files, file)
 		}
-	}
+		return true
+	})
 
 	sort.Sort(ByChunk(files))
 	corruptedFiles := 0
+	var lastChunk *Chunk
 	for _, file := range files {
-		if !manager.RetrieveFile(snapshot, file, func([]byte) {}) {
+		if !manager.RetrieveFile(snapshot, file, &lastChunk, func([]byte) {}) {
 			corruptedFiles++
 		}
 		LOG_TRACE("SNAPSHOT_VERIFY", "%s", file.Path)
@@ -1341,21 +1330,13 @@ func (manager *SnapshotManager) VerifySnapshot(snapshot *Snapshot) bool {
 }
 
 // RetrieveFile retrieves the file in the specified snapshot.
-func (manager *SnapshotManager) RetrieveFile(snapshot *Snapshot, file *Entry, output func([]byte)) bool {
+func (manager *SnapshotManager) RetrieveFile(snapshot *Snapshot, file *Entry, lastChunk **Chunk, output func([]byte)) bool {
 
 	if file.Size == 0 {
 		return true
 	}
 
-	manager.CreateChunkDownloader()
-
-	// Temporarily disable the snapshot cache of the download so that downloaded file chunks won't be saved
-	// to the cache.
-	snapshotCache := manager.chunkDownloader.snapshotCache
-	manager.chunkDownloader.snapshotCache = nil
-	defer func() {
-		manager.chunkDownloader.snapshotCache = snapshotCache
-	}()
+	manager.CreateChunkOperator(false, 1, false)
 
 	fileHasher := manager.config.NewFileHasher()
 	alternateHash := false
@@ -1376,12 +1357,19 @@ func (manager *SnapshotManager) RetrieveFile(snapshot *Snapshot, file *Entry, ou
 		}
 
 		hash := snapshot.ChunkHashes[i]
-		lastChunk, lastChunkHash := manager.chunkDownloader.GetLastDownloadedChunk()
-		if lastChunkHash != hash {
-			i := manager.chunkDownloader.AddChunk(hash)
-			chunk = manager.chunkDownloader.WaitForChunk(i)
+		if lastChunk == nil {
+			chunk = manager.chunkOperator.Download(hash, 0, false)
+		} else if *lastChunk == nil {
+			chunk = manager.chunkOperator.Download(hash, 0, false)
+			*lastChunk = chunk
 		} else {
-			chunk = lastChunk
+			if (*lastChunk).GetHash() == hash {
+				chunk = *lastChunk
+			} else {
+				manager.config.PutChunk(*lastChunk)
+				chunk = manager.chunkOperator.Download(hash, 0, false)
+				*lastChunk = chunk
+			}
 		}
 
 		output(chunk.GetBytes()[start:end])
@@ -1405,10 +1393,18 @@ func (manager *SnapshotManager) RetrieveFile(snapshot *Snapshot, file *Entry, ou
 
 // FindFile returns the file entry that has the given file name.
 func (manager *SnapshotManager) FindFile(snapshot *Snapshot, filePath string, suppressError bool) *Entry {
-	for _, entry := range snapshot.Files {
+
+	var found *Entry
+	snapshot.ListRemoteFiles(manager.config, manager.chunkOperator, func (entry *Entry) bool {
 		if entry.Path == filePath {
-			return entry
+			found = entry
+			return false
 		}
+		return true
+	})
+
+	if found != nil {
+		return found
 	}
 
 	if !suppressError {
@@ -1440,13 +1436,8 @@ func (manager *SnapshotManager) PrintFile(snapshotID string, revision int, path 
 		return false
 	}
 
-	patterns := []string{}
-	if path != "" {
-		patterns = []string{path}
-	}
-
-	// If no path is specified, we're printing the snapshot so we need all attributes
-	if !manager.DownloadSnapshotContents(snapshot, patterns, path == "") {
+	// If no path is specified, we're printing the snapshot
+	if !manager.DownloadSnapshotSequences(snapshot) {
 		return false
 	}
 
@@ -1456,7 +1447,7 @@ func (manager *SnapshotManager) PrintFile(snapshotID string, revision int, path 
 	}
 
 	file := manager.FindFile(snapshot, path, false)
-	if !manager.RetrieveFile(snapshot, file, func(chunk []byte) {
+	if !manager.RetrieveFile(snapshot, file, nil, func(chunk []byte) {
 			fmt.Printf("%s", chunk)
 		}) {
 		LOG_ERROR("SNAPSHOT_RETRIEVE", "File %s is corrupted in snapshot %s at revision %d",
@@ -1474,22 +1465,38 @@ func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []
 	LOG_DEBUG("DIFF_PARAMETERS", "top: %s, id: %s, revision: %v, path: %s, compareByHash: %t",
 		top, snapshotID, revisions, filePath, compareByHash)
 
+	manager.CreateChunkOperator(false, 1, false)
+	defer func() {
+		manager.chunkOperator.Stop()
+		manager.chunkOperator = nil
+	} ()
+
 	var leftSnapshot *Snapshot
 	var rightSnapshot *Snapshot
-	var err error
+
+	leftSnapshotFiles := make([]*Entry, 0, 1024)
+	rightSnapshotFiles := make([]*Entry, 0, 1024)
 
 	// If no or only one revision is specified, use the on-disk version for the right-hand side.
 	if len(revisions) <= 1 {
 		// Only scan the repository if filePath is not provided
 		if len(filePath) == 0 {
-			rightSnapshot, _, _, err = CreateSnapshotFromDirectory(snapshotID, top, nobackupFile, filtersFile, excludeByAttribute)
-			if err != nil {
-				LOG_ERROR("SNAPSHOT_LIST", "Failed to list the directory %s: %v", top, err)
-				return false
+			rightSnapshot = CreateEmptySnapshot(snapshotID)
+			localListingChannel := make(chan *Entry)
+			go func() {
+				defer CatchLogException()
+				rightSnapshot.ListLocalFiles(top, nobackupFile, filtersFile, excludeByAttribute, localListingChannel, nil, nil)
+			} ()
+
+			for entry := range localListingChannel {
+				entry.Attributes = nil  // attributes are not compared
+				rightSnapshotFiles = append(rightSnapshotFiles, entry)
 			}
+
 		}
 	} else {
 		rightSnapshot = manager.DownloadSnapshot(snapshotID, revisions[1])
+		manager.DownloadSnapshotSequences(rightSnapshot)
 	}
 
 	// If no revision is specified, use the latest revision as the left-hand side.
@@ -1503,15 +1510,11 @@ func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []
 		leftSnapshot = manager.DownloadSnapshot(snapshotID, revisions[0])
 	}
 
+	manager.DownloadSnapshotSequences(leftSnapshot)
 	if len(filePath) > 0 {
 
-		manager.DownloadSnapshotContents(leftSnapshot, nil, false)
-		if rightSnapshot != nil && rightSnapshot.Revision != 0 {
-			manager.DownloadSnapshotContents(rightSnapshot, nil, false)
-		}
-
 		var leftFile []byte
-		if !manager.RetrieveFile(leftSnapshot, manager.FindFile(leftSnapshot, filePath, false), func(content []byte) {
+		if !manager.RetrieveFile(leftSnapshot, manager.FindFile(leftSnapshot, filePath, false), nil, func(content []byte) {
 			leftFile = append(leftFile, content...)
 		}) {
 			LOG_ERROR("SNAPSHOT_DIFF", "File %s is corrupted in snapshot %s at revision %d",
@@ -1521,7 +1524,7 @@ func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []
 
 		var rightFile []byte
 		if rightSnapshot != nil {
-			if !manager.RetrieveFile(rightSnapshot, manager.FindFile(rightSnapshot, filePath, false), func(content []byte) {
+			if !manager.RetrieveFile(rightSnapshot, manager.FindFile(rightSnapshot, filePath, false), nil, func(content []byte) {
 				rightFile = append(rightFile, content...)
 			}) {
 				LOG_ERROR("SNAPSHOT_DIFF", "File %s is corrupted in snapshot %s at revision %d",
@@ -1582,24 +1585,32 @@ func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []
 		return true
 	}
 
-	// We only need to decode the 'files' sequence, not 'chunkhashes' or 'chunklengthes'
-	manager.DownloadSnapshotFileSequence(leftSnapshot, nil, false)
-	if rightSnapshot != nil && rightSnapshot.Revision != 0 {
-		manager.DownloadSnapshotFileSequence(rightSnapshot, nil, false)
+	leftSnapshot.ListRemoteFiles(manager.config, manager.chunkOperator, func(entry *Entry) bool {
+		entry.Attributes = nil
+		leftSnapshotFiles = append(leftSnapshotFiles, entry)
+		return true
+	})
+
+	if rightSnapshot.Revision != 0 {
+		rightSnapshot.ListRemoteFiles(manager.config, manager.chunkOperator, func(entry *Entry) bool {
+			entry.Attributes = nil
+			rightSnapshotFiles = append(rightSnapshotFiles, entry)
+			return true
+		})
 	}
 
 	maxSize := int64(9)
 	maxSizeDigits := 1
 
 	// Find the max Size value in order for pretty alignment.
-	for _, file := range leftSnapshot.Files {
+	for _, file := range leftSnapshotFiles {
 		for !file.IsDir() && file.Size > maxSize {
 			maxSize = maxSize*10 + 9
 			maxSizeDigits += 1
 		}
 	}
 
-	for _, file := range rightSnapshot.Files {
+	for _, file := range rightSnapshotFiles {
 		for !file.IsDir() && file.Size > maxSize {
 			maxSize = maxSize*10 + 9
 			maxSizeDigits += 1
@@ -1609,22 +1620,22 @@ func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []
 	buffer := make([]byte, 32*1024)
 
 	var i, j int
-	for i < len(leftSnapshot.Files) || j < len(rightSnapshot.Files) {
+	for i < len(leftSnapshotFiles) || j < len(rightSnapshotFiles) {
 
-		if i >= len(leftSnapshot.Files) {
-			if rightSnapshot.Files[j].IsFile() {
-				LOG_INFO("SNAPSHOT_DIFF", "+ %s", rightSnapshot.Files[j].String(maxSizeDigits))
+		if i >= len(leftSnapshotFiles) {
+			if rightSnapshotFiles[j].IsFile() {
+				LOG_INFO("SNAPSHOT_DIFF", "+ %s", rightSnapshotFiles[j].String(maxSizeDigits))
 			}
 			j++
-		} else if j >= len(rightSnapshot.Files) {
-			if leftSnapshot.Files[i].IsFile() {
-				LOG_INFO("SNAPSHOT_DIFF", "- %s", leftSnapshot.Files[i].String(maxSizeDigits))
+		} else if j >= len(rightSnapshotFiles) {
+			if leftSnapshotFiles[i].IsFile() {
+				LOG_INFO("SNAPSHOT_DIFF", "- %s", leftSnapshotFiles[i].String(maxSizeDigits))
 			}
 			i++
 		} else {
 
-			left := leftSnapshot.Files[i]
-			right := rightSnapshot.Files[j]
+			left := leftSnapshotFiles[i]
+			right := rightSnapshotFiles[j]
 
 			if !left.IsFile() {
 				i++
@@ -1679,6 +1690,12 @@ func (manager *SnapshotManager) ShowHistory(top string, snapshotID string, revis
 	LOG_DEBUG("HISTORY_PARAMETERS", "top: %s, id: %s, revisions: %v, path: %s, showLocalHash: %t",
 		top, snapshotID, revisions, filePath, showLocalHash)
 
+	manager.CreateChunkOperator(false, 1, false)
+	defer func() {
+		manager.chunkOperator.Stop()
+		manager.chunkOperator = nil
+	} ()
+
 	var err error
 
 	if len(revisions) == 0 {
@@ -1693,7 +1710,7 @@ func (manager *SnapshotManager) ShowHistory(top string, snapshotID string, revis
 	sort.Ints(revisions)
 	for _, revision := range revisions {
 		snapshot := manager.DownloadSnapshot(snapshotID, revision)
-		manager.DownloadSnapshotFileSequence(snapshot, nil, false)
+		manager.DownloadSnapshotSequences(snapshot)
 		file := manager.FindFile(snapshot, filePath, true)
 
 		if file != nil {
@@ -1801,8 +1818,11 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 		LOG_WARN("DELETE_OPTIONS", "Tags or retention policy will be ignored if at least one revision is specified")
 	}
 
-	manager.chunkOperator = CreateChunkOperator(manager.storage, threads)
-	defer manager.chunkOperator.Stop()
+	manager.CreateChunkOperator(false, threads, false)
+	defer func() {
+		manager.chunkOperator.Stop()
+		manager.chunkOperator = nil
+	} ()
 
 	prefPath := GetDuplicacyPreferencePath()
 	logDir := path.Join(prefPath, "logs")
@@ -2184,7 +2204,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 		return false
 	}
 
-	manager.chunkOperator.Stop()
+	manager.chunkOperator.WaitForCompletion()
 	for _, fossil := range manager.chunkOperator.fossils {
 		collection.AddFossil(fossil)
 	}
@@ -2265,6 +2285,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 	} else {
 		manager.CleanSnapshotCache(nil, allSnapshots)
 	}
+	manager.chunkOperator.WaitForCompletion()
 
 	return true
 }
@@ -2477,8 +2498,6 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[s
 // CheckSnapshot performs sanity checks on the given snapshot.
 func (manager *SnapshotManager) CheckSnapshot(snapshot *Snapshot) (err error) {
 
-	lastChunk := 0
-	lastOffset := 0
 	var lastEntry *Entry
 
 	numberOfChunks := len(snapshot.ChunkHashes)
@@ -2488,57 +2507,39 @@ func (manager *SnapshotManager) CheckSnapshot(snapshot *Snapshot) (err error) {
 			numberOfChunks, len(snapshot.ChunkLengths))
 	}
 
-	entries := make([]*Entry, len(snapshot.Files))
-	copy(entries, snapshot.Files)
-	sort.Sort(ByChunk(entries))
+	snapshot.ListRemoteFiles(manager.config, manager.chunkOperator, func (entry *Entry) bool {
 
-	for _, entry := range snapshot.Files {
 		if lastEntry != nil && lastEntry.Compare(entry) >= 0 && !strings.Contains(lastEntry.Path, "\ufffd") {
-			return fmt.Errorf("The entry %s appears before the entry %s", lastEntry.Path, entry.Path)
+			err = fmt.Errorf("The entry %s appears before the entry %s", lastEntry.Path, entry.Path)
+			return false
 		}
 		lastEntry = entry
-	}
-
-	for _, entry := range entries {
 
 		if !entry.IsFile() || entry.Size == 0 {
-			continue
+			return true
 		}
 
 		if entry.StartChunk < 0 {
-			return fmt.Errorf("The file %s starts at chunk %d", entry.Path, entry.StartChunk)
+			err = fmt.Errorf("The file %s starts at chunk %d", entry.Path, entry.StartChunk)
+			return false
 		}
 
 		if entry.EndChunk >= numberOfChunks {
-			return fmt.Errorf("The file %s ends at chunk %d while the number of chunks is %d",
+			err = fmt.Errorf("The file %s ends at chunk %d while the number of chunks is %d",
 				entry.Path, entry.EndChunk, numberOfChunks)
+			return false
 		}
 
 		if entry.EndChunk < entry.StartChunk {
-			return fmt.Errorf("The file %s starts at chunk %d and ends at chunk %d",
+			fmt.Errorf("The file %s starts at chunk %d and ends at chunk %d",
 				entry.Path, entry.StartChunk, entry.EndChunk)
+			return false
 		}
 
-		if entry.StartOffset > 0 {
-			if entry.StartChunk < lastChunk {
-				return fmt.Errorf("The file %s starts at chunk %d while the last chunk is %d",
-					entry.Path, entry.StartChunk, lastChunk)
-			}
-
-			if entry.StartChunk > lastChunk+1 {
-				return fmt.Errorf("The file %s starts at chunk %d while the last chunk is %d",
-					entry.Path, entry.StartChunk, lastChunk)
-			}
-
-			if entry.StartChunk == lastChunk && entry.StartOffset < lastOffset {
-				return fmt.Errorf("The file %s starts at offset %d of chunk %d while the last file ends at offset %d",
-					entry.Path, entry.StartOffset, entry.StartChunk, lastOffset)
-			}
-
-			if entry.StartChunk == entry.EndChunk && entry.StartOffset > entry.EndOffset {
-				return fmt.Errorf("The file %s starts at offset %d and ends at offset %d of the same chunk %d",
-					entry.Path, entry.StartOffset, entry.EndOffset, entry.StartChunk)
-			}
+		if entry.StartChunk == entry.EndChunk && entry.StartOffset > entry.EndOffset {
+			err = fmt.Errorf("The file %s starts at offset %d and ends at offset %d of the same chunk %d",
+				entry.Path, entry.StartOffset, entry.EndOffset, entry.StartChunk)
+			return false
 		}
 
 		fileSize := int64(0)
@@ -2558,22 +2559,13 @@ func (manager *SnapshotManager) CheckSnapshot(snapshot *Snapshot) (err error) {
 		}
 
 		if entry.Size != fileSize {
-			return fmt.Errorf("The file %s has a size of %d but the total size of chunks is %d",
+			err = fmt.Errorf("The file %s has a size of %d but the total size of chunks is %d",
 				entry.Path, entry.Size, fileSize)
+		    return false
 		}
 
-		lastChunk = entry.EndChunk
-		lastOffset = entry.EndOffset
-	}
-
-	if len(entries) > 0 && entries[0].StartChunk != 0 {
-		return fmt.Errorf("The first file starts at chunk %d", entries[0].StartChunk)
-	}
-
-	// There may be a last chunk whose size is 0 so we allow this to happen
-	if lastChunk < numberOfChunks-2 {
-		return fmt.Errorf("The last file ends at chunk %d but the number of chunks is %d", lastChunk, numberOfChunks)
-	}
+		return true
+	})
 
 	return nil
 }

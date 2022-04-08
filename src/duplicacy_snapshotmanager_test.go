@@ -116,19 +116,18 @@ func createTestSnapshotManager(testDir string) *SnapshotManager {
 
 func uploadTestChunk(manager *SnapshotManager, content []byte) string {
 
-	completionFunc := func(chunk *Chunk, chunkIndex int, skipped bool, chunkSize int, uploadSize int) {
+	chunkOperator := CreateChunkOperator(manager.config, manager.storage, nil, false, testThreads, false)
+	chunkOperator.UploadCompletionFunc = func(chunk *Chunk, chunkIndex int, skipped bool, chunkSize int, uploadSize int) {
 		LOG_INFO("UPLOAD_CHUNK", "Chunk %s size %d uploaded", chunk.GetID(), chunkSize)
 	}
-
-	chunkUploader := CreateChunkUploader(manager.config, manager.storage, nil, *testThreads, nil)
-	chunkUploader.completionFunc = completionFunc
-	chunkUploader.Start()
 
 	chunk := CreateChunk(manager.config, true)
 	chunk.Reset(true)
 	chunk.Write(content)
-	chunkUploader.StartChunk(chunk, 0)
-	chunkUploader.Stop()
+
+	chunkOperator.Upload(chunk, 0, false)
+	chunkOperator.WaitForCompletion()
+	chunkOperator.Stop()
 
 	return chunk.GetHash()
 }
@@ -179,6 +178,12 @@ func createTestSnapshot(manager *SnapshotManager, snapshotID string, revision in
 }
 
 func checkTestSnapshots(manager *SnapshotManager, expectedSnapshots int, expectedFossils int) {
+
+	manager.CreateChunkOperator(false, 1, false)
+	defer func() {
+		manager.chunkOperator.Stop()
+		manager.chunkOperator = nil
+	}()
 
 	var snapshotIDs []string
 	var err error

@@ -13,8 +13,11 @@ import (
 	"sort"
 	"strings"
 	"testing"
+	"bytes"
+	"encoding/json"
 
 	"github.com/gilbertchen/xattr"
+    "github.com/vmihailenco/msgpack"
 )
 
 func TestEntrySort(t *testing.T) {
@@ -27,19 +30,19 @@ func TestEntrySort(t *testing.T) {
 		"\xBB\xDDfile",
 		"\xFF\xDDfile",
 		"ab/",
+		"ab-/",
+		"ab0/",
+		"ab1/",
 		"ab/c",
 		"ab+/c-",
 		"ab+/c0",
 		"ab+/c/",
-		"ab+/c/d",
 		"ab+/c+/",
-		"ab+/c+/d",
 		"ab+/c0/",
+		"ab+/c/d",
+		"ab+/c+/d",
 		"ab+/c0/d",
-		"ab-/",
 		"ab-/c",
-		"ab0/",
-		"ab1/",
 		"ab1/c",
 		"ab1/\xBB\xDDfile",
 		"ab1/\xFF\xDDfile",
@@ -86,7 +89,7 @@ func TestEntrySort(t *testing.T) {
 	}
 }
 
-func TestEntryList(t *testing.T) {
+func TestEntryOrder(t *testing.T) {
 
 	testDir := filepath.Join(os.TempDir(), "duplicacy_test")
 	os.RemoveAll(testDir)
@@ -98,16 +101,16 @@ func TestEntryList(t *testing.T) {
 		"ab0",
 		"ab1",
 		"ab+/",
+		"ab2/",
+		"ab3/",
 		"ab+/c",
 		"ab+/c+",
 		"ab+/c1",
 		"ab+/c-/",
-		"ab+/c-/d",
 		"ab+/c0/",
+		"ab+/c-/d",
 		"ab+/c0/d",
-		"ab2/",
 		"ab2/c",
-		"ab3/",
 		"ab3/c",
 	}
 
@@ -172,16 +175,22 @@ func TestEntryList(t *testing.T) {
 	directories = append(directories, CreateEntry("", 0, 0, 0))
 
 	entries := make([]*Entry, 0, 4)
+    entryChannel := make(chan *Entry, 1024)
+	entries = append(entries, CreateEntry("", 0, 0, 0))
 
 	for len(directories) > 0 {
 		directory := directories[len(directories)-1]
 		directories = directories[:len(directories)-1]
-		entries = append(entries, directory)
-		subdirectories, _, err := ListEntries(testDir, directory.Path, &entries, nil, "", false, false)
+		subdirectories, _, err := ListEntries(testDir, directory.Path, nil, "", false, entryChannel)
 		if err != nil {
 			t.Errorf("ListEntries(%s, %s) returned an error: %s", testDir, directory.Path, err)
 		}
 		directories = append(directories, subdirectories...)
+	}
+
+	close(entryChannel)
+	for entry := range entryChannel {
+		entries = append(entries, entry)
 	}
 
 	entries = entries[1:]
@@ -274,16 +283,23 @@ func TestEntryExcludeByAttribute(t *testing.T) {
 		directories = append(directories, CreateEntry("", 0, 0, 0))
 
 		entries := make([]*Entry, 0, 4)
+		entryChannel := make(chan *Entry, 1024)
+		entries = append(entries, CreateEntry("", 0, 0, 0))
 
 		for len(directories) > 0 {
 			directory := directories[len(directories)-1]
 			directories = directories[:len(directories)-1]
-			entries = append(entries, directory)
-			subdirectories, _, err := ListEntries(testDir, directory.Path, &entries, nil, "", false, excludeByAttribute)
+			subdirectories, _, err := ListEntries(testDir, directory.Path, nil, "", excludeByAttribute, entryChannel)
 			if err != nil {
 				t.Errorf("ListEntries(%s, %s) returned an error: %s", testDir, directory.Path, err)
 			}
 			directories = append(directories, subdirectories...)
+		}
+
+		close(entryChannel)
+
+		for entry := range entryChannel {
+			entries = append(entries, entry)
 		}
 
 		entries = entries[1:]
@@ -324,6 +340,36 @@ func TestEntryExcludeByAttribute(t *testing.T) {
 
 	if !t.Failed() {
 		os.RemoveAll(testDir)
+	}
+
+}
+
+func TestEntryEncoding(t *testing.T) {
+	buffer := new(bytes.Buffer)
+	encoder := msgpack.NewEncoder(buffer)
+
+	entry1 := CreateEntry("abcd", 1, 2, 0700)
+	err := encoder.Encode(entry1)
+	if err != nil {
+		t.Errorf("Failed to encode the entry: %v", err)
+		return
+	}
+
+	t.Logf("msgpack size: %d\n", len(buffer.Bytes()))
+	decoder := msgpack.NewDecoder(buffer)
+
+	description, _ := json.Marshal(entry1)
+	t.Logf("json size: %d\n", len(description))
+
+	var entry2 Entry
+	err = decoder.Decode(&entry2)
+	if err != nil {
+		t.Errorf("Failed to decode the entry: %v", err)
+		return
+	}
+
+	if entry1.Path != entry2.Path || entry1.Size != entry2.Size || entry1.Time != entry2.Time {
+		t.Error("Decoded entry is different than the original one")
 	}
 
 }
