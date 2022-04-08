@@ -120,7 +120,7 @@ func uploadTestChunk(manager *SnapshotManager, content []byte) string {
 		LOG_INFO("UPLOAD_CHUNK", "Chunk %s size %d uploaded", chunk.GetID(), chunkSize)
 	}
 
-	chunkUploader := CreateChunkUploader(manager.config, manager.storage, nil, testThreads, nil)
+	chunkUploader := CreateChunkUploader(manager.config, manager.storage, nil, *testThreads, nil)
 	chunkUploader.completionFunc = completionFunc
 	chunkUploader.Start()
 

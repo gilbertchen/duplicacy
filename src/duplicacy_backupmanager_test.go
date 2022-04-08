@@ -235,12 +235,12 @@ func TestBackupManager(t *testing.T) {
 
 	dataShards := 0
 	parityShards := 0
-	if testErasureCoding {
+	if *testErasureCoding {
 		dataShards = 5
 		parityShards = 2
 	}
 
-	if testFixedChunkSize {
+	if *testFixedChunkSize {
 		if !ConfigStorage(storage, 16384, 100, 64*1024, 64*1024, 64*1024, password, nil, false, "", dataShards, parityShards) {
 			t.Errorf("Failed to initialize the storage")
 		}
