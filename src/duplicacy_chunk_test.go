@@ -62,7 +62,7 @@ func TestChunkBasic(t *testing.T) {
 	config.CompressionLevel = DEFAULT_COMPRESSION_LEVEL
 	maxSize := 1000000
 
-	if testRSAEncryption {
+	if *testRSAEncryption {
 		privateKey, err := rsa.GenerateKey(crypto_rand.Reader, 2048)
 		if err != nil {
 			t.Errorf("Failed to generate a random private key: %v", err)
@@ -71,7 +71,7 @@ func TestChunkBasic(t *testing.T) {
 		config.rsaPublicKey = privateKey.Public().(*rsa.PublicKey)
 	}
 
-	if testErasureCoding {
+	if *testErasureCoding {
 		config.DataShards = 5
 		config.ParityShards = 2
 	}
@@ -98,7 +98,7 @@ func TestChunkBasic(t *testing.T) {
 		encryptedData := make([]byte, chunk.GetLength())
 		copy(encryptedData, chunk.GetBytes())
 
-		if testErasureCoding {
+		if *testErasureCoding {
 			offset := 24 + 32 * 7
 			start := rand.Int() % (len(encryptedData) - offset) + offset
 			length := (len(encryptedData) - offset) / 7

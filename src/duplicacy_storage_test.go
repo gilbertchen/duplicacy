@@ -22,28 +22,17 @@ import (
 	"math/rand"
 )
 
-var testStorageName string
-var testRateLimit int
-var testQuickMode bool
-var testThreads int
-var testFixedChunkSize bool
-var testRSAEncryption bool
-var testErasureCoding bool
-
-func init() {
-	flag.StringVar(&testStorageName, "storage", "", "the test storage to use")
-	flag.IntVar(&testRateLimit, "limit-rate", 0, "maximum transfer speed in kbytes/sec")
-	flag.BoolVar(&testQuickMode, "quick", false, "quick test")
-	flag.IntVar(&testThreads, "threads", 1, "number of downloading/uploading threads")
-	flag.BoolVar(&testFixedChunkSize, "fixed-chunk-size", false, "fixed chunk size")
-	flag.BoolVar(&testRSAEncryption, "rsa", false, "enable RSA encryption")
-	flag.BoolVar(&testErasureCoding, "erasure-coding", false, "enable Erasure Coding")
-	flag.Parse()
-}
+var testStorageName = flag.String("storage", "", "the test storage to use")
+var testRateLimit = flag.Int("limit-rate", 0, "maximum transfer speed in kbytes/sec")
+var testQuickMode = flag.Bool("quick", false, "quick test")
+var testThreads = flag.Int("threads", 1, "number of downloading/uploading threads")
+var testFixedChunkSize = flag.Bool("fixed-chunk-size", false, "fixed chunk size")
+var testRSAEncryption = flag.Bool("rsa", false, "enable RSA encryption")
+var testErasureCoding = flag.Bool("erasure-coding", false, "enable Erasure Coding")
 
 func loadStorage(localStoragePath string, threads int) (Storage, error) {
 
-	if testStorageName == "" || testStorageName == "file" {
+	if *testStorageName == "" || *testStorageName == "file" {
 		storage, err := CreateFileStorage(localStoragePath, false, threads)
 		if storage != nil {
 			// Use a read level of at least 2 because this will catch more errors than a read level of 1.
@@ -64,116 +53,116 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		return nil, err
 	}
 
-	config, found := configs[testStorageName]
+	config, found := configs[*testStorageName]
 	if !found {
-		return nil, fmt.Errorf("No storage named '%s' found", testStorageName)
+		return nil, fmt.Errorf("No storage named '%s' found", *testStorageName)
 	}
 
-	if testStorageName == "flat" {
+	if *testStorageName == "flat" {
 		storage, err := CreateFileStorage(localStoragePath, false, threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "samba" {
+	} else if *testStorageName == "samba" {
 		storage, err := CreateFileStorage(localStoragePath, true, threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "sftp" {
+	} else if *testStorageName == "sftp" {
 		port, _ := strconv.Atoi(config["port"])
 		storage, err := CreateSFTPStorageWithPassword(config["server"], port, config["username"], config["directory"], 2, config["password"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "s3" {
+	} else if *testStorageName == "s3" {
 		storage, err := CreateS3Storage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads, true, false)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "wasabi" {
+	} else if *testStorageName == "wasabi" {
 		storage, err := CreateWasabiStorage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "s3c" {
+	} else if *testStorageName == "s3c" {
 		storage, err := CreateS3CStorage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "digitalocean" {
+	} else if *testStorageName == "digitalocean" {
 		storage, err := CreateS3CStorage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "minio" {
+	} else if *testStorageName == "minio" {
 		storage, err := CreateS3Storage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads, false, true)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "minios" {
+	} else if *testStorageName == "minios" {
 		storage, err := CreateS3Storage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads, true, true)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "dropbox" {
+	} else if *testStorageName == "dropbox" {
 		storage, err := CreateDropboxStorage(config["token"], config["directory"], 1, threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "b2" {
+	} else if *testStorageName == "b2" {
 		storage, err := CreateB2Storage(config["account"], config["key"], "", config["bucket"], config["directory"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "gcs-s3" {
+	} else if *testStorageName == "gcs-s3" {
 		storage, err := CreateS3Storage(config["region"], config["endpoint"], config["bucket"], config["directory"], config["access_key"], config["secret_key"], threads, true, false)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "gcs" {
+	} else if *testStorageName == "gcs" {
 		storage, err := CreateGCSStorage(config["token_file"], config["bucket"], config["directory"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "gcs-sa" {
+	} else if *testStorageName == "gcs-sa" {
 		storage, err := CreateGCSStorage(config["token_file"], config["bucket"], config["directory"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "azure" {
+	} else if *testStorageName == "azure" {
 		storage, err := CreateAzureStorage(config["account"], config["key"], config["container"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "acd" {
+	} else if *testStorageName == "acd" {
 		storage, err := CreateACDStorage(config["token_file"], config["storage_path"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "gcd" {
+	} else if *testStorageName == "gcd" {
 		storage, err := CreateGCDStorage(config["token_file"], "", config["storage_path"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "gcd-shared" {
+	} else if *testStorageName == "gcd-shared" {
 		storage, err := CreateGCDStorage(config["token_file"], config["drive"], config["storage_path"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "gcd-impersonate" {
+	} else if *testStorageName == "gcd-impersonate" {
 		storage, err := CreateGCDStorage(config["token_file"], config["drive"], config["storage_path"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "one" {
+	} else if *testStorageName == "one" {
 		storage, err := CreateOneDriveStorage(config["token_file"], false, config["storage_path"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "odb" {
+	} else if *testStorageName == "odb" {
 		storage, err := CreateOneDriveStorage(config["token_file"], true, config["storage_path"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "one" {
+	} else if *testStorageName == "one" {
 		storage, err := CreateOneDriveStorage(config["token_file"], false, config["storage_path"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "hubic" {
+	} else if *testStorageName == "hubic" {
 		storage, err := CreateHubicStorage(config["token_file"], config["storage_path"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "memset" {
+	} else if *testStorageName == "memset" {
 		storage, err := CreateSwiftStorage(config["storage_url"], config["key"], threads)
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "pcloud" || testStorageName == "box" {
+	} else if *testStorageName == "pcloud" || *testStorageName == "box" {
 		storage, err := CreateWebDAVStorage(config["host"], 0, config["username"], config["password"], config["storage_path"], false, threads)
 		if err != nil {
 			return nil, err
 		}
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
-	} else if testStorageName == "fabric" {
+	} else if *testStorageName == "fabric" {
 		storage, err := CreateFileFabricStorage(config["endpoint"], config["token"], config["storage_path"], threads)
 		if err != nil {
 			return nil, err
@@ -182,7 +171,7 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		return storage, err
 	}
 
-	return nil, fmt.Errorf("Invalid storage named: %s", testStorageName)
+	return nil, fmt.Errorf("Invalid storage named: %s", *testStorageName)
 }
 
 func cleanStorage(storage Storage) {
@@ -322,7 +311,7 @@ func TestStorage(t *testing.T) {
 	os.RemoveAll(testDir)
 	os.MkdirAll(testDir, 0700)
 
-	LOG_INFO("STORAGE_TEST", "storage: %s", testStorageName)
+	LOG_INFO("STORAGE_TEST", "storage: %s", *testStorageName)
 
 	threads := 8
 	storage, err := loadStorage(testDir, threads)
@@ -331,7 +320,7 @@ func TestStorage(t *testing.T) {
 		return
 	}
 	storage.EnableTestMode()
-	storage.SetRateLimits(testRateLimit, testRateLimit)
+	storage.SetRateLimits(*testRateLimit, *testRateLimit)
 
 	delay := 0
 	if _, ok := storage.(*ACDStorage); ok {
@@ -453,7 +442,7 @@ func TestStorage(t *testing.T) {
 	numberOfFiles := 10
 	maxFileSize := 64 * 1024
 
-	if testQuickMode {
+	if *testQuickMode {
 		numberOfFiles = 2
 	}
 
@@ -588,7 +577,7 @@ func TestCleanStorage(t *testing.T) {
 	os.RemoveAll(testDir)
 	os.MkdirAll(testDir, 0700)
 
-	LOG_INFO("STORAGE_TEST", "storage: %s", testStorageName)
+	LOG_INFO("STORAGE_TEST", "storage: %s", *testStorageName)
 
 	storage, err := loadStorage(testDir, 1)
 	if err != nil {

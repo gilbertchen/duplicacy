@@ -38,7 +38,7 @@ func TestChunkOperator(t *testing.T) {
 	os.RemoveAll(testDir)
 	os.MkdirAll(testDir, 0700)
 
-	t.Logf("storage: %s", testStorageName)
+	t.Logf("storage: %s", *testStorageName)
 
 	storage, err := loadStorage(testDir, 1)
 	if err != nil {
@@ -46,7 +46,7 @@ func TestChunkOperator(t *testing.T) {
 		return
 	}
 	storage.EnableTestMode()
-	storage.SetRateLimits(testRateLimit, testRateLimit)
+	storage.SetRateLimits(*testRateLimit, *testRateLimit)
 
 	for _, dir := range []string{"chunks", "snapshots"} {
 		err = storage.CreateDirectory(0, dir)
@@ -59,7 +59,7 @@ func TestChunkOperator(t *testing.T) {
 	numberOfChunks := 100
 	maxChunkSize := 64 * 1024
 
-	if testQuickMode {
+	if *testQuickMode {
 		numberOfChunks = 10
 	}
 
@@ -87,7 +87,7 @@ func TestChunkOperator(t *testing.T) {
 		totalFileSize += chunk.GetLength()
 	}
 
-	chunkOperator := CreateChunkOperator(config, storage, nil, false, testThreads, false)
+	chunkOperator := CreateChunkOperator(config, storage, nil, false, *testThreads, false)
 	chunkOperator.UploadCompletionFunc = func(chunk *Chunk, chunkIndex int, skipped bool, chunkSize int, uploadSize int) {
 		t.Logf("Chunk %s size %d (%d/%d) uploaded", chunk.GetID(), chunkSize, chunkIndex, len(chunks))
 	}
