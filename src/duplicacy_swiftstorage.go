@@ -5,6 +5,7 @@
 package duplicacy
 
 import (
+	"context"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 type SwiftStorage struct {
 	StorageBase
 
+	ctx        context.Context
 	connection *swift.Connection
 	container  string
 	storageDir string
@@ -106,6 +108,8 @@ func CreateSwiftStorage(storageURL string, key string, threads int) (storage *Sw
 		arguments["protocol"] = "https"
 	}
 
+	ctx, _ := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+
 	// Please refer to https://godoc.org/github.com/ncw/swift#Connection
 	connection := swift.Connection{
 		Domain:         arguments["domain"],
@@ -129,17 +133,18 @@ func CreateSwiftStorage(storageURL string, key string, threads int) (storage *Sw
 		TrustId:        arguments["trust_id"],
 	}
 
-	err = connection.Authenticate()
+	err = connection.Authenticate(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	_, _, err = connection.Container(container)
+	_, _, err = connection.Container(ctx, container)
 	if err != nil {
 		return nil, err
 	}
 
 	storage = &SwiftStorage{
+		ctx:        ctx,
 		connection: &connection,
 		container:  container,
 		storageDir: storageDir,
@@ -168,7 +173,7 @@ func (storage *SwiftStorage) ListFiles(threadIndex int, dir string) (files []str
 		options.Delimiter = '/'
 	}
 
-	objects, err := storage.connection.ObjectsAll(storage.container, &options)
+	objects, err := storage.connection.ObjectsAll(storage.ctx, storage.container, &options)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -190,12 +195,12 @@ func (storage *SwiftStorage) ListFiles(threadIndex int, dir string) (files []str
 
 // DeleteFile deletes the file or directory at 'filePath'.
 func (storage *SwiftStorage) DeleteFile(threadIndex int, filePath string) (err error) {
-	return storage.connection.ObjectDelete(storage.container, storage.storageDir+filePath)
+	return storage.connection.ObjectDelete(storage.ctx, storage.container, storage.storageDir+filePath)
 }
 
 // MoveFile renames the file.
 func (storage *SwiftStorage) MoveFile(threadIndex int, from string, to string) (err error) {
-	return storage.connection.ObjectMove(storage.container, storage.storageDir+from,
+	return storage.connection.ObjectMove(storage.ctx, storage.container, storage.storageDir+from,
 		storage.container, storage.storageDir+to)
 }
 
@@ -207,7 +212,7 @@ func (storage *SwiftStorage) CreateDirectory(threadIndex int, dir string) (err e
 
 // GetFileInfo returns the information about the file or directory at 'filePath'.
 func (storage *SwiftStorage) GetFileInfo(threadIndex int, filePath string) (exist bool, isDir bool, size int64, err error) {
-	object, _, err := storage.connection.Object(storage.container, storage.storageDir+filePath)
+	object, _, err := storage.connection.Object(storage.ctx, storage.container, storage.storageDir+filePath)
 
 	if err != nil {
 		if err == swift.ObjectNotFound {
@@ -223,7 +228,7 @@ func (storage *SwiftStorage) GetFileInfo(threadIndex int, filePath string) (exis
 // DownloadFile reads the file at 'filePath' into the chunk.
 func (storage *SwiftStorage) DownloadFile(threadIndex int, filePath string, chunk *Chunk) (err error) {
 
-	file, _, err := storage.connection.ObjectOpen(storage.container, storage.storageDir+filePath, false, nil)
+	file, _, err := storage.connection.ObjectOpen(storage.ctx, storage.container, storage.storageDir+filePath, false, nil)
 	if err != nil {
 		return err
 	}
@@ -234,7 +239,7 @@ func (storage *SwiftStorage) DownloadFile(threadIndex int, filePath string, chun
 // UploadFile writes 'content' to the file at 'filePath'.
 func (storage *SwiftStorage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
 	reader := CreateRateLimitedReader(content, storage.UploadRateLimit/storage.threads)
-	_, err = storage.connection.ObjectPut(storage.container, storage.storageDir+filePath, reader, true, "", "application/duplicacy", nil)
+	_, err = storage.connection.ObjectPut(storage.ctx, storage.container, storage.storageDir+filePath, reader, true, "", "application/duplicacy", nil)
 	return err
 }
 
