@@ -96,3 +96,7 @@
 [[constraint]]
   name = "google.golang.org/grpc"
   version = "1.28.0"
+
+[[constraint]]
+  name = "github.com/ncw/swift"
+  version = "2.0.1"
