@@ -24,7 +24,7 @@ import (
 
 	"io/ioutil"
 
-	"github.com/gilbertchen/duplicacy/src"
+	duplicacy "github.com/gilbertchen/duplicacy/src"
 )
 
 const (
@@ -1015,7 +1015,6 @@ func printFile(context *cli.Context) {
 		snapshotID = context.String("id")
 	}
 
-
 	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false)
 	duplicacy.SavePassword(*preference, "password", password)
 
@@ -1262,7 +1261,7 @@ func copySnapshots(context *cli.Context) {
 	destinationStorage.SetRateLimits(0, context.Int("upload-limit-rate"))
 
 	destinationManager := duplicacy.CreateBackupManager(destination.SnapshotID, destinationStorage, repository,
-		                                                  destinationPassword, "", "", false)
+		destinationPassword, "", "", false)
 	duplicacy.SavePassword(*destination, "password", destinationPassword)
 	destinationManager.SetupSnapshotCache(destination.Name)
 
@@ -1387,7 +1386,87 @@ func benchmark(context *cli.Context) {
 	if storage == nil {
 		return
 	}
-	duplicacy.Benchmark(repository, storage, int64(fileSize) * 1024 * 1024, chunkSize * 1024 * 1024, chunkCount, uploadThreads, downloadThreads)
+	duplicacy.Benchmark(repository, storage, int64(fileSize)*1024*1024, chunkSize*1024*1024, chunkCount, uploadThreads, downloadThreads)
+}
+
+func mountFUSE(context *cli.Context) {
+	setGlobalOptions(context)
+	defer duplicacy.CatchLogException()
+
+	if len(context.Args()) != 2 {
+		fmt.Fprintf(context.App.Writer, "The %s command requires mount directory and backup revision arguments.\n\n", context.Command.Name)
+		cli.ShowCommandHelp(context, context.Command.Name)
+		os.Exit(ArgumentExitCode)
+	}
+
+	setGlobalOptions(context)
+	defer duplicacy.CatchLogException()
+
+	revision, _ := strconv.Atoi(context.Args()[1])
+	if revision <= 0 {
+		fmt.Fprintf(context.App.Writer, "The revision flag is not specified or invalid\n\n")
+		cli.ShowCommandHelp(context, context.Command.Name)
+		os.Exit(ArgumentExitCode)
+	}
+
+	repository, preference := getRepositoryPreference(context, "")
+
+	if preference.RestoreProhibited {
+		duplicacy.LOG_ERROR("RESTORE_DISABLED", "Restore from %s to this repository was disabled by the preference",
+			preference.StorageURL)
+		return
+	}
+
+	runScript(context, preference.Name, "pre")
+
+	threads := context.Int("threads")
+	if threads < 1 {
+		threads = 1
+	}
+
+	duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
+	storage := duplicacy.CreateStorage(*preference, false, threads)
+	if storage == nil {
+		return
+	}
+
+	password := ""
+	if preference.Encrypted {
+		password = duplicacy.GetPassword(*preference, "password", "Enter storage password:", false, false)
+	}
+
+	var patterns []string
+	for _, pattern := range context.Args() {
+
+		pattern = strings.TrimSpace(pattern)
+
+		for strings.HasPrefix(pattern, "--") {
+			pattern = pattern[1:]
+		}
+
+		for strings.HasPrefix(pattern, "++") {
+			pattern = pattern[1:]
+		}
+
+		patterns = append(patterns, pattern)
+	}
+
+	patterns = duplicacy.ProcessFilterLines(patterns, make([]string, 0))
+
+	duplicacy.LOG_DEBUG("REGEX_DEBUG", "There are %d compiled regular expressions stored", len(duplicacy.RegexMap))
+
+	duplicacy.LOG_INFO("SNAPSHOT_FILTER", "Loaded %d include/exclude pattern(s)", len(patterns))
+
+	storage.SetRateLimits(context.Int("limit-rate"), 0)
+	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.FiltersFile, preference.ExcludeByAttribute)
+	duplicacy.SavePassword(*preference, "password", password)
+
+	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), preference, backupManager, false)
+
+	backupManager.SetupSnapshotCache(preference.Name)
+
+	_, cleanup := duplicacy.MountFileSystem(context.Args()[0], revision, backupManager)
+	defer cleanup()
 }
 
 func main() {
@@ -1565,7 +1644,7 @@ func main() {
 				cli.BoolFlag{
 					Name:  "persist",
 					Usage: "continue processing despite chunk errors or existing files (without -overwrite), reporting any affected files",
-        },
+				},
 				cli.StringFlag{
 					Name:     "key-passphrase",
 					Usage:    "the passphrase to decrypt the RSA private key",
@@ -2138,6 +2217,13 @@ func main() {
 			ArgsUsage: " ",
 			Action:    benchmark,
 		},
+
+		{
+			Name:      "fusemount",
+			Usage:     "Mount the backup into a FUSE filesystem",
+			ArgsUsage: "<mount path> <backup revision>",
+			Action:    mountFUSE,
+		},
 	}
 
 	app.Flags = []cli.Flag{
@@ -2176,8 +2262,8 @@ func main() {
 			Usage: "add a comment to identify the process",
 		},
 		cli.StringSliceFlag{
-			Name:  "suppress, s",
-			Usage: "suppress logs with the specified id",
+			Name:     "suppress, s",
+			Usage:    "suppress logs with the specified id",
 			Argument: "<id>",
 		},
 	}
