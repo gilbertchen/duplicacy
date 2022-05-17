@@ -62,7 +62,7 @@ func (ourFS *BackupFS) GetAttr(name string, context *fuse.Context) (*fuse.Attr, 
 		return &fuse.Attr{Mode: fuse.S_IFDIR | 0755, Mtime: uint64(ourFile.Time), Ctime: uint64(ourFile.Time)}, fuse.OK
 	}
 
-	return &fuse.Attr{Mode: fuse.S_IFREG | 0644, Size: uint64(ourFile.Size), Mtime: uint64(ourFile.Time), Ctime: uint64(ourFile.Time)}, fuse.OK
+	return &fuse.Attr{Mode: fuse.S_IFREG | 0444, Size: uint64(ourFile.Size), Mtime: uint64(ourFile.Time), Ctime: uint64(ourFile.Time)}, fuse.OK
 }
 
 func (ourFS *BackupFS) OpenDir(name string, context *fuse.Context) (stream []fuse.DirEntry, status fuse.Status) {
@@ -92,8 +92,6 @@ func (ourFS *BackupFS) Open(name string, flags uint32, context *fuse.Context) (f
 	if name == "" {
 		return nil, fuse.ENOENT
 	}
-	//splitPath := strings.Split(name, "/")
-	//ourName := splitPath[len(splitPath)-1]
 	var ourFile *Entry
 
 	for _, file := range ourFS.ourSnapshot.Files {
@@ -180,10 +178,6 @@ func MountFileSystem(fsPath string, revision int, manager *BackupManager) (workd
 		LOG_INFO("MOUNTING_FILESYSTEM", "MountNodeFileSystem failed: %v", err)
 	}
 	state.Serve()
-	/*if err := state.WaitMount(); err != nil {
-
-		LOG_INFO("MOUNTING_FILESYSTEM", "WaitMount failed: %v", err)
-	}*/
 	return fsPath, func() {
 		state.Unmount()
 	}
