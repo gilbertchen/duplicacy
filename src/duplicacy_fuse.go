@@ -1,11 +1,6 @@
 package duplicacy
 
 import (
-	//"context"
-	//"flag"
-	//"log"
-	//"syscall"
-
 	"bytes"
 	"strings"
 
