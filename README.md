@@ -79,17 +79,19 @@ Concurrent access is not only a convenience; it is a necessity for better dedupl
 The following table compares the feature lists of all these backup tools:
 
 
-| Feature/Tool       | duplicity | bup | Duplicati         | Attic           | restic            | **Duplicacy** |
-|:------------------:|:---------:|:---:|:-----------------:|:---------------:|:-----------------:|:-------------:|
-| Incremental Backup | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
-| Full Snapshot      | No        | Yes | Yes               | Yes             | Yes               | **Yes**       |
-| Compression        | Yes       | Yes | Yes               | Yes             | No                | **Yes**       |
-| Deduplication      | Weak      | Yes | Weak              | Yes             | Yes               | **Yes**       |
-| Encryption         | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
-| Deletion           | No        | No  | Yes               | Yes             | No                | **Yes**       |
-| Concurrent Access  | No        | No  | No                | Not recommended | Exclusive locking | **Lock-free** |
-| Cloud Support      | Extensive | No  | Extensive         | No              | Limited           | **Extensive** |
-| Snapshot Migration | No        | No  | No                | No              | No                | **Yes**       |
+| Feature/Tool       | Bacula / Bareos | duplicity | bup | Duplicati         | Attic           | restic            | **Duplicacy** |
+|:------------------:|:---------------:|:---------:|:---:|:-----------------:|:---------------:|:-----------------:|:-------------:|
+| Incremental Backup | Limited*        | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
+| Full Snapshot      | Yes             | No        | Yes | Yes               | Yes             | Yes               | **Yes**       |
+| Compression        | Yes             | Yes       | Yes | Yes               | Yes             | No                | **Yes**       |
+| Deduplication      | No              | Weak      | Yes | Weak              | Yes             | Yes               | **Yes**       |
+| Encryption         | Yes             | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
+| Deletion           | Yes             | No        | No  | Yes               | Yes             | No                | **Yes**       |
+| Concurrent Access  | Yes             | No        | No  | No                | Not recommended | Exclusive locking | **Lock-free** |
+| Cloud Support      | Limited         | Extensive | No  | Extensive         | No              | Limited           | **Extensive** |
+| Snapshot Migration | No              | No        | No  | No                | No              | No                | **Yes**       |
+
+* Bacula can only store files as a whole new version, without any delta to save disk space
 
 ## License
 
