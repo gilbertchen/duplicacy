@@ -74,7 +74,7 @@ func CreateChunkOperator(config *Config, storage Storage, snapshotCache *FileSto
 		stopChannel: make(chan bool),
 
 		collectionLock: &sync.Mutex{},
-
+		startTime: time.Now().Unix(),
 		allowFailures: allowFailures,
 	}
 
