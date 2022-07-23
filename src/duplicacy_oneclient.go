@@ -51,7 +51,7 @@ type OneDriveClient struct {
 	APIURL string
 }
 
-func NewOneDriveClient(tokenFile string, isBusiness bool, client_id string, client_secret string) (*OneDriveClient, error) {
+func NewOneDriveClient(tokenFile string, isBusiness bool, client_id string, client_secret string, drive_id string) (*OneDriveClient, error) {
 
 	description, err := ioutil.ReadFile(tokenFile)
 	if err != nil {
@@ -88,10 +88,13 @@ func NewOneDriveClient(tokenFile string, isBusiness bool, client_id string, clie
 
 	if isBusiness {
 		client.RefreshTokenURL = "https://duplicacy.com/odb_refresh"
-		client.APIURL = "https://graph.microsoft.com/v1.0/me"
+		client.APIURL = "https://graph.microsoft.com/v1.0/me/drive"
+		if drive_id != "" {
+			client.APIURL = "https://graph.microsoft.com/v1.0/drives/"+drive_id
+		}
 	} else {
 		client.RefreshTokenURL = "https://duplicacy.com/one_refresh"
-		client.APIURL = "https://api.onedrive.com/v1.0"
+		client.APIURL = "https://api.onedrive.com/v1.0/drive"
 	}
 
 	client.RefreshToken(false)
@@ -285,9 +288,9 @@ func (client *OneDriveClient) ListEntries(path string) ([]OneDriveEntry, error) 
 
 	entries := []OneDriveEntry{}
 
-	url := client.APIURL + "/drive/root:/" + path + ":/children"
+	url := client.APIURL + "/root:/" + path + ":/children"
 	if path == "" {
-		url = client.APIURL + "/drive/root/children"
+		url = client.APIURL + "/root/children"
 	}
 	if client.TestMode {
 		url += "?top=8"
@@ -323,7 +326,8 @@ func (client *OneDriveClient) ListEntries(path string) ([]OneDriveEntry, error) 
 
 func (client *OneDriveClient) GetFileInfo(path string) (string, bool, int64, error) {
 
-	url := client.APIURL + "/drive/root:/" + path
+	url := client.APIURL + "/root:/" + path
+	if path == "" { url = client.APIURL + "/root" }
 	url += "?select=id,name,size,folder"
 
 	readCloser, _, err := client.call(url, "GET", 0, "")
@@ -348,7 +352,7 @@ func (client *OneDriveClient) GetFileInfo(path string) (string, bool, int64, err
 
 func (client *OneDriveClient) DownloadFile(path string) (io.ReadCloser, int64, error) {
 
-	url := client.APIURL + "/drive/items/root:/" + path + ":/content"
+	url := client.APIURL + "/items/root:/" + path + ":/content"
 
 	return client.call(url, "GET", 0, "")
 }
@@ -358,7 +362,7 @@ func (client *OneDriveClient) UploadFile(path string, content []byte, rateLimit 
 	// Upload file using the simple method; this is only possible for OneDrive Personal or if the file
 	// is smaller than 4MB for OneDrive Business
 	if !client.IsBusiness || (client.TestMode && rand.Int() % 2 == 0) {
-		url := client.APIURL + "/drive/root:/" + path + ":/content"
+		url := client.APIURL + "/root:/" + path + ":/content"
 
 		readCloser, _, err := client.call(url, "PUT", CreateRateLimitedReader(content, rateLimit), "application/octet-stream")
 		if err != nil {
@@ -392,7 +396,7 @@ func (client *OneDriveClient) CreateUploadSession(path string) (uploadURL string
 		},
 	}
 
-	readCloser, _, err := client.call(client.APIURL + "/drive/root:/" + path + ":/createUploadSession", "POST", input, "application/json")
+	readCloser, _, err := client.call(client.APIURL + "/root:/" + path + ":/createUploadSession", "POST", input, "application/json")
 	if err != nil {
 		return "", err
 	}
@@ -436,7 +440,7 @@ func (client *OneDriveClient) UploadFileSession(uploadURL string, content []byte
 
 func (client *OneDriveClient) DeleteFile(path string) error {
 
-	url := client.APIURL + "/drive/root:/" + path
+	url := client.APIURL + "/root:/" + path
 
 	readCloser, _, err := client.call(url, "DELETE", 0, "")
 	if err != nil {
@@ -449,10 +453,10 @@ func (client *OneDriveClient) DeleteFile(path string) error {
 
 func (client *OneDriveClient) MoveFile(path string, parent string) error {
 
-	url := client.APIURL + "/drive/root:/" + path
+	url := client.APIURL + "/root:/" + path
 
 	parentReference := make(map[string]string)
-	parentReference["path"] = "/drive/root:/" + parent
+	parentReference["path"] = "/root:/" + parent
 
 	parameters := make(map[string]interface{})
 	parameters["parentReference"] = parentReference
@@ -504,7 +508,7 @@ func (client *OneDriveClient) CreateDirectory(path string, name string) error {
 			return fmt.Errorf("The path '%s' is not a directory", path)
 		}
 
-		url = client.APIURL + "/drive/root:/" + path + ":/children"
+		url = client.APIURL + "/root:/" + path + ":/children"
 	}
 
 	parameters := make(map[string]interface{})
