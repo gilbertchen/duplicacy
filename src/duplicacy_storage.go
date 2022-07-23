@@ -647,12 +647,28 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		storagePath := matched[3] + matched[4]
 		prompt := fmt.Sprintf("Enter the path of the OneDrive token file (downloadable from https://duplicacy.com/one_start):")
 		tokenFile := GetPassword(preference, matched[1] + "_token", prompt, true, resetPassword)
-		oneDriveStorage, err := CreateOneDriveStorage(tokenFile, matched[1] == "odb", storagePath, threads)
+
+		// client_id, just like tokenFile, can be stored in preferences
+		//prompt = fmt.Sprintf("Enter client_id for custom Azure app (if empty will use duplicacy.com one):")
+		client_id := GetPasswordFromPreference(preference, matched[1] + "_client_id")
+		client_secret := ""
+
+		if client_id != "" {
+			// client_secret should go into keyring
+			prompt = fmt.Sprintf("Enter client_secret for custom Azure app (if empty will use duplicacy.com one):")
+			client_secret = GetPassword(preference, matched[1] + "_client_secret", prompt, true, resetPassword)
+		}
+
+		oneDriveStorage, err := CreateOneDriveStorage(tokenFile, matched[1] == "odb", storagePath, threads, client_id, client_secret)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the OneDrive storage at %s: %v", storageURL, err)
 			return nil
 		}
+
 		SavePassword(preference, matched[1] + "_token", tokenFile)
+		if client_id != "" {
+			SavePassword(preference, matched[1] + "_client_secret", client_secret)
+		}
 		return oneDriveStorage
 	} else if matched[1] == "hubic" {
 		storagePath := matched[3] + matched[4]
