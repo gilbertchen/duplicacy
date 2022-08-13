@@ -21,11 +21,11 @@ type DropboxStorage struct {
 }
 
 // CreateDropboxStorage creates a dropbox storage object.
-func CreateDropboxStorage(accessToken string, storageDir string, minimumNesting int, threads int) (storage *DropboxStorage, err error) {
+func CreateDropboxStorage(refreshToken string, storageDir string, minimumNesting int, threads int) (storage *DropboxStorage, err error) {
 
 	var clients []*dropbox.Files
 	for i := 0; i < threads; i++ {
-		client := dropbox.NewFiles(dropbox.NewConfig(accessToken))
+		client := dropbox.NewFiles(dropbox.NewConfig("", refreshToken, "https://duplicacy.com/dropbox_refresh"))
 		clients = append(clients, client)
 	}
 
