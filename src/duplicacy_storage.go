@@ -714,6 +714,23 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		}
 		SavePassword(preference, "fabric_token", token)
 		return smeStorage
+	} else if matched[1] == "storj" {
+		satellite := matched[2] + matched[3]
+		bucket := matched[5]
+		storageDir := ""
+		index := strings.Index(bucket, "/")
+		if index >= 0 {
+			storageDir = bucket[index + 1:]
+			bucket = bucket[:index]
+		}
+		apiKey := GetPassword(preference, "storj_key", "Enter the API access key:", true, resetPassword)
+		passphrase := GetPassword(preference, "storj_passphrase", "Enter the passphrase:", true, resetPassword)
+		storjStorage, err := CreateStorjStorage(satellite, apiKey, passphrase, bucket, storageDir, threads)
+		if err != nil {
+			LOG_ERROR("STORAGE_CREATE", "Failed to load the Storj storage at %s: %v", storageURL, err)
+			return nil
+		}
+		return storjStorage
 	} else {
 		LOG_ERROR("STORAGE_CREATE", "The storage type '%s' is not supported", matched[1])
 		return nil
