@@ -1,6 +1,6 @@
 module github.com/gilbertchen/duplicacy
 
-go 1.19
+go 1.16
 
 require (
 	cloud.google.com/go v0.38.0
@@ -38,7 +38,6 @@ require (
 	github.com/godbus/dbus v4.1.0+incompatible // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
-	github.com/golang/protobuf v1.3.5 // indirect
 	github.com/googleapis/gax-go/v2 v2.0.5 // indirect
 	github.com/jmespath/go-jmespath v0.3.0 // indirect
 	github.com/klauspost/cpuid v1.3.1 // indirect
