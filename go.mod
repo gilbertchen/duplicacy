@@ -51,6 +51,7 @@ require (
 	github.com/spacemonkeygo/monkit/v3 v3.0.17 // indirect
 	github.com/vaughan0/go-ini v0.0.0-20130923145212-a98ad7ee00ec // indirect
 	github.com/vivint/infectious v0.0.0-20200605153912-25a574ae18a3 // indirect
+	github.com/winfsp/cgofuse v1.5.0 // indirect
 	github.com/zeebo/errs v1.3.0 // indirect
 	go.opencensus.io v0.22.3 // indirect
 	golang.org/x/mod v0.4.2 // indirect
