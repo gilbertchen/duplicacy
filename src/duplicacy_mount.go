@@ -292,9 +292,9 @@ func (self *BackupFS) initRevision(path string) (ret int) {
 		self.manager.SnapshotManager.chunkOperator,
 		func(entry *Entry) bool {
 			if entry.Mode&0o20000000000 == 0o20000000000 {
-				self.makeNode(fmt.Sprintf("%s/%s", root, entry.Path), fuse.S_IFDIR|(entry.Mode&00555), fuse.Timespec{Sec: entry.Time})
+				self.makeNode(fmt.Sprintf("%s/%s", root, entry.Path), fuse.S_IFDIR|(entry.Mode&00777), fuse.Timespec{Sec: entry.Time})
 			} else {
-				node, err := self.makeNode(fmt.Sprintf("%s/%s", root, entry.Path), entry.Mode&00555, fuse.Timespec{Sec: entry.Time})
+				node, err := self.makeNode(fmt.Sprintf("%s/%s", root, entry.Path), entry.Mode, fuse.Timespec{Sec: entry.Time})
 				if err == 0 {
 					node.stat.Size = entry.Size
 				}
