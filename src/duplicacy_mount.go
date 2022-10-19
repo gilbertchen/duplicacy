@@ -1,20 +1,23 @@
 package duplicacy
 
 import (
-	"bytes"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	lru "github.com/hashicorp/golang-lru"
 	"github.com/winfsp/cgofuse/fuse"
 )
 
 type node_t struct {
-	stat    fuse.Stat_t
-	chld    map[string]*node_t
-	opencnt int
+	stat      fuse.Stat_t
+	chld      map[string]*node_t
+	opencnt   int
+	chunkInfo *mountChunkInfo
 }
 
 type BackupFS struct {
@@ -26,9 +29,8 @@ type BackupFS struct {
 	root            *node_t
 	openmap         map[uint64]*node_t
 	initedRevisions map[int]bool
+	chunkCache      *lru.TwoQueueCache
 }
-
-const LOG_ID = "MOUNTING_FILESYSTEM"
 
 func (self *BackupFS) Open(path string, flags int) (errc int, fh uint64) {
 	defer self.synchronize()()
@@ -42,7 +44,10 @@ func (self *BackupFS) Opendir(path string) (errc int, fh uint64) {
 
 func (self *BackupFS) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc int) {
 	defer self.synchronize()()
-	self.initRevision(path)
+	_, err := self.initRevision(path)
+	if err != nil {
+		return fuse.ENOENT
+	}
 
 	node := self.getNode(path, fh)
 	if nil == node {
@@ -52,46 +57,30 @@ func (self *BackupFS) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc i
 	return 0
 }
 
-func (self *BackupFS) Read(path string, buff []byte, ofst int64, fh uint64) (n int) {
+func (self *BackupFS) Read(path string, buff []byte, ofst int64, fh uint64) int {
 	defer self.synchronize()()
 	node := self.getNode(path, fh)
 	if nil == node {
 		return fuse.ENOENT
 	}
 
-	revision := self.initRevision(path)
-	if revision < 1 {
-		return fuse.ENOENT
-	}
-
-	components := split(path)
-	snapshotPath := strings.Join(components[5:], "/")
-	LOG_INFO(LOG_ID, "Read(path %s, ofst %d, fh %d)", snapshotPath, ofst, fh)
-
-	if ofst > node.stat.Size {
-		ofst = node.stat.Size
-	}
-
-	snapshot := self.snapshots[revision]
-	file := self.manager.SnapshotManager.FindFile(snapshot, snapshotPath, false)
-
-	var readBuffer bytes.Buffer
-	if !self.manager.SnapshotManager.RetrieveFile(
-		snapshot, file, nil,
-		func(chunk []byte) {
-			readBuffer.Write(chunk)
-			LOG_INFO(LOG_ID, "read chunk with size %d", len(chunk))
-		},
-	) {
-		LOG_ERROR(
-			LOG_ID, "File %s is corrupted in snapshot %s at revision %d",
-			snapshotPath, snapshot.ID, snapshot.Revision)
+	if node.stat.Size == 0 {
 		return 0
 	}
 
-	n = copy(buff, readBuffer.Bytes()[ofst:])
+	revision, err := self.initRevision(path)
+	if err != nil {
+		return fuse.ENOENT
+	}
 
-	return
+	if node.chunkInfo == nil {
+		return 0
+	}
+
+	snapshot := self.snapshots[revision]
+	readBytes := self.readFileChunkCached(snapshot, node.chunkInfo, buff, ofst)
+	LOG_INFO("MOUNTING_FILESYSTEM", "Read(%s, %d) -> %d", path, ofst, readBytes)
+	return readBytes
 }
 
 func (self *BackupFS) Readdir(
@@ -150,7 +139,7 @@ func (self *BackupFS) lookupNode(path string, ancestor *node_t) (prnt *node_t, n
 	prnt = self.root
 	name = ""
 	node = self.root
-	for _, c := range split(path) {
+	for _, c := range mountPathSplit(path) {
 		if "" != c {
 			prnt, name = node, c
 			if node == nil {
@@ -175,32 +164,32 @@ func (self *BackupFS) makeNode(path string, mode uint32, tmsp fuse.Timespec) (*n
 		return nil, fuse.EEXIST
 	}
 	self.ino++
-	node = makeNode(self.ino, mode, tmsp)
+	node = mountMakeNode(self.ino, mode, tmsp)
 	prnt.chld[name] = node
 	return node, 0
 }
 
-func (self *BackupFS) initRoot() {
+func (self *BackupFS) initRoot() error {
 	if self.root != nil {
-		return
+		return nil
 	}
 
 	self.openmap = map[uint64]*node_t{}
 
 	revisions, err := self.manager.SnapshotManager.ListSnapshotRevisions(self.manager.snapshotID)
 	if err != nil {
-		LOG_ERROR(LOG_ID, "Failed to list all revisions for snapshot %s: %v", self.manager.snapshotID, err)
-		return
+		LOG_ERROR("MOUNTING_FILESYSTEM", "Failed to list all revisions for snapshot %s: %v", self.manager.snapshotID, err)
+		return errors.New("snapshot_revision_list_failed")
 	}
 
-	LOG_INFO(LOG_ID, "Found %v revisions", len(revisions))
+	LOG_INFO("MOUNTING_FILESYSTEM", "Found %v revisions", len(revisions))
 
 	alreadyCreated := make(map[string]bool)
 
 	const DIR_MODE = fuse.S_IFDIR | 00555
 
 	self.ino++
-	self.root = makeNode(self.ino, DIR_MODE, fuse.Timespec{})
+	self.root = mountMakeNode(self.ino, DIR_MODE, fuse.Timespec{})
 	self.snapshots = make(map[int]*Snapshot)
 
 	for _, revision := range revisions {
@@ -240,18 +229,24 @@ func (self *BackupFS) initRoot() {
 		date := time.Date(creationTime.Year(), creationTime.Month(), creationTime.Day(), creationTime.Hour(), creationTime.Minute(), 0, 0, time.Local)
 		self.makeNode(dirPath, DIR_MODE, fuse.Timespec{Sec: date.Unix()})
 	}
+
+	return nil
 }
 
-func (self *BackupFS) initRevision(path string) (ret int) {
-	self.initRoot()
+func (self *BackupFS) initRevision(path string) (ret int, err error) {
+	initErr := self.initRoot()
+	if initErr != nil {
+		err = initErr
+		return
+	}
 
 	if self.initedRevisions == nil {
 		self.initedRevisions = map[int]bool{}
 	}
 
-	ret = -1
+	ret = 0
 
-	components := split(path)
+	components := mountPathSplit(path)
 	if len(components) < 5 {
 		return
 	}
@@ -272,16 +267,16 @@ func (self *BackupFS) initRevision(path string) (ret int) {
 		return
 	}
 
-	LOG_INFO(LOG_ID, "initRevision %d", revision)
+	LOG_INFO("MOUNTING_FILESYSTEM", "initRevision %d", revision)
 
 	snapshot := self.snapshots[revision]
 	if snapshot == nil {
-		LOG_INFO(LOG_ID, "Snapshot revision not found")
+		LOG_INFO("MOUNTING_FILESYSTEM", "Snapshot revision not found")
 		return
 	}
 
 	if !self.manager.SnapshotManager.DownloadSnapshotSequences(snapshot) {
-		LOG_INFO(LOG_ID, "Snapshot sequences download failed")
+		LOG_INFO("MOUNTING_FILESYSTEM", "Snapshot sequences download failed")
 		return
 	}
 
@@ -297,6 +292,12 @@ func (self *BackupFS) initRevision(path string) (ret int) {
 				node, err := self.makeNode(fmt.Sprintf("%s/%s", root, entry.Path), entry.Mode, fuse.Timespec{Sec: entry.Time})
 				if err == 0 {
 					node.stat.Size = entry.Size
+					node.chunkInfo = &mountChunkInfo{
+						StartChunk:  entry.StartChunk,
+						StartOffset: entry.StartOffset,
+						EndChunk:    entry.EndChunk,
+						EndOffset:   entry.EndOffset,
+					}
 				}
 			}
 			return true
@@ -307,7 +308,102 @@ func (self *BackupFS) initRevision(path string) (ret int) {
 	return
 }
 
-func makeNode(ino uint64, mode uint32, tmsp fuse.Timespec) *node_t {
+func (self *BackupFS) readFileChunkCached(snapshot *Snapshot, chunkInfo *mountChunkInfo, buff []byte, ofst int64) int {
+	self.manager.SnapshotManager.CreateChunkOperator(false, 1, false)
+
+	params, err := calculateChunkReadParams(snapshot.ChunkLengths, chunkInfo, ofst)
+	if err != nil {
+		return -1
+	}
+
+	hash := snapshot.ChunkHashes[params.chunkIndex]
+
+	chunkSize := params.end - params.start
+	if len(buff) < chunkSize {
+		params.end = params.start + len(buff)
+	}
+
+	cacheData, ok := self.chunkCache.Get(hash)
+	if ok {
+		data, ok := cacheData.([]byte)
+		if !ok {
+			return -1
+		}
+		return copy(buff, data[params.start:params.end])
+	}
+
+	LOG_INFO("MOUNTING_FILESYSTEM", "downloading chunk %s", hex.EncodeToString([]byte(hash)))
+	chunk := self.manager.SnapshotManager.chunkOperator.Download(hash, 0, false)
+	chunkData := chunk.GetBytes()
+	self.chunkCache.Add(hash, chunkData)
+	return copy(buff, chunkData[params.start:params.end])
+}
+
+type mountReadParams struct {
+	chunkIndex int
+	start      int
+	end        int
+}
+
+type mountChunkInfo struct {
+	StartChunk  int
+	StartOffset int
+	EndChunk    int
+	EndOffset   int
+}
+
+func calculateChunkReadParams(chunkLengths []int, file *mountChunkInfo, ofst int64) (params mountReadParams, err error) {
+	if ofst < 0 {
+		err = errors.New("ofst cannot be negative")
+		return
+	}
+
+	ofst += int64(file.StartOffset)
+	lstart := ofst
+	totalLen := int64(0)
+
+	if len(chunkLengths) == 0 {
+		err = errors.New("chunkLenghts cannot be empty")
+		return
+	}
+
+	if len(chunkLengths) <= file.EndChunk {
+		err = errors.New("chunkLenghts is not big enough")
+		return
+	}
+
+	for params.chunkIndex = file.StartChunk; params.chunkIndex <= file.EndChunk; params.chunkIndex++ {
+		chunkLen := int64(chunkLengths[params.chunkIndex])
+		totalLen += chunkLen
+		if ofst < totalLen {
+			break
+		}
+
+		lstart -= chunkLen
+	}
+
+	if totalLen == 0 {
+		err = errors.New("no data in chunks")
+		return
+	}
+
+	params.end = chunkLengths[params.chunkIndex]
+	if params.chunkIndex == file.EndChunk {
+		params.end = file.EndOffset
+		if params.end > chunkLengths[params.chunkIndex] {
+			err = errors.New("no data in chunks")
+		}
+	}
+
+	params.start = int(lstart)
+	if lstart > int64(params.end) {
+		params.start = params.end
+	}
+
+	return
+}
+
+func mountMakeNode(ino uint64, mode uint32, tmsp fuse.Timespec) *node_t {
 	self := node_t{
 		stat: fuse.Stat_t{
 			Ino:      ino,
@@ -323,16 +419,23 @@ func makeNode(ino uint64, mode uint32, tmsp fuse.Timespec) *node_t {
 	return &self
 }
 
-func split(path string) []string {
+func mountPathSplit(path string) []string {
 	return strings.Split(path, "/")
 }
 
 func MountFileSystem(fsPath string, manager *BackupManager) {
-	LOG_INFO(LOG_ID, "Mounting snapshot %s on %s", manager.snapshotID, fsPath)
+	LOG_INFO("MOUNTING_FILESYSTEM", "Mounting snapshot %s on %s", manager.snapshotID, fsPath)
 
 	fs := BackupFS{
 		manager: manager,
 	}
+
+	chunkCache, err := lru.New2Q(50)
+	if err != nil {
+		LOG_ERROR("MOUNTING_FILESYSTEM", "Failed to init cache: %v", err)
+		return
+	}
+	fs.chunkCache = chunkCache
 
 	host := fuse.NewFileSystemHost(&fs)
 	host.SetCapReaddirPlus(true)
