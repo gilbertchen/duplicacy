@@ -1,6 +1,7 @@
 package duplicacy
 
 import (
+	"crypto/sha1"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -78,8 +79,8 @@ func (self *BackupFS) Read(path string, buff []byte, ofst int64, fh uint64) int 
 	}
 
 	snapshot := self.snapshots[revision]
-	readBytes := self.readFileChunkCached(snapshot, node.chunkInfo, buff, ofst)
-	LOG_INFO("MOUNTING_FILESYSTEM", "Read(%s, %d) -> %d", path, ofst, readBytes)
+	readBytes, params := self.readFileChunkCached(snapshot, node.chunkInfo, buff, ofst)
+	LOG_INFO("MOUNTING_FILESYSTEM", "Read(%s, %d) -> %d, %v, %x", path, ofst, readBytes, params, sha1.Sum(buff[:readBytes]))
 	return readBytes
 }
 
@@ -308,12 +309,12 @@ func (self *BackupFS) initRevision(path string) (ret int, err error) {
 	return
 }
 
-func (self *BackupFS) readFileChunkCached(snapshot *Snapshot, chunkInfo *mountChunkInfo, buff []byte, ofst int64) int {
+func (self *BackupFS) readFileChunkCached(snapshot *Snapshot, chunkInfo *mountChunkInfo, buff []byte, ofst int64) (int, mountReadParams) {
 	self.manager.SnapshotManager.CreateChunkOperator(false, 1, false)
 
 	params, err := calculateChunkReadParams(snapshot.ChunkLengths, chunkInfo, ofst)
 	if err != nil {
-		return -1
+		return -1, params
 	}
 
 	hash := snapshot.ChunkHashes[params.chunkIndex]
@@ -327,16 +328,16 @@ func (self *BackupFS) readFileChunkCached(snapshot *Snapshot, chunkInfo *mountCh
 	if ok {
 		data, ok := cacheData.([]byte)
 		if !ok {
-			return -1
+			return -1, params
 		}
-		return copy(buff, data[params.start:params.end])
+		return copy(buff, data[params.start:params.end]), params
 	}
 
 	LOG_INFO("MOUNTING_FILESYSTEM", "downloading chunk %s", hex.EncodeToString([]byte(hash)))
 	chunk := self.manager.SnapshotManager.chunkOperator.Download(hash, 0, false)
 	chunkData := chunk.GetBytes()
 	self.chunkCache.Add(hash, chunkData)
-	return copy(buff, chunkData[params.start:params.end])
+	return copy(buff, chunkData[params.start:params.end]), params
 }
 
 type mountReadParams struct {
@@ -375,7 +376,7 @@ func calculateChunkReadParams(chunkLengths []int, file *mountChunkInfo, ofst int
 	for params.chunkIndex = file.StartChunk; params.chunkIndex <= file.EndChunk; params.chunkIndex++ {
 		chunkLen := int64(chunkLengths[params.chunkIndex])
 		totalLen += chunkLen
-		if ofst < totalLen {
+		if ofst < totalLen || file.EndChunk == params.chunkIndex {
 			break
 		}
 

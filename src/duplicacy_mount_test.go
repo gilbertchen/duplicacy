@@ -181,4 +181,32 @@ func TestCalculateChunkReadParams(t *testing.T) {
 
 		assert(t, AssertVal{res, err}, AssertVal{mountReadParams{2, 17, 98}, nil})
 	}
+
+	{
+		res, err := calculateChunkReadParams(
+			[]int{5361544, 19, 5361544, 5361544},
+			&mountChunkInfo{
+				StartChunk:  1,
+				StartOffset: 0,
+				EndChunk:    1,
+				EndOffset:   19,
+			},
+			19)
+
+		assert(t, AssertVal{res, err}, AssertVal{mountReadParams{1, 19, 19}, nil})
+	}
+
+	{
+		res, err := calculateChunkReadParams(
+			[]int{5361544, 19, 5361544, 5361544},
+			&mountChunkInfo{
+				StartChunk:  1,
+				StartOffset: 0,
+				EndChunk:    1,
+				EndOffset:   19,
+			},
+			5361544)
+
+		assert(t, AssertVal{res, err}, AssertVal{mountReadParams{1, 19, 19}, nil})
+	}
 }
