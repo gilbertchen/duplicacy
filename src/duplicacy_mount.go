@@ -418,7 +418,8 @@ func calculateChunkReadParams(chunkLengths []int, file *mountChunkInfo, ofst int
 	if params.chunkIndex == file.EndChunk {
 		params.end = file.EndOffset
 		if params.end > chunkLengths[params.chunkIndex] {
-			err = errors.New("no data in chunks")
+			err = errors.New("file endoffset greater than chunk length")
+			return
 		}
 	}
 
