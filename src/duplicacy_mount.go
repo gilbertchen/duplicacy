@@ -432,9 +432,13 @@ func calculateChunkReadParams(chunkLengths []int, file *mountChunkInfo, ofst int
 }
 
 func makeMountNode(ino uint64, mode uint32, tmsp fuse.Timespec) *node_t {
+	uid, gid, _ := fuse.Getcontext()
+
 	self := node_t{
 		stat: fuse.Stat_t{
 			Ino:      ino,
+			Uid:      uid,
+			Gid:      gid,
 			Mode:     mode,
 			Nlink:    1,
 			Mtim:     tmsp,
