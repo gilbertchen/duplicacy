@@ -32,6 +32,7 @@ require (
 require (
 	github.com/Azure/go-autorest v10.15.5+incompatible // indirect
 	github.com/calebcase/tmpfile v1.0.3 // indirect
+	github.com/cvilsmeier/sqinn-go v1.1.2 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/dnaeon/go-vcr v1.2.0 // indirect
 	github.com/goamz/goamz v0.0.0-20180131231218-8b901b531db8 // indirect
