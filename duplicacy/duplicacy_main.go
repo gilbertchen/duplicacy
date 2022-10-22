@@ -2257,6 +2257,16 @@ func main() {
 					Usage:    "use the specified storage instead of the default one",
 					Argument: "<storage name>",
 				},
+				cli.StringFlag{
+					Name:     "key",
+					Usage:    "the RSA private key to decrypt file chunks",
+					Argument: "<private key>",
+				},
+				cli.StringFlag{
+					Name:     "key-passphrase",
+					Usage:    "the passphrase to decrypt the RSA private key",
+					Argument: "<private key passphrase>",
+				},
 			},
 			Usage:     "Mount the backup in the filesystem",
 			ArgsUsage: "<mount path>",
