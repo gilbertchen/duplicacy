@@ -119,6 +119,7 @@ type BackupFS struct {
 	tmpDir      string
 	dbProcess   *sqinn.Sqinn
 	dbLock      sync.Mutex
+	options     *MountOptions
 }
 
 func (self *BackupFS) Open(path string, flags int) (errc int, fh uint64) {
@@ -441,36 +442,45 @@ func (self *BackupFS) initRoot() (err error) {
 
 		creationTime := time.Unix(snapshot.StartTime, 0)
 
-		year := strconv.Itoa(creationTime.Year())
-		yearPath := fmt.Sprintf("/%s", year)
-		if !alreadyCreated[yearPath] {
-			date := time.Date(creationTime.Year(), 1, 1, 0, 0, 0, 0, time.Local)
-			self.makeNode(yearPath, DIR_MODE, fuse.Timespec{Sec: date.Unix()})
-			alreadyCreated[yearPath] = true
-		}
+		var dirPath string
+		if !self.options.Flat {
+			year := strconv.Itoa(creationTime.Year())
+			yearPath := fmt.Sprintf("/%s", year)
+			if !alreadyCreated[yearPath] {
+				date := time.Date(creationTime.Year(), 1, 1, 0, 0, 0, 0, time.Local)
+				self.makeNode(yearPath, DIR_MODE, fuse.Timespec{Sec: date.Unix()})
+				alreadyCreated[yearPath] = true
+			}
 
-		month := fmt.Sprintf("%02d", int(creationTime.Month()))
-		monthPath := fmt.Sprintf("%s/%s", yearPath, month)
-		if !alreadyCreated[monthPath] {
-			date := time.Date(creationTime.Year(), creationTime.Month(), 1, 0, 0, 0, 0, time.Local)
-			self.makeNode(monthPath, DIR_MODE, fuse.Timespec{Sec: date.Unix()})
-			alreadyCreated[monthPath] = true
-		}
+			month := fmt.Sprintf("%02d", int(creationTime.Month()))
+			monthPath := fmt.Sprintf("%s/%s", yearPath, month)
+			if !alreadyCreated[monthPath] {
+				date := time.Date(creationTime.Year(), creationTime.Month(), 1, 0, 0, 0, 0, time.Local)
+				self.makeNode(monthPath, DIR_MODE, fuse.Timespec{Sec: date.Unix()})
+				alreadyCreated[monthPath] = true
+			}
 
-		day := fmt.Sprintf("%02d", creationTime.Day())
-		dayPath := fmt.Sprintf("%s/%s", monthPath, day)
-		if !alreadyCreated[dayPath] {
-			date := time.Date(
+			day := fmt.Sprintf("%02d", creationTime.Day())
+			dayPath := fmt.Sprintf("%s/%s", monthPath, day)
+			if !alreadyCreated[dayPath] {
+				date := time.Date(
+					creationTime.Year(), creationTime.Month(), creationTime.Day(),
+					0, 0, 0, 0, time.Local)
+				self.makeNode(dayPath, DIR_MODE, fuse.Timespec{Sec: date.Unix()})
+				alreadyCreated[dayPath] = true
+			}
+
+			dirname := fmt.Sprintf(
+				"%02d%02d.%d",
+				creationTime.Hour(), creationTime.Minute(), revision)
+			dirPath = fmt.Sprintf("%s/%s", dayPath, dirname)
+		} else {
+			dirPath = fmt.Sprintf(
+				"/%04d%02d%02d_%02d%02d.%d",
 				creationTime.Year(), creationTime.Month(), creationTime.Day(),
-				0, 0, 0, 0, time.Local)
-			self.makeNode(dayPath, DIR_MODE, fuse.Timespec{Sec: date.Unix()})
-			alreadyCreated[dayPath] = true
+				creationTime.Hour(), creationTime.Minute(), revision)
 		}
 
-		dirname := fmt.Sprintf(
-			"%02d%02d.%d",
-			creationTime.Hour(), creationTime.Minute(), revision)
-		dirPath := fmt.Sprintf("%s/%s", dayPath, dirname)
 		date := time.Date(
 			creationTime.Year(), creationTime.Month(), creationTime.Day(),
 			creationTime.Hour(), creationTime.Minute(), 0, 0, time.Local)
@@ -532,16 +542,22 @@ func (self *BackupFS) getMountRevision(path string) (mountRevision *mountRevisio
 		return
 	}
 
+	baseLen := 6
+	if self.options.Flat {
+		baseLen = 3
+	}
+
 	components := splitMountPath(path)
-	if len(components) < 6 {
+	if len(components) < baseLen {
 		return
 	}
 
-	if components[5] != "browse" {
+	if components[baseLen-1] != "browse" {
 		return
 	}
 
-	revisionRoot := strings.Join(components[:6], "/")
+	revisionRoot := strings.Join(components[:baseLen], "/")
+	LOG_INFO("", "readdir no browse %v", revisionRoot)
 	mountRevision, ok := self.revisions[revisionRoot]
 	if !ok {
 		retErr = errors.New(fmt.Sprintf("revision not found for root %v", revisionRoot))
@@ -846,11 +862,16 @@ func nameOrHash(name string) (ret string, err error) {
 	return
 }
 
-func MountFileSystem(fsPath string, manager *BackupManager) {
+type MountOptions struct {
+	Flat bool
+}
+
+func MountFileSystem(fsPath string, manager *BackupManager, options *MountOptions) {
 	LOG_INFO("MOUNTING_FILESYSTEM", "Mounting snapshot %s on %s", manager.snapshotID, fsPath)
 
 	fs := BackupFS{
 		manager: manager,
+		options: options,
 	}
 	err := fs.initMain()
 	if err != nil {

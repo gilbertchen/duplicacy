@@ -1396,7 +1396,7 @@ func benchmark(context *cli.Context) {
 	duplicacy.Benchmark(repository, storage, int64(fileSize)*1024*1024, chunkSize*1024*1024, chunkCount, uploadThreads, downloadThreads)
 }
 
-func mountFUSE(context *cli.Context) {
+func mountBackupFS(context *cli.Context) {
 	setGlobalOptions(context)
 	defer duplicacy.CatchLogException()
 
@@ -1465,7 +1465,12 @@ func mountFUSE(context *cli.Context) {
 
 	backupManager.SetupSnapshotCache(preference.Name)
 
-	duplicacy.MountFileSystem(context.Args()[0], backupManager)
+	duplicacy.MountFileSystem(
+		context.Args()[0],
+		backupManager,
+		&duplicacy.MountOptions{
+			Flat: context.Bool("flat"),
+		})
 }
 
 func main() {
@@ -2230,10 +2235,16 @@ func main() {
 		},
 
 		{
-			Name:      "mount",
+			Name: "mount",
+			Flags: []cli.Flag{
+				cli.BoolFlag{
+					Name:  "flat",
+					Usage: "Use a flat directory structure instead of organized by date",
+				},
+			},
 			Usage:     "Mount the backup in the filesystem",
 			ArgsUsage: "<mount path>",
-			Action:    mountFUSE,
+			Action:    mountBackupFS,
 		},
 	}
 
