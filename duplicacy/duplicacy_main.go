@@ -1471,6 +1471,7 @@ func mountBackupFS(context *cli.Context) {
 		&duplicacy.MountOptions{
 			Flat:      context.Bool("flat"),
 			Revisions: context.String("revisions"),
+			DiskCache: context.Bool("disk-cache"),
 		})
 }
 
@@ -2240,11 +2241,15 @@ func main() {
 			Flags: []cli.Flag{
 				cli.BoolFlag{
 					Name:  "flat",
-					Usage: "Use a flat directory structure instead of organized by date",
+					Usage: "use a flat directory structure instead of organized by date",
+				},
+				cli.BoolFlag{
+					Name:  "disk-cache",
+					Usage: "use the disk to cache file list and chunks. use this if you notice excessive memory usage. need to have sqinn binary on PATH",
 				},
 				cli.StringFlag{
 					Name:     "revisions",
-					Usage:    "revisions or range of revisions to mount separated by comma. ie. 1,4-5,6",
+					Usage:    "revisions or range of revisions to mount separated by comma. ie. 1,4-7,9",
 					Argument: "<revisions>",
 				},
 			},
