@@ -524,6 +524,9 @@ func (self *BackupFS) initRoot() (err error) {
 	for _, specific := range specificRevisions {
 		specificSplit := strings.Split(specific, "-")
 		if len(specificSplit) == 1 {
+			if specificSplit[0] == "" {
+				break
+			}
 			revision, err := strconv.Atoi(strings.TrimSpace(specificSplit[0]))
 			if err != nil {
 				LOG_ERROR("MOUNTING_FILESYSTEM", "Invalid revision specified: %s", specificSplit[0])

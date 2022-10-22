@@ -1409,7 +1409,7 @@ func mountBackupFS(context *cli.Context) {
 	setGlobalOptions(context)
 	defer duplicacy.CatchLogException()
 
-	repository, preference := getRepositoryPreference(context, "")
+	repository, preference := getRepositoryPreference(context, context.String("storage"))
 
 	if preference.RestoreProhibited {
 		duplicacy.LOG_ERROR("RESTORE_DISABLED", "Restore from %s to this repository was disabled by the preference",
@@ -2251,6 +2251,11 @@ func main() {
 					Name:     "revisions",
 					Usage:    "revisions or range of revisions to mount separated by comma. ie. 1,4-7,9",
 					Argument: "<revisions>",
+				},
+				cli.StringFlag{
+					Name:     "storage",
+					Usage:    "use the specified storage instead of the default one",
+					Argument: "<storage name>",
 				},
 			},
 			Usage:     "Mount the backup in the filesystem",
