@@ -22,10 +22,14 @@ import (
 )
 
 type node_t struct {
+	stat    fuse.Stat_t
+	chld    map[string]*node_t
+	opencnt int
+}
+
+type backupMountFile struct {
 	stat      fuse.Stat_t
-	chld      map[string]*node_t
-	opencnt   int
-	chunkInfo *mountChunkInfo
+	chunkInfo mountChunkInfo
 }
 
 type mountRevisionInfo struct {
@@ -34,6 +38,71 @@ type mountRevisionInfo struct {
 	inited   bool
 	dbInited bool
 	lock     sync.Mutex
+	root     string
+}
+
+func (self *mountRevisionInfo) getPathParts(path string) (parent string, name string) {
+	components := splitMountPath(path[len(self.root):])
+	componentsLen := len(components)
+
+	if componentsLen == 1 {
+		return components[0], ""
+	}
+
+	if componentsLen == 1 {
+		parent = ""
+		name = components[0]
+	} else {
+		parent = strings.Trim(strings.Join(components[:componentsLen-1], "/"), "/")
+		name = components[componentsLen-1]
+	}
+
+	return
+}
+
+func (self *mountRevisionInfo) getAttr(db *sqinn.Sqinn, path string) (backupFile *backupMountFile, err error) {
+	oParent, name := self.getPathParts(path)
+	parent, err := nameOrHash(oParent)
+	if err != nil {
+		return
+	}
+
+	params := make([]interface{}, 2)
+	params[0] = parent
+	params[1] = name
+	res, err := db.Query(
+		"SELECT id, mode, timestamp, size, startChunk, startOffset, endChunk, endOffset FROM nodes WHERE parent = ? and name = ?;",
+		params,
+		[]byte{sqinn.ValInt64, sqinn.ValInt64, sqinn.ValInt64, sqinn.ValInt64, sqinn.ValInt, sqinn.ValInt, sqinn.ValInt, sqinn.ValInt})
+
+	if err != nil {
+		return
+	}
+
+	const INO, MODE, TIMESTAMP, SIZE, START_CHUNK, START_OFFSET, END_CHUNK, END_OFFSET = 0, 1, 2, 3, 4, 5, 6, 7
+	row := res[0]
+
+	uid, gid, _ := fuse.Getcontext()
+	backupFile = &backupMountFile{
+		stat: fuse.Stat_t{
+			Ino:      uint64(row.Values[INO].AsInt64()),
+			Size:     row.Values[SIZE].AsInt64(),
+			Mode:     uint32(row.Values[MODE].AsInt64()),
+			Mtim:     fuse.Timespec{Sec: row.Values[TIMESTAMP].AsInt64()},
+			Birthtim: fuse.Timespec{Sec: row.Values[TIMESTAMP].AsInt64()},
+			Nlink:    1,
+			Uid:      uid,
+			Gid:      gid,
+		},
+		chunkInfo: mountChunkInfo{
+			StartChunk:  row.Values[START_CHUNK].AsInt(),
+			StartOffset: row.Values[START_OFFSET].AsInt(),
+			EndChunk:    row.Values[END_CHUNK].AsInt(),
+			EndOffset:   row.Values[END_OFFSET].AsInt(),
+		},
+	}
+
+	return
 }
 
 type BackupFS struct {
@@ -53,10 +122,64 @@ type BackupFS struct {
 }
 
 func (self *BackupFS) Open(path string, flags int) (errc int, fh uint64) {
+	revision, err := self.initRevision(path)
+	if err != nil {
+		LOG_ERROR("MOUNTING_FILESYSTEM", "initRevision failed: %v", err)
+		errc = -int(fuse.ENOENT)
+		return
+	}
+
+	if revision != nil && revision.root != path {
+		err = self.withRevisionDb(revision, func(db *sqinn.Sqinn) (err error) {
+			file, err := revision.getAttr(db, path)
+			if err != nil {
+				return
+			}
+			if fuse.S_IFDIR == file.stat.Mode&fuse.S_IFMT {
+				errc = fuse.EISDIR
+				fh = ^uint64(0)
+				return
+			}
+			fh = file.stat.Ino
+			return
+		})
+		if err != nil {
+			errc = -int(fuse.ENOENT)
+		}
+		return
+	}
+
 	return self.openNode(path, false)
 }
 
 func (self *BackupFS) Opendir(path string) (errc int, fh uint64) {
+	revision, err := self.initRevision(path)
+	if err != nil {
+		LOG_ERROR("MOUNTING_FILESYSTEM", "initRevision failed: %v", err)
+		errc = -int(fuse.ENOENT)
+		return
+	}
+
+	if revision != nil && revision.root != path {
+		err = self.withRevisionDb(revision, func(db *sqinn.Sqinn) (err error) {
+			file, err := revision.getAttr(db, path)
+			if err != nil {
+				return
+			}
+			if fuse.S_IFDIR != file.stat.Mode&fuse.S_IFMT {
+				errc = fuse.ENOTDIR
+				fh = ^uint64(0)
+				return
+			}
+			fh = file.stat.Ino
+			return
+		})
+		if err != nil {
+			errc = -int(fuse.ENOENT)
+		}
+		return
+	}
+
 	return self.openNode(path, true)
 }
 
@@ -67,8 +190,19 @@ func (self *BackupFS) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc i
 		return -int(fuse.ENOENT)
 	}
 
-	if revision != nil && self.revisions[path] == nil {
-		// get revision item
+	if revision != nil && revision.root != path {
+		var file *backupMountFile
+		err = self.withRevisionDb(revision, func(db *sqinn.Sqinn) (err error) {
+			file, err = revision.getAttr(db, path)
+			return
+		})
+
+		if err != nil {
+			LOG_ERROR("MOUNTING_FILESYSTEM", "getattr for revision file failed: %v", err)
+			return -int(fuse.ENOENT)
+		}
+
+		*stat = file.stat
 	} else {
 		node := self.getNode(path, fh)
 		if nil == node {
@@ -81,27 +215,28 @@ func (self *BackupFS) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc i
 }
 
 func (self *BackupFS) Read(path string, buff []byte, ofst int64, fh uint64) int {
-	node := self.getNode(path, fh)
-	if nil == node {
-		return fuse.ENOENT
-	}
-
-	if node.stat.Size == 0 {
-		return 0
-	}
-
-	mountRevision, err := self.initRevision(path)
+	revision, err := self.initRevision(path)
 	if err != nil {
-		LOG_INFO("MOUNTING_FILESYSTEM", "initRevision failed: %v", err)
-		return fuse.ENOENT
+		LOG_ERROR("MOUNTING_FILESYSTEM", "initRevision failed: %v", err)
+		return -int(fuse.ENOENT)
 	}
 
-	if node.chunkInfo == nil {
-		return 0
+	if revision == nil || revision.root == path {
+		return -int(fuse.ENOENT)
 	}
 
-	snapshot := mountRevision.snapshot
-	readBytes, err := self.readFileChunkCached(snapshot, node.chunkInfo, buff, ofst)
+	var file *backupMountFile
+	err = self.withRevisionDb(revision, func(db *sqinn.Sqinn) (err error) {
+		file, err = revision.getAttr(db, path)
+		return
+	})
+
+	if err != nil {
+		LOG_ERROR("MOUNTING_FILESYSTEM", "getattr for revision file failed: %v", err)
+		return -int(fuse.ENOENT)
+	}
+
+	readBytes, err := self.readFileChunkCached(revision.snapshot, &file.chunkInfo, buff, ofst)
 	if err != nil {
 		LOG_INFO("MOUNTING_FILESYSTEM", "error reading file %s: %v", path, err)
 		return fuse.EIO
@@ -115,27 +250,83 @@ func (self *BackupFS) Readdir(
 	ofst int64,
 	fh uint64,
 ) (errc int) {
-	// revision, err := self.initRevision(path)
-	// if err != nil {
-	// 	LOG_INFO("MOUNTING_FILESYSTEM", "error initing revision: %v", err)
-	// 	return -int(fuse.ENOENT)
-	// }
+	revision, err := self.initRevision(path)
+	if err != nil {
+		LOG_ERROR("MOUNTING_FILESYSTEM", "error initing revision: %v", err)
+		return -int(fuse.ENOENT)
+	}
 
-	// if revision != nil {
-	// 	// populate revision
-	// } else {
-	self.lock.Lock()
-	defer self.lock.Unlock()
+	if revision != nil {
+		// populate revision
+		err = self.withRevisionDb(revision, func(db *sqinn.Sqinn) (err error) {
+			var parent string
+			if revision.root == path {
+				// loading browse dir
+				node := self.openmap[fh]
+				fill(".", &node.stat, 0)
+				fill("..", nil, 0)
+				parent = ""
+			} else {
+				mparent, name := revision.getPathParts(path)
+				if mparent == "" {
+					parent, err = nameOrHash(name)
+				} else {
+					parent, err = nameOrHash(fmt.Sprintf("%s/%s", mparent, name))
+				}
 
-	node := self.openmap[fh]
-	fill(".", &node.stat, 0)
-	fill("..", nil, 0)
-	for name, chld := range node.chld {
-		if !fill(name, &chld.stat, 0) {
-			break
+				if err != nil {
+					return
+				}
+			}
+
+			params := make([]interface{}, 1)
+			params[0] = parent
+			res, err := db.Query(
+				"SELECT id, name, mode, timestamp, size FROM nodes WHERE parent = ?;",
+				params,
+				[]byte{sqinn.ValInt64, sqinn.ValText, sqinn.ValInt64, sqinn.ValInt64, sqinn.ValInt64})
+
+			if err != nil {
+				return
+			}
+
+			const INO, NAME, MODE, TIMESTAMP, SIZE = 0, 1, 2, 3, 4
+			for _, row := range res {
+				stat := fuse.Stat_t{
+					Ino:      uint64(row.Values[INO].AsInt64()),
+					Size:     row.Values[SIZE].AsInt64(),
+					Mode:     uint32(row.Values[MODE].AsInt64()),
+					Mtim:     fuse.Timespec{Sec: row.Values[TIMESTAMP].AsInt64()},
+					Birthtim: fuse.Timespec{Sec: row.Values[TIMESTAMP].AsInt64()},
+					Nlink:    1,
+				}
+				name := row.Values[NAME].AsString()
+				LOG_DEBUG("MOUNTING_FILESYSTEM", "Populating dir with %s: %v", name, stat)
+				if !fill(name, &stat, 0) {
+					err = errors.New("error filling entry")
+					break
+				}
+			}
+
+			return
+		})
+		if err != nil {
+			LOG_ERROR("MOUNTING_FILESYSTEM", "error getting file %s: %v", path, err)
+			return -int(fuse.EBUSY)
+		}
+	} else {
+		self.lock.Lock()
+		defer self.lock.Unlock()
+
+		node := self.openmap[fh]
+		fill(".", &node.stat, 0)
+		fill("..", nil, 0)
+		for name, chld := range node.chld {
+			if !fill(name, &chld.stat, 0) {
+				break
+			}
 		}
 	}
-	// }
 	return 0
 }
 
@@ -286,6 +477,7 @@ func (self *BackupFS) initRoot() (err error) {
 		self.revisions[rootPath] = &mountRevisionInfo{
 			revision: revision,
 			snapshot: snapshot,
+			root:     rootPath,
 		}
 		self.makeNode(rootPath, DIR_MODE, fuse.Timespec{Sec: date.Unix()})
 	}
@@ -293,7 +485,7 @@ func (self *BackupFS) initRoot() (err error) {
 	return
 }
 
-func (self *BackupFS) withRevisionDb(revision *mountRevisionInfo, withDb func(*sqinn.Sqinn)) (err error) {
+func (self *BackupFS) withRevisionDb(revision *mountRevisionInfo, withDb func(*sqinn.Sqinn) error) (err error) {
 	self.dbLock.Lock()
 	defer self.dbLock.Unlock()
 
@@ -307,9 +499,11 @@ func (self *BackupFS) withRevisionDb(revision *mountRevisionInfo, withDb func(*s
 		_, err = self.dbProcess.ExecOne(`
 			CREATE TABLE nodes (
 				id INTEGER PRIMARY KEY NOT NULL,
+				parent VARCHAR(20),
 				name VARCHAR(20),
 				mode INTEGER,
 				timestamp INTEGER,
+				size INTEGER,
 				startChunk INTEGER,
 				startOffset INTEGER,
 				endChunk INTEGER,
@@ -318,14 +512,14 @@ func (self *BackupFS) withRevisionDb(revision *mountRevisionInfo, withDb func(*s
 		if err != nil {
 			return
 		}
-		_, err = self.dbProcess.ExecOne(`CREATE UNIQUE INDEX name_idx ON nodes (name);`)
+		_, err = self.dbProcess.ExecOne(`CREATE UNIQUE INDEX parent_name_idx ON nodes (parent, name);`)
 		if err != nil {
 			return
 		}
 		revision.dbInited = true
 	}
 
-	withDb(self.dbProcess)
+	err = withDb(self.dbProcess)
 	return
 }
 
@@ -374,51 +568,69 @@ func (self *BackupFS) initRevision(path string) (mountRevision *mountRevisionInf
 		return
 	}
 
-	retErr = self.withRevisionDb(mountRevision, func(db *sqinn.Sqinn) {
-		_, err := db.ExecOne("BEGIN;")
+	retErr = self.withRevisionDb(mountRevision, func(db *sqinn.Sqinn) (err error) {
+		_, err = db.ExecOne("BEGIN;")
 		if err != nil {
 			LOG_ERROR("MOUNTING_FILESYSTEM", "failed to start transaction")
 			return
 		}
 
 		entriesAdded := 0
+
 		snapshot.ListRemoteFiles(
 			self.manager.config,
 			self.manager.SnapshotManager.chunkOperator,
 			func(entry *Entry) bool {
-				name, err := nameOrHash(entry.Path)
+				components = splitMountPath(strings.Trim(entry.Path, "/"))
+				componentsLen := len(components)
+
+				var oParent string
+				var name string
+				if componentsLen == 1 {
+					oParent = ""
+					name = components[0]
+				} else {
+					oParent = strings.Join(components[:componentsLen-1], "/")
+					name = components[componentsLen-1]
+				}
+
+				parent, err := nameOrHash(oParent)
 				if err != nil {
-					LOG_ERROR("MOUNTING_FILESYSTEM", "error hashing file name: %v", name)
+					LOG_ERROR("MOUNTING_FILESYSTEM", "error hashing file name: %v", oParent)
 					return false
 				}
 
 				query := `
 				INSERT INTO 
-					nodes (id, name, mode, timestamp, startChunk, startOffset, endChunk, endOffset)
-					values (?, ?, ?, ?, ?, ?, ?, ?);
+					nodes (id, parent, name, mode, timestamp, startChunk, startOffset, endChunk, endOffset, size)
+					values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
 				`
-				params := make([]interface{}, 8)
+				params := make([]interface{}, 10)
 				params[0] = int64(self.nextIno())
-				params[1] = name
-				params[3] = entry.Time
+				params[1] = parent
+				params[2] = name
+				params[4] = entry.Time
+				params[9] = entry.Size
 
 				if entry.Mode&0o20000000000 == 0o20000000000 {
-					params[2] = int(fuse.S_IFDIR | (entry.Mode & 00777))
-					params[4] = 0
+					params[3] = int(fuse.S_IFDIR | (entry.Mode & 00777))
 					params[5] = 0
 					params[6] = 0
 					params[7] = 0
+					params[8] = 0
 				} else {
-					params[2] = int(fuse.S_IFREG | (entry.Mode & 00777))
-					params[4] = entry.StartChunk
-					params[5] = entry.StartOffset
-					params[6] = entry.EndChunk
-					params[7] = entry.EndOffset
+					params[3] = int(fuse.S_IFREG | (entry.Mode & 00777))
+					params[5] = entry.StartChunk
+					params[6] = entry.StartOffset
+					params[7] = entry.EndChunk
+					params[8] = entry.EndOffset
 				}
 
-				_, err = db.Exec(query, 1, 8, params)
+				// LOG_DEBUG("MOUNTING_FILESYSTEM", "creating entry: %v", params)
+
+				_, err = db.Exec(query, 1, 10, params)
 				if err != nil {
-					LOG_ERROR("MOUNTING_FILESYSTEM", "error creating entry for: %v, %v", entry.Path, err)
+					LOG_ERROR("MOUNTING_FILESYSTEM", "error creating entry for: %v, %v, %s, %s", entry.Path, err, params[1], params[2])
 					return false
 				}
 				entriesAdded++
@@ -434,6 +646,8 @@ func (self *BackupFS) initRevision(path string) (mountRevision *mountRevisionInf
 
 		LOG_DEBUG("MOUNTING_FILESYSTEM", "added %d entries to revision", entriesAdded)
 		mountRevision.inited = true
+
+		return
 	})
 
 	return
@@ -613,7 +827,7 @@ func splitMountPath(path string) []string {
 }
 
 func nameOrHash(name string) (ret string, err error) {
-	if len(name) <= 20 {
+	if len(name) <= 40 {
 		ret = name
 		return
 	}
@@ -625,7 +839,7 @@ func nameOrHash(name string) (ret string, err error) {
 		return
 	}
 
-	ret = string(hasher.Sum(nil))
+	ret = fmt.Sprintf("%x", (hasher.Sum(nil)))
 	return
 }
 
