@@ -1469,7 +1469,8 @@ func mountBackupFS(context *cli.Context) {
 		context.Args()[0],
 		backupManager,
 		&duplicacy.MountOptions{
-			Flat: context.Bool("flat"),
+			Flat:      context.Bool("flat"),
+			Revisions: context.String("revisions"),
 		})
 }
 
@@ -2240,6 +2241,11 @@ func main() {
 				cli.BoolFlag{
 					Name:  "flat",
 					Usage: "Use a flat directory structure instead of organized by date",
+				},
+				cli.StringFlag{
+					Name:     "revisions",
+					Usage:    "revisions or range of revisions to mount separated by comma. ie. 1,4-5,6",
+					Argument: "<revisions>",
 				},
 			},
 			Usage:     "Mount the backup in the filesystem",

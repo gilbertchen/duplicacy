@@ -428,7 +428,44 @@ func (self *BackupFS) initRoot() (err error) {
 		return
 	}
 
-	LOG_DEBUG("MOUNTING_FILESYSTEM", "Creating root structure for %v revisions", len(revisions))
+	specificRevisions := strings.Split(self.options.Revisions, ",")
+	specificRevisionsDb := make(map[int]bool)
+	loadSpecific := false
+	for _, specific := range specificRevisions {
+		specificSplit := strings.Split(specific, "-")
+		if len(specificSplit) == 1 {
+			revision, err := strconv.Atoi(strings.TrimSpace(specificSplit[0]))
+			if err != nil {
+				LOG_ERROR("MOUNTING_FILESYSTEM", "Invalid revision specified: %s", specificSplit[0])
+				continue
+			}
+			specificRevisionsDb[revision] = true
+			loadSpecific = true
+		} else {
+			rangeStart, err := strconv.Atoi(strings.TrimSpace(specificSplit[0]))
+			if err != nil {
+				LOG_ERROR("MOUNTING_FILESYSTEM", "Invalid start revision specified: %s", specificSplit[0])
+			}
+			rangeEnd, err := strconv.Atoi(strings.TrimSpace(specificSplit[1]))
+			if err != nil {
+				LOG_ERROR("MOUNTING_FILESYSTEM", "Invalid end revision specified: %s", specificSplit[1])
+			}
+			for i := rangeStart; i <= rangeEnd; i++ {
+				specificRevisionsDb[i] = true
+				loadSpecific = true
+			}
+		}
+	}
+
+	revisionsToLoad := revisions
+	if loadSpecific {
+		revisionsToLoad = []int{}
+		for specific := range specificRevisionsDb {
+			revisionsToLoad = append(revisionsToLoad, specific)
+		}
+	}
+
+	LOG_DEBUG("MOUNTING_FILESYSTEM", "Creating root structure for %v revisions", len(revisionsToLoad))
 
 	alreadyCreated := make(map[string]bool)
 
@@ -437,7 +474,7 @@ func (self *BackupFS) initRoot() (err error) {
 	self.root = makeMountNode(self.nextIno(), DIR_MODE, fuse.Timespec{})
 	self.revisions = make(map[string]*mountRevisionInfo)
 
-	for _, revision := range revisions {
+	for _, revision := range revisionsToLoad {
 		snapshot := self.manager.SnapshotManager.DownloadSnapshot(self.manager.snapshotID, revision)
 
 		creationTime := time.Unix(snapshot.StartTime, 0)
@@ -863,7 +900,8 @@ func nameOrHash(name string) (ret string, err error) {
 }
 
 type MountOptions struct {
-	Flat bool
+	Flat      bool
+	Revisions string
 }
 
 func MountFileSystem(fsPath string, manager *BackupManager, options *MountOptions) {
