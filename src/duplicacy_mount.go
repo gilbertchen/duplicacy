@@ -8,9 +8,7 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -1076,16 +1074,12 @@ func MountFileSystem(fsPath string, manager *BackupManager, options *MountOption
 	}
 
 	host := fuse.NewFileSystemHost(&fs)
+	RunAtError = func() {
+		host.Unmount()
+	}
 	host.SetCapReaddirPlus(true)
 	host.Mount(fsPath, nil)
-	if !host.Unmount() {
-		if runtime.GOOS != "windows" {
-			_, err := exec.Command("fusermount", "-u", fsPath).Output()
-			if err != nil {
-				LOG_INFO("MOUNTING_FILESYSTEM", "Could not unmount (%v), please do it manually.", err)
-			}
-		}
-	}
+	host.Unmount()
 
 	return
 }
