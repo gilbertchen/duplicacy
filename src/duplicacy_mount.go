@@ -281,7 +281,7 @@ type BackupFS struct {
 func (self *BackupFS) Open(path string, flags int) (errc int, fh uint64) {
 	revision, err := self.getMountRevision(path)
 	if err != nil {
-		LOG_ERROR("MOUNTING_FILESYSTEM", "getMountRevision failed: %v", err)
+		LOG_WARN("MOUNTING_FILESYSTEM", "getMountRevision failed: %v", err)
 		errc = -int(fuse.ENOENT)
 		return
 	}
@@ -308,7 +308,7 @@ func (self *BackupFS) Open(path string, flags int) (errc int, fh uint64) {
 func (self *BackupFS) Opendir(path string) (errc int, fh uint64) {
 	revision, err := self.getMountRevision(path)
 	if err != nil {
-		LOG_ERROR("MOUNTING_FILESYSTEM", "getMountRevision failed: %v", err)
+		LOG_WARN("MOUNTING_FILESYSTEM", "getMountRevision failed: %v", err)
 		errc = -int(fuse.ENOENT)
 		return
 	}
@@ -350,7 +350,7 @@ func (self *BackupFS) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc i
 
 	file, err := revision.getAttr(self, path)
 	if err != nil {
-		LOG_ERROR("MOUNTING_FILESYSTEM", "getattr for revision file failed: %v", err)
+		LOG_WARN("MOUNTING_FILESYSTEM", "getattr for revision file failed: %v", err)
 		return -int(fuse.ENOENT)
 	}
 	if file == nil {
@@ -364,7 +364,7 @@ func (self *BackupFS) Getattr(path string, stat *fuse.Stat_t, fh uint64) (errc i
 func (self *BackupFS) Read(path string, buff []byte, ofst int64, fh uint64) int {
 	revision, err := self.getMountRevision(path)
 	if err != nil {
-		LOG_ERROR("MOUNTING_FILESYSTEM", "getMountRevision failed: %v", err)
+		LOG_WARN("MOUNTING_FILESYSTEM", "getMountRevision failed: %v", err)
 		return -int(fuse.ENOENT)
 	}
 
@@ -374,7 +374,7 @@ func (self *BackupFS) Read(path string, buff []byte, ofst int64, fh uint64) int 
 
 	file, err := revision.getAttr(self, path)
 	if err != nil {
-		LOG_ERROR("MOUNTING_FILESYSTEM", "getattr for revision file failed: %v", err)
+		LOG_WARN("MOUNTING_FILESYSTEM", "getattr for revision file failed: %v", err)
 		return -int(fuse.ENOENT)
 	}
 	if file == nil {
@@ -397,7 +397,7 @@ func (self *BackupFS) Readdir(
 ) (errc int) {
 	revision, err := self.getMountRevision(path)
 	if err != nil {
-		LOG_ERROR("MOUNTING_FILESYSTEM", "error initing revision: %v", err)
+		LOG_WARN("MOUNTING_FILESYSTEM", "error initing revision: %v", err)
 		return -int(fuse.ENOENT)
 	}
 
@@ -418,7 +418,7 @@ func (self *BackupFS) Readdir(
 
 	err = revision.readDir(self, path, fill, fh)
 	if err != nil {
-		LOG_ERROR("MOUNTING_FILESYSTEM", "error getting file %s: %v", path, err)
+		LOG_WARN("MOUNTING_FILESYSTEM", "error getting file %s: %v", path, err)
 		return -int(fuse.EBUSY)
 	}
 	return
@@ -519,7 +519,7 @@ func (self *BackupFS) initRoot() (err error) {
 	}
 
 	specificRevisions := strings.Split(self.options.Revisions, ",")
-	specificRevisionsDb := make(map[int]bool)
+	specificRevisionsMap := make(map[int]bool)
 	loadSpecific := false
 	for _, specific := range specificRevisions {
 		specificSplit := strings.Split(specific, "-")
@@ -529,22 +529,24 @@ func (self *BackupFS) initRoot() (err error) {
 			}
 			revision, err := strconv.Atoi(strings.TrimSpace(specificSplit[0]))
 			if err != nil {
-				LOG_ERROR("MOUNTING_FILESYSTEM", "Invalid revision specified: %s", specificSplit[0])
+				LOG_INFO("MOUNTING_FILESYSTEM", "Invalid revision specified: %s", specificSplit[0])
 				continue
 			}
-			specificRevisionsDb[revision] = true
+			specificRevisionsMap[revision] = true
 			loadSpecific = true
 		} else {
 			rangeStart, err := strconv.Atoi(strings.TrimSpace(specificSplit[0]))
 			if err != nil {
-				LOG_ERROR("MOUNTING_FILESYSTEM", "Invalid start revision specified: %s", specificSplit[0])
+				LOG_INFO("MOUNTING_FILESYSTEM", "Invalid start revision specified: %s", specificSplit[0])
+				continue
 			}
 			rangeEnd, err := strconv.Atoi(strings.TrimSpace(specificSplit[1]))
 			if err != nil {
-				LOG_ERROR("MOUNTING_FILESYSTEM", "Invalid end revision specified: %s", specificSplit[1])
+				LOG_INFO("MOUNTING_FILESYSTEM", "Invalid end revision specified: %s", specificSplit[1])
+				continue
 			}
 			for i := rangeStart; i <= rangeEnd; i++ {
-				specificRevisionsDb[i] = true
+				specificRevisionsMap[i] = true
 				loadSpecific = true
 			}
 		}
@@ -553,12 +555,12 @@ func (self *BackupFS) initRoot() (err error) {
 	revisionsToLoad := revisions
 	if loadSpecific {
 		revisionsToLoad = []int{}
-		for specific := range specificRevisionsDb {
+		for specific := range specificRevisionsMap {
 			revisionsToLoad = append(revisionsToLoad, specific)
 		}
 	}
 
-	LOG_DEBUG("MOUNTING_FILESYSTEM", "Creating root structure for %v revisions", len(revisionsToLoad))
+	LOG_DEBUG("MOUNTING_FILESYSTEM", "Creating root structure for %v revision(s)", len(revisionsToLoad))
 
 	alreadyCreated := make(map[string]bool)
 
@@ -991,7 +993,7 @@ func nameOrHash(name string) (ret string, err error) {
 	hasher := sha1.New()
 	_, err = io.WriteString(hasher, name)
 	if err != nil {
-		LOG_ERROR("MOUNTING_FILESYSTEM", "error hashing file name: %v", name)
+		LOG_INFO("MOUNTING_FILESYSTEM", "error hashing file name: %v", name)
 		return
 	}
 

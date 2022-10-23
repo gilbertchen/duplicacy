@@ -2245,7 +2245,7 @@ func main() {
 				},
 				cli.BoolFlag{
 					Name:  "disk-cache",
-					Usage: "use the disk to cache file list and chunks. use this if you notice excessive memory usage. need to have sqinn binary on PATH",
+					Usage: "use the disk to cache revision file list. try this if you notice excessive memory usage. need to have sqinn binary on PATH",
 				},
 				cli.StringFlag{
 					Name:     "revisions",
