@@ -263,19 +263,20 @@ func (self *mountRevisionInfo) getAttr(backupFs *BackupFS, path string) (backupF
 
 type BackupFS struct {
 	fuse.FileSystemBase
-	revisions   map[string]*mountRevisionInfo
-	manager     *BackupManager
-	lock        sync.Mutex
-	managerLock sync.Mutex
-	ino         uint64
-	inoLock     sync.Mutex
-	root        *node_t
-	openmap     map[uint64]*node_t
-	chunkCache  *lru.TwoQueueCache
-	tmpDir      string
-	dbProcess   *sqinn.Sqinn
-	dbLock      sync.Mutex
-	options     *MountOptions
+	revisions    map[string]*mountRevisionInfo
+	manager      *BackupManager
+	lock         sync.Mutex
+	managerLock  sync.Mutex
+	ino          uint64
+	inoLock      sync.Mutex
+	root         *node_t
+	snapshotRoot map[string]bool
+	openmap      map[uint64]*node_t
+	chunkCache   *lru.TwoQueueCache
+	tmpDir       string
+	dbProcess    *sqinn.Sqinn
+	dbLock       sync.Mutex
+	options      *MountOptions
 }
 
 func (self *BackupFS) Open(path string, flags int) (errc int, fh uint64) {
@@ -499,22 +500,61 @@ func (self *BackupFS) nextIno() uint64 {
 	return ino
 }
 
-func (self *BackupFS) initRoot() (err error) {
+func (self *BackupFS) initRoot(path string) (err error) {
 	self.lock.Lock()
 	defer self.lock.Unlock()
 
-	if self.root != nil {
+	if self.root == nil {
+		const DIR_MODE = fuse.S_IFDIR | 00555
+		self.root = makeMountNode(self.nextIno(), DIR_MODE, fuse.Timespec{})
+		self.openmap = map[uint64]*node_t{}
+
+		self.revisions = make(map[string]*mountRevisionInfo)
+
+		if len(self.options.Snapshots) == 1 {
+			err = self.initSnapshotRoot("", self.options.Snapshots[0])
+			return
+		}
+
+		self.snapshotRoot = make(map[string]bool)
+
+		for _, snapshot := range self.options.Snapshots {
+			snapshotDir := fmt.Sprintf("/%s", snapshot)
+			self.makeNode(snapshotDir, DIR_MODE, fuse.Timespec{})
+			self.makeNode(fmt.Sprintf("%s/revisions", snapshotDir), DIR_MODE, fuse.Timespec{})
+		}
+
 		return
 	}
 
-	self.openmap = map[uint64]*node_t{}
+	if len(self.options.Snapshots) == 1 {
+		return
+	}
 
+	components := splitMountPath(path)
+	snapshotRoot := components[1]
+
+	if snapshotRoot == "" {
+		return
+	}
+
+	if len(components) > 2 && components[2] == "revisions" && !self.snapshotRoot[snapshotRoot] {
+		err = self.initSnapshotRoot(strings.Join(components[:3], "/"), snapshotRoot)
+		if err == nil {
+			self.snapshotRoot[snapshotRoot] = true
+		}
+	}
+
+	return
+}
+
+func (self *BackupFS) initSnapshotRoot(root string, snapshotId string) (err error) {
 	self.managerLock.Lock()
 	defer self.managerLock.Unlock()
 
-	revisions, err := self.manager.SnapshotManager.ListSnapshotRevisions(self.manager.snapshotID)
+	revisions, err := self.manager.SnapshotManager.ListSnapshotRevisions(snapshotId)
 	if err != nil {
-		LOG_ERROR("MOUNTING_FILESYSTEM", "Failed to list all revisions for snapshot %s: %v", self.manager.snapshotID, err)
+		LOG_ERROR("MOUNTING_FILESYSTEM", "Failed to list all revisions for snapshot %s: %v", snapshotId, err)
 		return
 	}
 
@@ -566,18 +606,15 @@ func (self *BackupFS) initRoot() (err error) {
 
 	const DIR_MODE = fuse.S_IFDIR | 00555
 
-	self.root = makeMountNode(self.nextIno(), DIR_MODE, fuse.Timespec{})
-	self.revisions = make(map[string]*mountRevisionInfo)
-
 	for _, revision := range revisionsToLoad {
-		snapshot := self.manager.SnapshotManager.DownloadSnapshot(self.manager.snapshotID, revision)
+		snapshot := self.manager.SnapshotManager.DownloadSnapshot(snapshotId, revision)
 
 		creationTime := time.Unix(snapshot.StartTime, 0)
 
 		var dirPath string
 		if !self.options.Flat {
 			year := strconv.Itoa(creationTime.Year())
-			yearPath := fmt.Sprintf("/%s", year)
+			yearPath := fmt.Sprintf("%s/%s", root, year)
 			if !alreadyCreated[yearPath] {
 				date := time.Date(creationTime.Year(), 1, 1, 0, 0, 0, 0, time.Local)
 				self.makeNode(yearPath, DIR_MODE, fuse.Timespec{Sec: date.Unix()})
@@ -608,7 +645,7 @@ func (self *BackupFS) initRoot() (err error) {
 			dirPath = fmt.Sprintf("%s/%s", dayPath, dirname)
 		} else {
 			dirPath = fmt.Sprintf(
-				"/%04d%02d%02d_%02d%02d.%d",
+				"%s/%04d%02d%02d_%02d%02d.%d", root,
 				creationTime.Year(), creationTime.Month(), creationTime.Day(),
 				creationTime.Hour(), creationTime.Minute(), revision)
 		}
@@ -635,7 +672,14 @@ func (self *BackupFS) withRevisionDb(revision *mountRevisionInfo, withDb func(*s
 	self.dbLock.Lock()
 	defer self.dbLock.Unlock()
 
-	err = self.dbProcess.Open(filepath.Join(self.tmpDir, fmt.Sprintf("%d.db", revision.revision)))
+	hasher := sha1.New()
+	_, err = io.WriteString(hasher, revision.root)
+	if err != nil {
+		err = errors.New(fmt.Sprintf("error hashing revision root: %v", revision.root))
+		return
+	}
+
+	err = self.dbProcess.Open(filepath.Join(self.tmpDir, fmt.Sprintf("%x_%d.db", hasher.Sum(nil), revision.revision)))
 	if err != nil {
 		return
 	}
@@ -751,7 +795,7 @@ func (self *BackupFS) downloadEntries(
 }
 
 func (self *BackupFS) getMountRevision(path string) (mountRevision *mountRevisionInfo, err error) {
-	err = self.initRoot()
+	err = self.initRoot(path)
 	if err != nil {
 		return
 	}
@@ -759,6 +803,9 @@ func (self *BackupFS) getMountRevision(path string) (mountRevision *mountRevisio
 	baseLen := 6
 	if self.options.Flat {
 		baseLen = 3
+	}
+	if len(self.options.Snapshots) > 1 {
+		baseLen += 2
 	}
 
 	components := splitMountPath(path)
@@ -883,7 +930,7 @@ func (self *BackupFS) initMain() error {
 		}
 	}
 
-	self.manager.SnapshotManager.CreateChunkOperator(false, 3, false)
+	self.manager.SnapshotManager.CreateChunkOperator(false, self.options.Threads, false)
 
 	return nil
 }
@@ -1004,23 +1051,29 @@ func nameOrHash(name string) (ret string, err error) {
 type MountOptions struct {
 	Flat      bool
 	Revisions string
+	Snapshots []string
 	DiskCache bool
+	Threads   int
 }
 
 func MountFileSystem(fsPath string, manager *BackupManager, options *MountOptions) {
-	LOG_INFO("MOUNTING_FILESYSTEM", "Mounting snapshot %s on %s", manager.snapshotID, fsPath)
+	if len(options.Snapshots) == 1 {
+		LOG_INFO("MOUNTING_FILESYSTEM", "Mounting snapshot %s on %s", options.Snapshots[0], fsPath)
+	} else {
+		LOG_INFO("MOUNTING_FILESYSTEM", "Mounting storage on %s", fsPath)
+	}
 
 	fs := BackupFS{
 		manager: manager,
 		options: options,
 	}
+	defer fs.cleanup()
+
 	err := fs.initMain()
 	if err != nil {
 		LOG_INFO("MOUNTING_FILESYSTEM", "Failed to init: %v", err)
-		fs.cleanup()
 		return
 	}
-	defer fs.cleanup()
 
 	host := fuse.NewFileSystemHost(&fs)
 	host.SetCapReaddirPlus(true)

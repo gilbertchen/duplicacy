@@ -1396,7 +1396,7 @@ func benchmark(context *cli.Context) {
 	duplicacy.Benchmark(repository, storage, int64(fileSize)*1024*1024, chunkSize*1024*1024, chunkCount, uploadThreads, downloadThreads)
 }
 
-func mountBackupFS(context *cli.Context) {
+func mountSnapshot(context *cli.Context) {
 	setGlobalOptions(context)
 	defer duplicacy.CatchLogException()
 
@@ -1407,15 +1407,8 @@ func mountBackupFS(context *cli.Context) {
 	}
 
 	setGlobalOptions(context)
-	defer duplicacy.CatchLogException()
 
 	repository, preference := getRepositoryPreference(context, context.String("storage"))
-
-	if preference.RestoreProhibited {
-		duplicacy.LOG_ERROR("RESTORE_DISABLED", "Restore from %s to this repository was disabled by the preference",
-			preference.StorageURL)
-		return
-	}
 
 	runScript(context, preference.Name, "pre")
 
@@ -1427,39 +1420,21 @@ func mountBackupFS(context *cli.Context) {
 	duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
 	storage := duplicacy.CreateStorage(*preference, false, threads)
 	if storage == nil {
+		duplicacy.LOG_ERROR("MOUNTING_FILESYSTEM", "No storage was created.")
 		return
 	}
+
+	rateLimit := context.Int("limit-rate")
+	storage.SetRateLimits(rateLimit, 0)
 
 	password := ""
 	if preference.Encrypted {
 		password = duplicacy.GetPassword(*preference, "password", "Enter storage password:", false, false)
 	}
 
-	var patterns []string
-	for _, pattern := range context.Args() {
-
-		pattern = strings.TrimSpace(pattern)
-
-		for strings.HasPrefix(pattern, "--") {
-			pattern = pattern[1:]
-		}
-
-		for strings.HasPrefix(pattern, "++") {
-			pattern = pattern[1:]
-		}
-
-		patterns = append(patterns, pattern)
-	}
-
-	patterns = duplicacy.ProcessFilterLines(patterns, make([]string, 0))
-
 	duplicacy.LOG_DEBUG("REGEX_DEBUG", "There are %d compiled regular expressions stored", len(duplicacy.RegexMap))
 
-	duplicacy.LOG_INFO("SNAPSHOT_FILTER", "Loaded %d include/exclude pattern(s)", len(patterns))
-
-	storage.SetRateLimits(context.Int("limit-rate"), 0)
 	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.FiltersFile, preference.ExcludeByAttribute)
-	duplicacy.SavePassword(*preference, "password", password)
 
 	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), preference, backupManager, false)
 
@@ -1472,6 +1447,155 @@ func mountBackupFS(context *cli.Context) {
 			Flat:      context.Bool("flat"),
 			Revisions: context.String("revisions"),
 			DiskCache: context.Bool("disk-cache"),
+			Threads:   threads,
+			Snapshots: []string{preference.SnapshotID},
+		})
+}
+
+func mountStorage(context *cli.Context) {
+	setGlobalOptions(context)
+	defer duplicacy.CatchLogException()
+
+	if len(context.Args()) < 1 {
+		fmt.Fprintf(context.App.Writer, "The %s command requires a storage URL argument.\n\n", context.Command.Name)
+		cli.ShowCommandHelp(context, context.Command.Name)
+		os.Exit(ArgumentExitCode)
+	}
+
+	if len(context.Args()) < 2 {
+		fmt.Fprintf(context.App.Writer, "The %s command requires mount directory argument.\n\n", context.Command.Name)
+		cli.ShowCommandHelp(context, context.Command.Name)
+		os.Exit(ArgumentExitCode)
+	}
+
+	repository := context.String("repository")
+	if repository != "" {
+		preferencePath := path.Join(repository, duplicacy.DUPLICACY_DIRECTORY)
+		duplicacy.SetDuplicacyPreferencePath(preferencePath)
+		duplicacy.SetKeyringFile(path.Join(preferencePath, "keyring"))
+	}
+
+	resetPasswords := context.Bool("reset-passwords")
+	isEncrypted := context.Bool("e")
+	preference := duplicacy.Preference{
+		Name:              "_MountStorage",
+		SnapshotID:        "default",
+		StorageURL:        context.Args()[0],
+		Encrypted:         isEncrypted,
+		DoNotSavePassword: true,
+	}
+
+	if resetPasswords {
+		// We don't want password entered for the info command to overwrite the saved password for the default storage,
+		// so we simply assign an empty name.
+		preference.Name = ""
+	}
+
+	password := ""
+	if isEncrypted {
+		password = duplicacy.GetPassword(preference, "password", "Enter the storage password:", false, resetPasswords)
+	}
+
+	threads := context.Int("threads")
+	if threads < 1 {
+		threads = 1
+	}
+
+	storage := duplicacy.CreateStorage(preference, resetPasswords, threads)
+	if storage == nil {
+		duplicacy.LOG_ERROR("MOUNTING_FILESYSTEM", "No storage was created.")
+		return
+	}
+
+	rateLimit := context.Int("limit-rate")
+	storage.SetRateLimits(rateLimit, 0)
+
+	config, isStorageEncrypted, err := duplicacy.DownloadConfig(storage, password)
+
+	if isStorageEncrypted {
+		duplicacy.LOG_INFO("STORAGE_ENCRYPTED", "The storage is encrypted with a password")
+	} else if err != nil {
+		duplicacy.LOG_ERROR("STORAGE_ERROR", "%v", err)
+	} else if config == nil {
+		duplicacy.LOG_INFO("STORAGE_NOT_INITIALIZED", "The storage has not been initialized")
+	} else {
+		config.Print()
+	}
+
+	dirs, _, err := storage.ListFiles(0, "snapshots/")
+	if err != nil {
+		duplicacy.LOG_WARN("STORAGE_LIST", "Failed to list repository ids: %v", err)
+		return
+	}
+
+	snapshotsToLoad := make(map[string]bool)
+	loadSpecific := false
+	for _, id := range strings.Split(context.String("snapshots"), ",") {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			continue
+		}
+
+		snapshotsToLoad[id] = true
+		loadSpecific = true
+	}
+
+	snapshots := []string{}
+	for _, dir := range dirs {
+		if len(dir) > 0 && dir[len(dir)-1] == '/' {
+			id := dir[0 : len(dir)-1]
+			if loadSpecific {
+				_, ok := snapshotsToLoad[id]
+				if !ok {
+					duplicacy.LOG_DEBUG("MOUNT_STORAGE", "Ignoring snapshot %s.", id)
+					continue
+				}
+			}
+			duplicacy.LOG_INFO("STORAGE_SNAPSHOT", "Load snapshot id: %s", id)
+			snapshots = append(snapshots, id)
+		}
+	}
+
+	if len(snapshots) == 0 {
+		duplicacy.LOG_WARN("MOUNT_STORAGE", "No snapshots to load, quitting.")
+		return
+	}
+
+	revisions := context.String("revisions")
+	if len(snapshots) > 1 && revisions != "" {
+		revisions = ""
+		duplicacy.LOG_WARN("MOUNT_STORAGE", "Loading multiple snapshots, -revisions parameter is being ignored.")
+	}
+
+	if len(snapshots) == 1 {
+		duplicacy.LOG_WARN("MOUNT_STORAGE", "A single snapshot was found, using at as root.")
+	}
+
+	backupManager := duplicacy.CreateBackupManager("", storage, "", password, preference.NobackupFile, preference.FiltersFile, preference.ExcludeByAttribute)
+	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), &preference, backupManager, false)
+
+	if repository != "" {
+		backupManager.SetupSnapshotCache(preference.Name)
+	} else {
+		cacheDir, err := ioutil.TempDir("", "duplicacy-mount-storagecache")
+		if err != nil {
+			duplicacy.LOG_ERROR("MOUNT_STORAGE", "Failed to create temp dir.")
+			return
+		}
+		duplicacy.LOG_DEBUG("MOUNT_STORAGE", "Using '%s' as the storage cache dir", cacheDir)
+		defer os.RemoveAll(cacheDir)
+		backupManager.SetupSnapshotCacheDir(cacheDir)
+	}
+
+	duplicacy.MountFileSystem(
+		context.Args()[1],
+		backupManager,
+		&duplicacy.MountOptions{
+			Flat:      context.Bool("flat"),
+			Revisions: revisions,
+			DiskCache: context.Bool("disk-cache"),
+			Threads:   threads,
+			Snapshots: snapshots,
 		})
 }
 
@@ -2257,6 +2381,18 @@ func main() {
 					Usage:    "use the specified storage instead of the default one",
 					Argument: "<storage name>",
 				},
+				cli.IntFlag{
+					Name:     "threads",
+					Value:    1,
+					Usage:    "number of downloading threads",
+					Argument: "<n>",
+				},
+				cli.IntFlag{
+					Name:     "limit-rate",
+					Value:    0,
+					Usage:    "the maximum download rate (in kilobytes/sec)",
+					Argument: "<kB/s>",
+				},
 				cli.StringFlag{
 					Name:     "key",
 					Usage:    "the RSA private key to decrypt file chunks",
@@ -2270,7 +2406,65 @@ func main() {
 			},
 			Usage:     "Mount the backup in the filesystem",
 			ArgsUsage: "<mount path>",
-			Action:    mountBackupFS,
+			Action:    mountSnapshot,
+		},
+
+		{
+			Name: "mount-storage",
+			Flags: []cli.Flag{
+				cli.BoolFlag{
+					Name:  "flat",
+					Usage: "use a flat directory structure instead of organized by date",
+				},
+				cli.BoolFlag{
+					Name:  "disk-cache",
+					Usage: "use the disk to cache file list and chunks. use this if you notice excessive memory usage. need to have sqinn binary on PATH",
+				},
+				cli.StringFlag{
+					Name:     "snapshots",
+					Usage:    "specific snapshots to mount, separated by comma",
+					Argument: "<snapshots>",
+				},
+				cli.StringFlag{
+					Name:     "revisions",
+					Usage:    "revisions or range of revisions to mount separated by comma. ie. 1,4-7,9. only used if you specify a single snapshot with -snapshots.",
+					Argument: "<revisions>",
+				},
+				cli.BoolFlag{
+					Name:  "encrypt, e",
+					Usage: "The storage is encrypted with a password",
+				},
+				cli.StringFlag{
+					Name:     "repository",
+					Usage:    "retrieve saved passwords from the specified repository. if you get errors about 'preference path not set', use this option",
+					Argument: "<repository directory>",
+				},
+				cli.IntFlag{
+					Name:     "threads",
+					Value:    1,
+					Usage:    "number of downloading threads",
+					Argument: "<n>",
+				},
+				cli.IntFlag{
+					Name:     "limit-rate",
+					Value:    0,
+					Usage:    "the maximum download rate (in kilobytes/sec)",
+					Argument: "<kB/s>",
+				},
+				cli.StringFlag{
+					Name:     "key",
+					Usage:    "the RSA private key to decrypt file chunks",
+					Argument: "<private key>",
+				},
+				cli.StringFlag{
+					Name:     "key-passphrase",
+					Usage:    "the passphrase to decrypt the RSA private key",
+					Argument: "<private key passphrase>",
+				},
+			},
+			Usage:     "Mount the storage in the filesystem",
+			ArgsUsage: "<storage url> <mount path>",
+			Action:    mountStorage,
 		},
 	}
 
