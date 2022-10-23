@@ -887,7 +887,7 @@ func (self *BackupFS) initMain() error {
 }
 
 func (self *BackupFS) cleanup() {
-	if self.options.DiskCache {
+	if self.options.DiskCache && self.dbProcess != nil {
 		self.dbProcess.Terminate()
 	}
 	os.RemoveAll(self.tmpDir)
