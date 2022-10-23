@@ -180,7 +180,7 @@ func (self *mountRevisionInfo) readDir(
 	} else {
 		entryParent, ok := (*self.entriesCache)[parent]
 		if !ok {
-			err = errors.New("parent not found")
+			// err = errors.New("parent not found")
 			return
 		}
 		for name, entry := range entryParent {
