@@ -874,9 +874,11 @@ func (self *BackupFS) initMain() error {
 	}
 	self.chunkCache = chunkCache
 
-	self.dbProcess, err = sqinn.Launch(sqinn.Options{})
-	if err != nil {
-		return err
+	if self.options.DiskCache {
+		self.dbProcess, err = sqinn.Launch(sqinn.Options{})
+		if err != nil {
+			return err
+		}
 	}
 
 	self.manager.SnapshotManager.CreateChunkOperator(false, 3, false)
@@ -885,7 +887,9 @@ func (self *BackupFS) initMain() error {
 }
 
 func (self *BackupFS) cleanup() {
-	self.dbProcess.Terminate()
+	if self.options.DiskCache {
+		self.dbProcess.Terminate()
+	}
 	os.RemoveAll(self.tmpDir)
 }
 
