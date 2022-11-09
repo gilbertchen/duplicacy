@@ -62,6 +62,8 @@ github.com/gilbertchen/goamz v0.0.0-20170712012135-eada9f4e8cc2 h1:VDPwi3huqeJBt
 github.com/gilbertchen/goamz v0.0.0-20170712012135-eada9f4e8cc2/go.mod h1:AoxJeh8meXUrSWBLiq9BJvYMd9RAAGgEUU0gSkNedRY=
 github.com/gilbertchen/gopass v0.0.0-20170109162249-bf9dde6d0d2c h1:0SR0aXvil/eQReU0olxp/j04B+Y/47fjDMotIxaAgKo=
 github.com/gilbertchen/gopass v0.0.0-20170109162249-bf9dde6d0d2c/go.mod h1:HDsXH7AAfDsfYYX0te4zsNbnwVvZ2RtLEOCjN4y84jw=
+github.com/gilbertchen/highwayhash v0.0.0-20221109044721-eeab1f4799d8 h1:ijgl4Y+OKCIFiCPk/Rf9tb6PrarVqitu5TynpyCmRK0=
+github.com/gilbertchen/highwayhash v0.0.0-20221109044721-eeab1f4799d8/go.mod h1:0lQcVva56+L1PuUFXLOsJ6arJQaU0baIH8q+IegeBhg=
 github.com/gilbertchen/keyring v0.0.0-20221004152639-1661cbebc508 h1:SqTyk5KkNXp7zTdTttIZSDcTrL5uau4K/2OpKvgBZVI=
 github.com/gilbertchen/keyring v0.0.0-20221004152639-1661cbebc508/go.mod h1:w/pisxUZezf2XzU9Ewjphcf6q1mZtOzKPHhJiuc8cag=
 github.com/gilbertchen/xattr v0.0.0-20160926155429-68e7a6806b01 h1:LqwS9qL6SrDkp0g0iwUkETrDdtB9gTKaIbSn9imUq5o=
@@ -165,6 +167,8 @@ github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1 h1:lYpkrQH5ajf0
 github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1/go.mod h1:pD8RvIylQ358TN4wwqatJ8rNavkEINozVn9DtGI3dfQ=
 github.com/minio/highwayhash v1.0.1 h1:dZ6IIu8Z14VlC0VpfKofAhCy74wu/Qb5gcn52yWoz/0=
 github.com/minio/highwayhash v1.0.1/go.mod h1:BQskDq+xkJ12lmlUUi7U0M5Swg3EWR+dLTk+kldvVxY=
+github.com/minio/highwayhash v1.0.2 h1:Aak5U0nElisjDCfPSG79Tgzkn2gl66NxOMspRrKnA/g=
+github.com/minio/highwayhash v1.0.2/go.mod h1:BQskDq+xkJ12lmlUUi7U0M5Swg3EWR+dLTk+kldvVxY=
 github.com/mmcloughlin/avo v0.0.0-20200803215136-443f81d77104 h1:ULR/QWMgcgRiZLUjSSJMU+fW+RDMstRdmnDWj9Q+AsA=
 github.com/mmcloughlin/avo v0.0.0-20200803215136-443f81d77104/go.mod h1:wqKykBG2QzQDJEzvRkcS8x6MiSJkF52hXZsXcjaB3ls=
 github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd/go.mod h1:6dJC0mAP4ikYIbvyc7fijjWJddQyLn8Ig3JB5CqoB9Q=

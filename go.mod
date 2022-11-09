@@ -17,7 +17,7 @@ require (
 	github.com/gilbertchen/xattr v0.0.0-20160926155429-68e7a6806b01
 	github.com/klauspost/reedsolomon v1.9.9
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1
-	github.com/minio/highwayhash v1.0.1
+	github.com/minio/highwayhash v1.0.2
 	github.com/ncw/swift/v2 v2.0.1
 	github.com/pkg/sftp v1.11.0
 	github.com/pkg/xattr v0.4.1
@@ -34,6 +34,7 @@ require (
 	github.com/calebcase/tmpfile v1.0.3 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/dnaeon/go-vcr v1.2.0 // indirect
+	github.com/gilbertchen/highwayhash v0.0.0-20221109044721-eeab1f4799d8 // indirect
 	github.com/goamz/goamz v0.0.0-20180131231218-8b901b531db8 // indirect
 	github.com/godbus/dbus v4.1.0+incompatible // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect

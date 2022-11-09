@@ -24,6 +24,12 @@ import (
 	"github.com/bkaradzic/go-lz4"
 	"github.com/minio/highwayhash"
 	"github.com/klauspost/reedsolomon"
+
+	// This is a fork of github.com/minio/highwayhash at 1.0.1 that computes incorrect hash on
+	// arm64 machines.  We need this fork to be able to read the chunks created by Duplicacy
+	// CLI 3.0.1 which unfortunately relies on incorrect hashes to determine if each shard is valid.
+	wronghighwayhash "github.com/gilbertchen/highwayhash"
+
 )
 
 // A chunk needs to acquire a new buffer and return the old one for every encrypt/decrypt operation, therefore
@@ -426,6 +432,8 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 		recoveryNeeded := false
 		hashKey := make([]byte, 32)
 		availableShards := 0
+		wrongHashDetected := false
+
 		for i := 0; i < dataShards + parityShards; i++ {
 			start := dataOffset + i * shardSize
 			if start + shardSize > len(encryptedBuffer.Bytes()) {
@@ -441,7 +449,24 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 			if err != nil {
 				return err
 			}
-			if bytes.Compare(hasher.Sum(nil), encryptedBuffer.Bytes()[hashOffset + i * 32: hashOffset + (i + 1) * 32]) != 0 {
+
+			matched := bytes.Compare(hasher.Sum(nil), encryptedBuffer.Bytes()[hashOffset + i * 32: hashOffset + (i + 1) * 32]) == 0
+
+			if !matched && runtime.GOARCH == "arm64" {
+				hasher, err := wronghighwayhash.New(hashKey)
+				if err == nil {
+					_, err = hasher.Write(encryptedBuffer.Bytes()[start: start + shardSize])
+					if err == nil {
+						matched = bytes.Compare(hasher.Sum(nil), encryptedBuffer.Bytes()[hashOffset + i * 32: hashOffset + (i + 1) * 32]) == 0
+						if matched && !wrongHashDetected {
+							LOG_WARN("CHUNK_ERASURECODE", "Hash for shard %d was calculated with a wrong version of highwayhash", i)
+							wrongHashDetected = true
+						}
+					}
+				}
+			}
+
+			if !matched {
 				if i < dataShards {
 					recoveryNeeded = true
 				}
