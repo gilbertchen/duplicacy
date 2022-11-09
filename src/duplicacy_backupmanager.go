@@ -301,26 +301,27 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 		if compareResult == 0  {
 			// No need to check if it is in hash mode -- in that case remote listing is nil
 			if localEntry.IsSameAs(remoteEntry) && localEntry.IsFile() {
+				if localEntry.Size > 0 {
+					localEntry.Hash = remoteEntry.Hash
+					localEntry.StartOffset = remoteEntry.StartOffset
+					localEntry.EndOffset = remoteEntry.EndOffset
+					delta := remoteEntry.StartChunk - len(localEntryList.PreservedChunkHashes)
+					if lastPreservedChunk != remoteEntry.StartChunk {
+						lastPreservedChunk = remoteEntry.StartChunk
+						localEntryList.AddPreservedChunk(remoteSnapshot.ChunkHashes[lastPreservedChunk], remoteSnapshot.ChunkLengths[lastPreservedChunk])
+					} else {
+						delta++
+					}
 
-				localEntry.Hash = remoteEntry.Hash
-				localEntry.StartOffset = remoteEntry.StartOffset
-				localEntry.EndOffset = remoteEntry.EndOffset
-				delta := remoteEntry.StartChunk - len(localEntryList.PreservedChunkHashes)
-				if lastPreservedChunk != remoteEntry.StartChunk {
-					lastPreservedChunk = remoteEntry.StartChunk
-					localEntryList.AddPreservedChunk(remoteSnapshot.ChunkHashes[lastPreservedChunk], remoteSnapshot.ChunkLengths[lastPreservedChunk])
-				} else {
-					delta++
+					for i := remoteEntry.StartChunk + 1; i <= remoteEntry.EndChunk; i++ {
+						localEntryList.AddPreservedChunk(remoteSnapshot.ChunkHashes[i], remoteSnapshot.ChunkLengths[i])
+						lastPreservedChunk = i
+					}
+
+					localEntry.StartChunk = remoteEntry.StartChunk - delta
+					localEntry.EndChunk = remoteEntry.EndChunk - delta
+					preservedFileSize += localEntry.Size
 				}
-
-				for i := remoteEntry.StartChunk + 1; i <= remoteEntry.EndChunk; i++ {
-					localEntryList.AddPreservedChunk(remoteSnapshot.ChunkHashes[i], remoteSnapshot.ChunkLengths[i])
-					lastPreservedChunk = i
-				}
-
-				localEntry.StartChunk = remoteEntry.StartChunk - delta
-				localEntry.EndChunk = remoteEntry.EndChunk - delta
-				preservedFileSize += localEntry.Size
 			} else {
 				totalModifiedFileSize += localEntry.Size
 				if localEntry.Size > 0 {
@@ -1047,24 +1048,24 @@ func (manager *BackupManager) UploadSnapshot(chunkOperator *ChunkOperator, top s
 
 	uploadEntryInfoFunc := func(entry *Entry) error {
 
-		delta := entry.StartChunk - len(chunkHashes) + 1
-		if entry.StartChunk != lastChunk {
-			chunkHashes = append(chunkHashes, snapshot.ChunkHashes[entry.StartChunk])
-			chunkLengths = append(chunkLengths, snapshot.ChunkLengths[entry.StartChunk])
-			delta--
-		}
+		if entry.IsFile() && entry.Size > 0 {
+			delta := entry.StartChunk - len(chunkHashes) + 1
+			if entry.StartChunk != lastChunk {
+				chunkHashes = append(chunkHashes, snapshot.ChunkHashes[entry.StartChunk])
+				chunkLengths = append(chunkLengths, snapshot.ChunkLengths[entry.StartChunk])
+				delta--
+			}
 
-		for i := entry.StartChunk + 1; i <= entry.EndChunk; i++ {
-			chunkHashes = append(chunkHashes, snapshot.ChunkHashes[i])
-			chunkLengths = append(chunkLengths, snapshot.ChunkLengths[i])
-		}
+			for i := entry.StartChunk + 1; i <= entry.EndChunk; i++ {
+				chunkHashes = append(chunkHashes, snapshot.ChunkHashes[i])
+				chunkLengths = append(chunkLengths, snapshot.ChunkLengths[i])
+			}
 
-		lastChunk = entry.EndChunk
-		entry.StartChunk -= delta
-		entry.EndChunk -= delta
+			lastChunk = entry.EndChunk
+			entry.StartChunk -= delta
+			entry.EndChunk -= delta
 
-		if entry.IsFile() {
-			delta := entry.EndChunk - entry.StartChunk
+			delta = entry.EndChunk - entry.StartChunk
 			entry.StartChunk -= lastEndChunk
 			lastEndChunk = entry.EndChunk
 			entry.EndChunk = delta
