@@ -358,16 +358,17 @@ func TestBackupManager(t *testing.T) {
 	if numberOfSnapshots != 3 {
 		t.Errorf("Expected 3 snapshots but got %d", numberOfSnapshots)
 	}
-	backupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1" /*revisions*/, []int{1, 2, 3} /*tag*/, "",
-		/*showStatistics*/ false /*showTabular*/, false /*checkFiles*/, false /*checkChunks*/, false /*searchFossils*/, false /*resurrect*/, false, 1 /*allowFailures*/, false)
+			
+	backupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1", /*revisions*/ []int{1, 2, 3}, /*tag*/ "", /*showStatistics*/ false,
+	    /*showTabular*/ false, /*checkFiles*/ false, /*checkChunks*/ false, /*searchFossils*/ false, /*resurrect*/ false, /*rewiret*/ false, 1,  /*allowFailures*/false)
 	backupManager.SnapshotManager.PruneSnapshots("host1", "host1" /*revisions*/, []int{1} /*tags*/, nil /*retentions*/, nil,
 		/*exhaustive*/ false /*exclusive=*/, false /*ignoredIDs*/, nil /*dryRun*/, false /*deleteOnly*/, false /*collectOnly*/, false, 1)
 	numberOfSnapshots = backupManager.SnapshotManager.ListSnapshots( /*snapshotID*/ "host1" /*revisionsToList*/, nil /*tag*/, "" /*showFiles*/, false /*showChunks*/, false)
 	if numberOfSnapshots != 2 {
 		t.Errorf("Expected 2 snapshots but got %d", numberOfSnapshots)
 	}
-	backupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1" /*revisions*/, []int{2, 3} /*tag*/, "",
-		/*showStatistics*/ false /*showTabular*/, false /*checkFiles*/, false /*checkChunks*/, false /*searchFossils*/, false /*resurrect*/, false, 1 /*allowFailures*/, false)
+	backupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1", /*revisions*/ []int{2, 3}, /*tag*/ "", /*showStatistics*/ false,
+	     /*showTabular*/ false, /*checkFiles*/ false, /*checkChunks*/ false, /*searchFossils*/ false, /*resurrect*/ false, /*rewiret*/ false, 1, /*allowFailures*/ false)
 	backupManager.Backup(testDir+"/repository1" /*quickMode=*/, false, threads, "fourth", false, false, 0, false, 1024, 1024)
 	backupManager.SnapshotManager.PruneSnapshots("host1", "host1" /*revisions*/, nil /*tags*/, nil /*retentions*/, nil,
 		/*exhaustive*/ false /*exclusive=*/, true /*ignoredIDs*/, nil /*dryRun*/, false /*deleteOnly*/, false /*collectOnly*/, false, 1)
@@ -375,8 +376,8 @@ func TestBackupManager(t *testing.T) {
 	if numberOfSnapshots != 3 {
 		t.Errorf("Expected 3 snapshots but got %d", numberOfSnapshots)
 	}
-	backupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1" /*revisions*/, []int{2, 3, 4} /*tag*/, "",
-		/*showStatistics*/ false /*showTabular*/, false /*checkFiles*/, false /*checkChunks*/, false /*searchFossils*/, false /*resurrect*/, false, 1 /*allowFailures*/, false)
+	backupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1", /*revisions*/ []int{2, 3, 4}, /*tag*/ "", /*showStatistics*/ false,
+	    /*showTabular*/ false, /*checkFiles*/ false, /*checkChunks*/ false, /*searchFossils*/ false, /*resurrect*/ false, /*rewiret*/ false, 1, /*allowFailures*/ false)
 
 	/*buf := make([]byte, 1<<16)
 	  runtime.Stack(buf, true)
@@ -548,13 +549,13 @@ func TestPersistRestore(t *testing.T) {
 
 
 	// check snapshots
-	unencBackupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1" /*revisions*/, []int{1} /*tag*/, "",
-		/*showStatistics*/ true /*showTabular*/, false /*checkFiles*/, true /*checkChunks*/, false,
-		/*searchFossils*/ false /*resurrect*/, false, 1 /*allowFailures*/, false)
+	unencBackupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1", /*revisions*/ []int{1}, /*tag*/ "",
+		/*showStatistics*/ true, /*showTabular*/ false, /*checkFiles*/ true, /*checkChunks*/ false,
+		/*searchFossils*/ false, /*resurrect*/ false, /*rewiret*/ false, 1, /*allowFailures*/ false)
 
-	encBackupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1" /*revisions*/, []int{1} /*tag*/, "",
-		/*showStatistics*/ true /*showTabular*/, false /*checkFiles*/, true /*checkChunks*/, false,
-		 /*searchFossils*/ false /*resurrect*/, false, 1 /*allowFailures*/, false)
+	encBackupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1", /*revisions*/ []int{1}, /*tag*/ "",
+		/*showStatistics*/ true, /*showTabular*/ false, /*checkFiles*/ true, /*checkChunks*/ false,
+		 /*searchFossils*/ false, /*resurrect*/ false, /*rewiret*/ false, 1, /*allowFailures*/ false)
 		
 	// check functions
 	checkAllUncorrupted := func(cmpRepository string) {
@@ -640,18 +641,28 @@ func TestPersistRestore(t *testing.T) {
 			os.Remove(testDir+"/unenc_storage"+"/chunks"+chunkToCorrupt1)
 			os.Remove(testDir+"/enc_storage"+"/chunks"+chunkToCorrupt2)
 		}
-		
+
+		// This is to make sure that allowFailures is set to true.  Note that this is not needed
+		// in the production code because chunkOperator can be only recreated multiple time in tests.
+		if unencBackupManager.SnapshotManager.chunkOperator != nil {
+			unencBackupManager.SnapshotManager.chunkOperator.allowFailures = true
+		}
+
+		if encBackupManager.SnapshotManager.chunkOperator != nil {
+			encBackupManager.SnapshotManager.chunkOperator.allowFailures = true
+		}
+
 		// check snapshots with --persist (allowFailures == true)
 		// this would cause a panic and os.Exit from duplicacy_log if allowFailures == false
-		unencBackupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1" /*revisions*/, []int{1} /*tag*/, "",
-			/*showStatistics*/ true /*showTabular*/, false /*checkFiles*/, true /*checkChunks*/, false,
-			/*searchFossils*/ false /*resurrect*/, false, 1 /*allowFailures*/, true)
+		unencBackupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1", /*revisions*/ []int{1}, /*tag*/ "",
+			/*showStatistics*/ true, /*showTabular*/ false, /*checkFiles*/ true, /*checkChunks*/ false,
+			/*searchFossils*/ false, /*resurrect*/ false, /*rewrite*/ false, 1, /*allowFailures*/ true)
 
-		encBackupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1" /*revisions*/, []int{1} /*tag*/, "",
-			/*showStatistics*/ true /*showTabular*/, false /*checkFiles*/, true /*checkChunks*/, false,
-			/*searchFossils*/ false /*resurrect*/, false, 1 /*allowFailures*/, true)
+		encBackupManager.SnapshotManager.CheckSnapshots( /*snapshotID*/ "host1", /*revisions*/ []int{1}, /*tag*/ "",
+			/*showStatistics*/ true, /*showTabular*/ false, /*checkFiles*/ true, /*checkChunks*/ false,
+			/*searchFossils*/ false, /*resurrect*/ false, /*rewrite*/ false, 1, /*allowFailures*/ true)
 
-		
+	
 		// test restore corrupted, inPlace = true, corrupted files will have hash failures
 		os.RemoveAll(testDir+"/repository2")
 		SetDuplicacyPreferencePath(testDir + "/repository2/.duplicacy")
