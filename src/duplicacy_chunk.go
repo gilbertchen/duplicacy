@@ -377,8 +377,9 @@ func init() {
 
 // Decrypt decrypts the encrypted data stored in the chunk buffer.  If derivationKey is not nil, the actual
 // encryption key will be HMAC-SHA256(encryptionKey, derivationKey).
-func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err error) {
+func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err error, rewriteNeeded bool) {
 
+	rewriteNeeded = false
 	var offset int
 
 	encryptedBuffer := AllocateChunkBuffer()
@@ -394,13 +395,13 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 
 		// The chunk was encoded with erasure coding
 		if len(encryptedBuffer.Bytes()) < bannerLength + 14 {
-			return fmt.Errorf("Erasure coding header truncated (%d bytes)", len(encryptedBuffer.Bytes()))
+			return fmt.Errorf("Erasure coding header truncated (%d bytes)", len(encryptedBuffer.Bytes())), false
 		}
 		// Check the header checksum
 		header := encryptedBuffer.Bytes()[bannerLength: bannerLength + 14]
 		if header[12] != header[0] ^ header[2] ^ header[4] ^ header[6] ^ header[8] ^ header[10] ||
 		   header[13] != header[1] ^ header[3] ^ header[5] ^ header[7] ^ header[9] ^ header[11] {
-			return fmt.Errorf("Erasure coding header corrupted (%x)", header)
+			return fmt.Errorf("Erasure coding header corrupted (%x)", header), false
 		}
 
 		// Read the parameters
@@ -420,7 +421,7 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 		} else if len(encryptedBuffer.Bytes()) > minimumLength {
 			LOG_WARN("CHUNK_ERASURECODE", "Chunk is truncated (%d out of %d bytes)", len(encryptedBuffer.Bytes()), expectedLength)
 		} else {
-			return fmt.Errorf("Not enough chunk data for recovery; chunk size: %d bytes, data size: %d, parity: %d/%d", chunkSize, len(encryptedBuffer.Bytes()), dataShards, parityShards)
+			return fmt.Errorf("Not enough chunk data for recovery; chunk size: %d bytes, data size: %d, parity: %d/%d", chunkSize, len(encryptedBuffer.Bytes()), dataShards, parityShards), false
 		}
 
 		// Where the hashes start
@@ -443,11 +444,11 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 			// Now verify the hash
 			hasher, err := highwayhash.New(hashKey)
 			if err != nil {
-				return err
+				return err, false
 			}
 			_, err = hasher.Write(encryptedBuffer.Bytes()[start: start + shardSize])
 			if err != nil {
-				return err
+				return err, false
 			}
 
 			matched := bytes.Compare(hasher.Sum(nil), encryptedBuffer.Bytes()[hashOffset + i * 32: hashOffset + (i + 1) * 32]) == 0
@@ -461,6 +462,7 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 						if matched && !wrongHashDetected {
 							LOG_WARN("CHUNK_ERASURECODE", "Hash for shard %d was calculated with a wrong version of highwayhash", i)
 							wrongHashDetected = true
+							rewriteNeeded = true
 						}
 					}
 				}
@@ -469,6 +471,7 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 			if !matched {
 				if i < dataShards {
 					recoveryNeeded = true
+					rewriteNeeded = true
 				}
 			} else {
 				// The shard is good
@@ -488,7 +491,7 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 			encryptedBuffer.Read(encryptedBuffer.Bytes()[:dataOffset])
 		} else {
 			if availableShards < dataShards {
-				return fmt.Errorf("Not enough chunk data for recover; only %d out of %d shards are complete", availableShards, dataShards + parityShards)
+				return fmt.Errorf("Not enough chunk data for recover; only %d out of %d shards are complete", availableShards, dataShards + parityShards), false
 			}
 
 			// Show the validity of shards using a string of * and -
@@ -504,11 +507,11 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 			LOG_WARN("CHUNK_ERASURECODE", "Recovering a %d byte chunk from %d byte shards: %s", chunkSize, shardSize, slots)
 			encoder, err := reedsolomon.New(dataShards, parityShards)
 			if err != nil {
-				return err
+				return err, false
 			}
 			err = encoder.Reconstruct(data)
 			if err != nil {
-				return err
+				return err, false
 			}
 			LOG_DEBUG("CHUNK_ERASURECODE", "Chunk data successfully recovered")
 			buffer := AllocateChunkBuffer()
@@ -541,28 +544,28 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 		}
 
 		if len(encryptedBuffer.Bytes()) < bannerLength + 12 {
-			return fmt.Errorf("No enough encrypted data (%d bytes) provided", len(encryptedBuffer.Bytes()))
+			return fmt.Errorf("No enough encrypted data (%d bytes) provided", len(encryptedBuffer.Bytes())), false
 		}
 
 		if string(encryptedBuffer.Bytes()[:bannerLength-1]) != ENCRYPTION_BANNER[:bannerLength-1] {
-			return fmt.Errorf("The storage doesn't seem to be encrypted")
+			return fmt.Errorf("The storage doesn't seem to be encrypted"), false
 		}
 
 		encryptionVersion := encryptedBuffer.Bytes()[bannerLength-1]
 		if encryptionVersion != 0 && encryptionVersion != ENCRYPTION_VERSION_RSA {
-			return fmt.Errorf("Unsupported encryption version %d", encryptionVersion)
+			return fmt.Errorf("Unsupported encryption version %d", encryptionVersion), false
 		}
 
 		if encryptionVersion == ENCRYPTION_VERSION_RSA {
 			if chunk.config.rsaPrivateKey == nil {
 				LOG_ERROR("CHUNK_DECRYPT", "An RSA private key is required to decrypt the chunk")
-				return fmt.Errorf("An RSA private key is required to decrypt the chunk")
+				return fmt.Errorf("An RSA private key is required to decrypt the chunk"), false
 			}
 
 			encryptedKeyLength := binary.LittleEndian.Uint16(encryptedBuffer.Bytes()[bannerLength:bannerLength+2])
 
 			if len(encryptedBuffer.Bytes()) < bannerLength + 14 + int(encryptedKeyLength) {
-				return fmt.Errorf("No enough encrypted data (%d bytes) provided", len(encryptedBuffer.Bytes()))
+				return fmt.Errorf("No enough encrypted data (%d bytes) provided", len(encryptedBuffer.Bytes())), false
 			}
 
 			encryptedKey := encryptedBuffer.Bytes()[bannerLength + 2:bannerLength + 2 + int(encryptedKeyLength)]
@@ -570,19 +573,19 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 
 			decryptedKey, err := rsa.DecryptOAEP(sha256.New(), rand.Reader, chunk.config.rsaPrivateKey, encryptedKey, nil)
 			if err != nil {
-				return err
+				return err, false
 			}
 			key = decryptedKey
 		}
 
 		aesBlock, err := aes.NewCipher(key)
 		if err != nil {
-			return err
+			return err, false
 		}
 
 		gcm, err := cipher.NewGCM(aesBlock)
 		if err != nil {
-			return err
+			return err, false
 		}
 
 		offset = bannerLength + gcm.NonceSize()
@@ -592,7 +595,7 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 			encryptedBuffer.Bytes()[offset:], nil)
 
 		if err != nil {
-			return err
+			return err, false
 		}
 
 		paddingLength := int(decryptedBytes[len(decryptedBytes)-1])
@@ -600,14 +603,14 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 			paddingLength = 256
 		}
 		if len(decryptedBytes) <= paddingLength {
-			return fmt.Errorf("Incorrect padding length %d out of %d bytes", paddingLength, len(decryptedBytes))
+			return fmt.Errorf("Incorrect padding length %d out of %d bytes", paddingLength, len(decryptedBytes)), false
 		}
 
 		for i := 0; i < paddingLength; i++ {
 			padding := decryptedBytes[len(decryptedBytes)-1-i]
 			if padding != byte(paddingLength) {
 				return fmt.Errorf("Incorrect padding of length %d: %x", paddingLength,
-					decryptedBytes[len(decryptedBytes)-paddingLength:])
+					decryptedBytes[len(decryptedBytes)-paddingLength:]), false
 			}
 		}
 
@@ -621,18 +624,18 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 		chunk.buffer.Reset()
 		decompressed, err := lz4.Decode(chunk.buffer.Bytes(), encryptedBuffer.Bytes()[4:])
 		if err != nil {
-			return err
+			return err, false
 		}
 
 		chunk.buffer.Write(decompressed)
 		chunk.hasher = chunk.config.NewKeyedHasher(chunk.config.HashKey)
 		chunk.hasher.Write(decompressed)
 		chunk.hash = nil
-		return nil
+		return nil, rewriteNeeded
 	}
 	inflater, err := zlib.NewReader(encryptedBuffer)
 	if err != nil {
-		return err
+		return err, false
 	}
 
 	defer inflater.Close()
@@ -642,9 +645,9 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 	chunk.hash = nil
 
 	if _, err = io.Copy(chunk, inflater); err != nil {
-		return err
+		return err, false
 	}
 
-	return nil
+	return nil, rewriteNeeded
 
 }

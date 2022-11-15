@@ -981,10 +981,11 @@ func checkSnapshots(context *cli.Context) {
 	checkChunks := context.Bool("chunks")
 	searchFossils := context.Bool("fossils")
 	resurrect := context.Bool("resurrect")
+	rewrite := context.Bool("rewrite")
 	persist := context.Bool("persist")
 
 	backupManager.SetupSnapshotCache(preference.Name)
-	backupManager.SnapshotManager.CheckSnapshots(id, revisions, tag, showStatistics, showTabular, checkFiles, checkChunks, searchFossils, resurrect, threads, persist)
+	backupManager.SnapshotManager.CheckSnapshots(id, revisions, tag, showStatistics, showTabular, checkFiles, checkChunks, searchFossils, resurrect, rewrite, threads, persist)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1675,6 +1676,10 @@ func main() {
 				cli.BoolFlag{
 					Name:  "resurrect",
 					Usage: "turn referenced fossils back into chunks",
+				},
+				cli.BoolFlag{
+					Name:  "rewrite",
+					Usage: "rewrite chunks with recoverable corruption",
 				},
 				cli.BoolFlag{
 					Name:  "files",

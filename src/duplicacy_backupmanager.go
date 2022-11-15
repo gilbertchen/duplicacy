@@ -223,7 +223,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 	localListingChannel := make(chan *Entry)
 	remoteListingChannel := make(chan *Entry)
-	chunkOperator := CreateChunkOperator(manager.config, manager.storage, manager.snapshotCache, showStatistics, threads, false)
+	chunkOperator := CreateChunkOperator(manager.config, manager.storage, manager.snapshotCache, showStatistics, false, threads, false)
 
 	var skippedDirectories []string
 	var skippedFiles []string
@@ -673,7 +673,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 
 	localListingChannel := make(chan *Entry)
 	remoteListingChannel := make(chan *Entry)
-	chunkOperator := CreateChunkOperator(manager.config, manager.storage, manager.snapshotCache, showStatistics, threads, false)
+	chunkOperator := CreateChunkOperator(manager.config, manager.storage, manager.snapshotCache, showStatistics, false, threads, allowFailures)
 
 	LOG_INFO("RESTORE_INDEXING", "Indexing %s", top)
 	go func() {
@@ -1715,13 +1715,13 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 
 	LOG_INFO("SNAPSHOT_COPY", "Chunks to copy: %d, to skip: %d, total: %d", len(chunksToCopy), len(chunks) - len(chunksToCopy), len(chunks))
 
-	chunkDownloader := CreateChunkOperator(manager.config, manager.storage, nil, false, downloadingThreads, false)
+	chunkDownloader := CreateChunkOperator(manager.config, manager.storage, nil, false, false, downloadingThreads, false)
 
 	var uploadedBytes int64
 	startTime := time.Now()
 
 	copiedChunks := 0
-	chunkUploader := CreateChunkOperator(otherManager.config, otherManager.storage, nil, false, uploadingThreads, false)
+	chunkUploader := CreateChunkOperator(otherManager.config, otherManager.storage, nil, false, false, uploadingThreads, false)
 	chunkUploader.UploadCompletionFunc =  func(chunk *Chunk, chunkIndex int, skipped bool, chunkSize int, uploadSize int) {
 		action := "Skipped"
 		if !skipped {

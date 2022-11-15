@@ -57,11 +57,14 @@ type ChunkOperator struct {
 	allowFailures bool           // Whether to fail on download error, or continue
 	NumberOfFailedChunks int64   // The number of chunks that can't be downloaded
 
+	rewriteChunks bool           // Whether to rewrite corrupted chunks when erasure coding is enabled
+
 	UploadCompletionFunc func(chunk *Chunk, chunkIndex int, inCache bool, chunkSize int, uploadSize int)
 }
 
 // CreateChunkOperator creates a new ChunkOperator.
-func CreateChunkOperator(config *Config, storage Storage, snapshotCache *FileStorage, showStatistics bool, threads int, allowFailures bool) *ChunkOperator {
+func CreateChunkOperator(config *Config, storage Storage, snapshotCache *FileStorage, showStatistics bool, rewriteChunks bool, threads int,
+						 allowFailures bool) *ChunkOperator {
 
 	operator := &ChunkOperator{
 		config: config,
@@ -76,6 +79,7 @@ func CreateChunkOperator(config *Config, storage Storage, snapshotCache *FileSto
 		collectionLock: &sync.Mutex{},
 		startTime: time.Now().Unix(),
 		allowFailures: allowFailures,
+		rewriteChunks: rewriteChunks,
 	}
 
 	// Start the operator goroutines
@@ -331,24 +335,34 @@ func (operator *ChunkOperator) DownloadChunk(threadIndex int, task ChunkTask) {
 
 		atomic.AddInt64(&operator.NumberOfFailedChunks, 1)
 		if operator.allowFailures {
+			chunk.isBroken = true
 			task.completionFunc(chunk, task.chunkIndex)
 		}
 	}
 
+	chunkPath := ""
+	fossilPath := ""
+	filePath := ""
+
 	const MaxDownloadAttempts = 3
 	for downloadAttempt := 0; ; downloadAttempt++ {
 
+		exist := false
+		var err error
+
 		// Find the chunk by ID first.
-		chunkPath, exist, _, err := operator.storage.FindChunk(threadIndex, chunkID, false)
+		chunkPath, exist, _, err = operator.storage.FindChunk(threadIndex, chunkID, false)
 		if err != nil {
 			completeFailedChunk()
 			LOG_WERROR(operator.allowFailures, "DOWNLOAD_CHUNK", "Failed to find the chunk %s: %v", chunkID, err)
 			return
 		}
 
-		if !exist {
+		if exist {
+			filePath = chunkPath
+		} else {
 			// No chunk is found.  Have to find it in the fossil pool again.
-			fossilPath, exist, _, err := operator.storage.FindChunk(threadIndex, chunkID, true)
+			fossilPath, exist, _, err = operator.storage.FindChunk(threadIndex, chunkID, true)
 			if err != nil {
 				completeFailedChunk()
 				LOG_WERROR(operator.allowFailures, "DOWNLOAD_CHUNK", "Failed to find the chunk %s: %v", chunkID, err)
@@ -383,20 +397,11 @@ func (operator *ChunkOperator) DownloadChunk(threadIndex int, task ChunkTask) {
 				return
 			}
 
-			// We can't download the fossil directly.  We have to turn it back into a regular chunk and try
-			// downloading again.
-			err = operator.storage.MoveFile(threadIndex, fossilPath, chunkPath)
-			if err != nil {
-				completeFailedChunk()
-				LOG_WERROR(operator.allowFailures, "DOWNLOAD_CHUNK", "Failed to resurrect chunk %s: %v", chunkID, err)
-				return
-			}
-
-			LOG_WARN("DOWNLOAD_RESURRECT", "Fossil %s has been resurrected", chunkID)
-			continue
+			filePath = fossilPath
+			LOG_WARN("DOWNLOAD_FOSSIL", "Chunk %s is a fossil", chunkID)
 		}
 
-		err = operator.storage.DownloadFile(threadIndex, chunkPath, chunk)
+		err = operator.storage.DownloadFile(threadIndex, filePath, chunk)
 		if err != nil {
 			_, isHubic := operator.storage.(*HubicStorage)
 			// Retry on EOF or if it is a Hubic backend as it may return 404 even when the chunk exists
@@ -412,7 +417,8 @@ func (operator *ChunkOperator) DownloadChunk(threadIndex int, task ChunkTask) {
 			}
 		}
 
-		err = chunk.Decrypt(operator.config.ChunkKey, task.chunkHash)
+		rewriteNeeded := false
+		err, rewriteNeeded = chunk.Decrypt(operator.config.ChunkKey, task.chunkHash)
 		if err != nil {
 			if downloadAttempt < MaxDownloadAttempts {
 				LOG_WARN("DOWNLOAD_RETRY", "Failed to decrypt the chunk %s: %v; retrying", chunkID, err)
@@ -438,6 +444,38 @@ func (operator *ChunkOperator) DownloadChunk(threadIndex int, task ChunkTask) {
 				LOG_WERROR(operator.allowFailures, "DOWNLOAD_CORRUPTED", "The chunk %s has a hash id of %s", chunkID, actualChunkID)
 				return
 			}
+		}
+
+		if rewriteNeeded && operator.rewriteChunks {
+
+			if filePath != fossilPath {
+				fossilPath = filePath + ".fsl"
+				err := operator.storage.MoveFile(threadIndex, chunkPath, fossilPath)
+				if err != nil {
+					LOG_WARN("CHUNK_REWRITE", "Failed to fossilize the chunk %s: %v", task.chunkID, err)
+				} else {
+					LOG_TRACE("CHUNK_REWRITE", "The existing chunk %s has been marked as a fossil for rewrite", task.chunkID)
+					operator.collectionLock.Lock()
+					operator.fossils = append(operator.fossils, fossilPath)
+					operator.collectionLock.Unlock()
+				}
+			}
+
+			newChunk := operator.config.GetChunk()
+			newChunk.Reset(true)
+			newChunk.Write(chunk.GetBytes())
+			// Encrypt the chunk only after we know that it must be uploaded.
+			err = newChunk.Encrypt(operator.config.ChunkKey, chunk.GetHash(), task.isMetadata)
+			if err == nil {
+				// Re-upload the chunk
+				err = operator.storage.UploadFile(threadIndex, chunkPath, newChunk.GetBytes())
+				if err != nil {
+					LOG_WARN("CHUNK_REWRITE", "Failed to re-upload the chunk %s: %v", chunkID, err)
+				} else {
+					LOG_INFO("CHUNK_REWRITE", "The chunk %s has been re-uploaded", chunkID)
+				}
+			}
+			operator.config.PutChunk(newChunk)
 		}
 
 		break

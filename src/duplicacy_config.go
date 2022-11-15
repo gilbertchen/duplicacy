@@ -436,7 +436,7 @@ func DownloadConfig(storage Storage, password string) (config *Config, isEncrypt
 		}
 
 		// Decrypt the config file.  masterKey == nil means no encryption.
-		err = configFile.Decrypt(masterKey, "")
+		err, _ = configFile.Decrypt(masterKey, "")
 		if err != nil {
 			return nil, false, fmt.Errorf("Failed to retrieve the config file: %v", err)
 		}

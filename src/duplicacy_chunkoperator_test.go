@@ -87,7 +87,7 @@ func TestChunkOperator(t *testing.T) {
 		totalFileSize += chunk.GetLength()
 	}
 
-	chunkOperator := CreateChunkOperator(config, storage, nil, false, *testThreads, false)
+	chunkOperator := CreateChunkOperator(config, storage, nil, false, false, *testThreads, false)
 	chunkOperator.UploadCompletionFunc = func(chunk *Chunk, chunkIndex int, skipped bool, chunkSize int, uploadSize int) {
 		t.Logf("Chunk %s size %d (%d/%d) uploaded", chunk.GetID(), chunkSize, chunkIndex, len(chunks))
 	}

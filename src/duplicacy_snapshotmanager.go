@@ -269,15 +269,15 @@ func (reader *sequenceReader) Read(data []byte) (n int, err error) {
 	return reader.buffer.Read(data)
 }
 
-func (manager *SnapshotManager) CreateChunkOperator(resurrect bool, threads int, allowFailures bool) {
+func (manager *SnapshotManager) CreateChunkOperator(resurrect bool, rewriteChunks bool, threads int, allowFailures bool) {
 	if manager.chunkOperator == nil {
-		manager.chunkOperator = CreateChunkOperator(manager.config, manager.storage, manager.snapshotCache, resurrect, threads, allowFailures)
+		manager.chunkOperator = CreateChunkOperator(manager.config, manager.storage, manager.snapshotCache, resurrect, rewriteChunks, threads, allowFailures)
 	}
 }
 
 // DownloadSequence returns the content represented by a sequence of chunks.
 func (manager *SnapshotManager) DownloadSequence(sequence []string) (content []byte) {
-	manager.CreateChunkOperator(false, 1, false)
+	manager.CreateChunkOperator(false, false, 1, false)
 	for _, chunkHash := range sequence {
 		chunk := manager.chunkOperator.Download(chunkHash, 0, true)
 		content = append(content, chunk.GetBytes()...)
@@ -654,7 +654,7 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 	LOG_DEBUG("LIST_PARAMETERS", "id: %s, revisions: %v, tag: %s, showFiles: %t, showChunks: %t",
 		snapshotID, revisionsToList, tag, showFiles, showChunks)
 
-	manager.CreateChunkOperator(false, 1, false)
+	manager.CreateChunkOperator(false, false, 1, false)
 	defer func() {
 		manager.chunkOperator.Stop()
 		manager.chunkOperator = nil
@@ -760,9 +760,9 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 
 // CheckSnapshots checks if there is any problem with a snapshot.
 func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToCheck []int, tag string, showStatistics bool, showTabular bool,
-	checkFiles bool, checkChunks, searchFossils bool, resurrect bool, threads int, allowFailures bool) bool {
+	checkFiles bool, checkChunks, searchFossils bool, resurrect bool, rewriteChunks bool, threads int, allowFailures bool) bool {
 
-	manager.CreateChunkOperator(resurrect, threads, allowFailures)
+	manager.CreateChunkOperator(resurrect, rewriteChunks, threads, allowFailures)
 	defer func() {
 		manager.chunkOperator.Stop()
 		manager.chunkOperator = nil
@@ -1336,7 +1336,7 @@ func (manager *SnapshotManager) RetrieveFile(snapshot *Snapshot, file *Entry, la
 		return true
 	}
 
-	manager.CreateChunkOperator(false, 1, false)
+	manager.CreateChunkOperator(false, false, 1, false)
 
 	fileHasher := manager.config.NewFileHasher()
 	alternateHash := false
@@ -1370,6 +1370,11 @@ func (manager *SnapshotManager) RetrieveFile(snapshot *Snapshot, file *Entry, la
 				chunk = manager.chunkOperator.Download(hash, 0, false)
 				*lastChunk = chunk
 			}
+		}
+
+		if chunk.isBroken {
+			*lastChunk = nil
+			return false
 		}
 
 		output(chunk.GetBytes()[start:end])
@@ -1465,7 +1470,7 @@ func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []
 	LOG_DEBUG("DIFF_PARAMETERS", "top: %s, id: %s, revision: %v, path: %s, compareByHash: %t",
 		top, snapshotID, revisions, filePath, compareByHash)
 
-	manager.CreateChunkOperator(false, 1, false)
+	manager.CreateChunkOperator(false, false, 1, false)
 	defer func() {
 		manager.chunkOperator.Stop()
 		manager.chunkOperator = nil
@@ -1690,7 +1695,7 @@ func (manager *SnapshotManager) ShowHistory(top string, snapshotID string, revis
 	LOG_DEBUG("HISTORY_PARAMETERS", "top: %s, id: %s, revisions: %v, path: %s, showLocalHash: %t",
 		top, snapshotID, revisions, filePath, showLocalHash)
 
-	manager.CreateChunkOperator(false, 1, false)
+	manager.CreateChunkOperator(false, false, 1, false)
 	defer func() {
 		manager.chunkOperator.Stop()
 		manager.chunkOperator = nil
@@ -1818,7 +1823,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 		LOG_WARN("DELETE_OPTIONS", "Tags or retention policy will be ignored if at least one revision is specified")
 	}
 
-	manager.CreateChunkOperator(false, threads, false)
+	manager.CreateChunkOperator(false, false, threads, false)
 	defer func() {
 		manager.chunkOperator.Stop()
 		manager.chunkOperator = nil
@@ -2594,10 +2599,27 @@ func (manager *SnapshotManager) DownloadFile(path string, derivationKey string) 
 		derivationKey = derivationKey[len(derivationKey)-64:]
 	}
 
-	err = manager.fileChunk.Decrypt(manager.config.FileKey, derivationKey)
+	err, rewriteNeeded := manager.fileChunk.Decrypt(manager.config.FileKey, derivationKey)
 	if err != nil {
 		LOG_ERROR("DOWNLOAD_DECRYPT", "Failed to decrypt the file %s: %v", path, err)
 		return nil
+	}
+
+	if rewriteNeeded && manager.chunkOperator.rewriteChunks {
+
+		newChunk := manager.config.GetChunk()
+		newChunk.Reset(true)
+		newChunk.Write(manager.fileChunk.GetBytes())
+		err = newChunk.Encrypt(manager.config.FileKey, derivationKey, true)
+		if err == nil {
+			err = manager.storage.UploadFile(0, path, newChunk.GetBytes())
+			if err != nil {
+				LOG_WARN("DOWNLOAD_REWRITE", "Failed to re-uploaded the file %s: %v", path, err)
+			} else{
+				LOG_INFO("DOWNLOAD_REWRITE", "The file %s has been re-uploaded", path)
+			}
+		}
+		manager.config.PutChunk(newChunk)
 	}
 
 	err = manager.snapshotCache.UploadFile(0, path, manager.fileChunk.GetBytes())

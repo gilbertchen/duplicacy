@@ -43,7 +43,7 @@ func TestErasureCoding(t *testing.T) {
 
 	chunk.Reset(false)
 	chunk.Write(encryptedData)
-	err = chunk.Decrypt([]byte(""), "")
+	err, _ = chunk.Decrypt([]byte(""), "")
 	if err != nil {
 		t.Errorf("Failed to decrypt the data: %v", err)
 		return
@@ -110,7 +110,7 @@ func TestChunkBasic(t *testing.T) {
 
 		chunk.Reset(false)
 		chunk.Write(encryptedData)
-		err = chunk.Decrypt(key, "")
+		err, _ = chunk.Decrypt(key, "")
 		if err != nil {
 			t.Errorf("Failed to decrypt the data: %v", err)
 			continue
