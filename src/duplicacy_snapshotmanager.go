@@ -249,17 +249,27 @@ func (manager *SnapshotManager) DownloadSnapshot(snapshotID string, revision int
 // the memory before passing them to the json unmarshaller.
 type sequenceReader struct {
 	sequence   []string
-	buffer     *bytes.Buffer
+	buffer     *bytes.Reader
 	index      int
 	refillFunc func(hash string) []byte
 }
 
+func NewSequenceReader(sequence []string, refillFunc func(hash string) []byte) *sequenceReader {
+	newData := refillFunc(sequence[0])
+	return &sequenceReader{
+		sequence:   sequence,
+		buffer:     bytes.NewReader(newData),
+		index:      1,
+		refillFunc: refillFunc,
+	}
+}
+
 // Read reads a new chunk using the refill function when there is no more data in the buffer
 func (reader *sequenceReader) Read(data []byte) (n int, err error) {
-	if len(reader.buffer.Bytes()) == 0 {
+	if reader.buffer.Len() == 0 {
 		if reader.index < len(reader.sequence) {
 			newData := reader.refillFunc(reader.sequence[reader.index])
-			reader.buffer.Write(newData)
+			reader.buffer = bytes.NewReader(newData)
 			reader.index++
 		} else {
 			return 0, io.EOF
@@ -267,6 +277,16 @@ func (reader *sequenceReader) Read(data []byte) (n int, err error) {
 	}
 
 	return reader.buffer.Read(data)
+}
+
+func (reader *sequenceReader) GetFirstByte() byte {
+	b, err := reader.buffer.ReadByte()
+	reader.buffer.UnreadByte()
+	if err != nil {
+		return 0
+	} else {
+		return b
+	}
 }
 
 func (manager *SnapshotManager) CreateChunkOperator(resurrect bool, rewriteChunks bool, threads int, allowFailures bool) {

@@ -15,7 +15,6 @@ import (
 	"strings"
 	"time"
 	"sort"
-	"bytes"
 
     "github.com/vmihailenco/msgpack"
 
@@ -52,6 +51,7 @@ type Snapshot struct {
 // CreateEmptySnapshot creates an empty snapshot.
 func CreateEmptySnapshot(id string) (snapshto *Snapshot) {
 	return &Snapshot{
+		Version:   1,
 		ID:        id,
 		Revision:  0,
 		StartTime: time.Now().Unix(),
@@ -112,22 +112,21 @@ func (snapshot *Snapshot)ListRemoteFiles(config *Config, chunkOperator *ChunkOpe
 	}
 
 	var chunk *Chunk
-	reader := sequenceReader{
-		sequence: snapshot.FileSequence,
-		buffer:   new(bytes.Buffer),
-		refillFunc: func(chunkHash string) []byte {
-			if chunk != nil {
-				config.PutChunk(chunk)
-			}
-			chunk = chunkOperator.Download(chunkHash, 0, true)
-			return chunk.GetBytes()
-		},
-	}
+	reader := NewSequenceReader(snapshot.FileSequence, func(chunkHash string) []byte {
+		if chunk != nil {
+			config.PutChunk(chunk)
+		}
+		chunk = chunkOperator.Download(chunkHash, 0, true)
+		return chunk.GetBytes()
+	})
 
-	if snapshot.Version == 0 {
+	// Normally if Version is 0 then the snapshot is created by CLI v2 but unfortunately CLI 3.0.1 does not set the
+	// version bit correctly when copying old backups.  So we need to check the first byte -- if it is '[' then it is
+	// the old format.  The new format starts with a string encoded in msgpack and the first byte can't be '['.
+	if snapshot.Version == 0 || reader.GetFirstByte() == '['{
 		LOG_INFO("SNAPSHOT_VERSION", "snapshot %s at revision %d is encoded in an old version format", snapshot.ID, snapshot.Revision)
 		files := make([]*Entry, 0)
-		decoder := json.NewDecoder(&reader)
+		decoder := json.NewDecoder(reader)
 
 		// read open bracket
 		_, err := decoder.Token()
@@ -156,7 +155,7 @@ func (snapshot *Snapshot)ListRemoteFiles(config *Config, chunkOperator *ChunkOpe
 			}
 		}
 	} else if snapshot.Version == 1 {
-		decoder := msgpack.NewDecoder(&reader)
+		decoder := msgpack.NewDecoder(reader)
 
 		lastEndChunk := 0
 
@@ -434,7 +433,7 @@ func (snapshot *Snapshot) MarshalJSON() ([]byte, error) {
 
 	object := make(map[string]interface{})
 
-	object["version"] = 1
+	object["version"] = snapshot.Version
 	object["id"] = snapshot.ID
 	object["revision"] = snapshot.Revision
 	object["options"] = snapshot.Options
