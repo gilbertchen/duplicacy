@@ -56,6 +56,10 @@ github.com/gilbertchen/cli v1.2.1-0.20160223210219-1de0a1836ce9 h1:uMgtTp4sRJ7kM
 github.com/gilbertchen/cli v1.2.1-0.20160223210219-1de0a1836ce9/go.mod h1:WOnN3JdZiZwUaYtLH2DRxe5PpD43wuOIvc/Wem/39M0=
 github.com/gilbertchen/go-dropbox v0.0.0-20221004154447-61204091e804 h1:JZ0P02xoeaITbKLFAdBfiH8SNNvKGE2Y/RLdYtWoEVE=
 github.com/gilbertchen/go-dropbox v0.0.0-20221004154447-61204091e804/go.mod h1:85+2CRHC/klHy4vEM+TYtbhDo2wMjPa4JNdVzUHsDIk=
+github.com/gilbertchen/go-dropbox v0.0.0-20221128142034-9910c19f1d13 h1:54e1HiEXNXGif2PaQHizdGvszIDFE+2yIGzHMUYOQnQ=
+github.com/gilbertchen/go-dropbox v0.0.0-20221128142034-9910c19f1d13/go.mod h1:85+2CRHC/klHy4vEM+TYtbhDo2wMjPa4JNdVzUHsDIk=
+github.com/gilbertchen/go-dropbox v0.0.0-20221207034530-08c0c180a4f9 h1:3hJHxOyf/rAWWz9GNyai0hSt56vGMATS9B6yjw/bzzk=
+github.com/gilbertchen/go-dropbox v0.0.0-20221207034530-08c0c180a4f9/go.mod h1:85+2CRHC/klHy4vEM+TYtbhDo2wMjPa4JNdVzUHsDIk=
 github.com/gilbertchen/go-ole v1.2.0 h1:ay65uwxo6w8UVOxN0+fuCqUXGaXxbmkGs5m4uY6e1Zw=
 github.com/gilbertchen/go-ole v1.2.0/go.mod h1:NNiozp7QxhyGmHxxNdFKIcVaINvJFTAjBJ2gYzh8fsg=
 github.com/gilbertchen/goamz v0.0.0-20170712012135-eada9f4e8cc2 h1:VDPwi3huqeJBtymgLOvPAP4S2gbSSK/UrWVwRbRAmnw=
