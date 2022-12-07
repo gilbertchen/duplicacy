@@ -1338,6 +1338,10 @@ func (manager *SnapshotManager) VerifySnapshot(snapshot *Snapshot) bool {
 		LOG_TRACE("SNAPSHOT_VERIFY", "%s", file.Path)
 	}
 
+	if lastChunk != nil {
+		manager.config.PutChunk(lastChunk)
+	}
+
 	if corruptedFiles > 0 {
 		LOG_WARN("SNAPSHOT_VERIFY", "Snapshot %s at revision %d contains %d corrupted files",
 			snapshot.ID, snapshot.Revision, corruptedFiles)
