@@ -120,6 +120,12 @@ func (snapshot *Snapshot)ListRemoteFiles(config *Config, chunkOperator *ChunkOpe
 		return chunk.GetBytes()
 	})
 
+	defer func() {
+		if chunk != nil {
+			config.PutChunk(chunk)
+		}
+	} ()
+
 	// Normally if Version is 0 then the snapshot is created by CLI v2 but unfortunately CLI 3.0.1 does not set the
 	// version bit correctly when copying old backups.  So we need to check the first byte -- if it is '[' then it is
 	// the old format.  The new format starts with a string encoded in msgpack and the first byte can't be '['.
