@@ -550,7 +550,7 @@ func loadIncompleteSnapshot(snapshotID string, cachePath string) *EntryList {
 		}
 	}
 
-	LOG_INFO("INCOMPLETE_LOAD", "Previous incomlete backup contains %d files and %d chunks",
+	LOG_INFO("INCOMPLETE_LOAD", "Previous incomplete backup contains %d files and %d chunks",
 	         entryList.NumberOfEntries, len(entryList.PreservedChunkLengths) + len(entryList.UploadedChunkHashes))
 
 	return entryList
