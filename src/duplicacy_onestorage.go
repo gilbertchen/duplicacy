@@ -19,13 +19,13 @@ type OneDriveStorage struct {
 }
 
 // CreateOneDriveStorage creates an OneDrive storage object.
-func CreateOneDriveStorage(tokenFile string, isBusiness bool, storagePath string, threads int, client_id string, client_secret string) (storage *OneDriveStorage, err error) {
+func CreateOneDriveStorage(tokenFile string, isBusiness bool, storagePath string, threads int, client_id string, client_secret string, drive_id string) (storage *OneDriveStorage, err error) {
 
 	for len(storagePath) > 0 && storagePath[len(storagePath)-1] == '/' {
 		storagePath = storagePath[:len(storagePath)-1]
 	}
 
-	client, err := NewOneDriveClient(tokenFile, isBusiness, client_id, client_secret)
+	client, err := NewOneDriveClient(tokenFile, isBusiness, client_id, client_secret, drive_id)
 	if err != nil {
 		return nil, err
 	}
