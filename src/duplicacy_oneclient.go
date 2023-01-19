@@ -5,6 +5,7 @@
 package duplicacy
 
 import (
+	"context"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -39,6 +40,7 @@ type OneDriveClient struct {
 
 	TokenFile string
 	Token     *oauth2.Token
+	OAConfig  *oauth2.Config
 	TokenLock *sync.Mutex
 
 	IsConnected bool
@@ -49,7 +51,7 @@ type OneDriveClient struct {
 	APIURL string
 }
 
-func NewOneDriveClient(tokenFile string, isBusiness bool) (*OneDriveClient, error) {
+func NewOneDriveClient(tokenFile string, isBusiness bool, client_id string, client_secret string) (*OneDriveClient, error) {
 
 	description, err := ioutil.ReadFile(tokenFile)
 	if err != nil {
@@ -65,8 +67,23 @@ func NewOneDriveClient(tokenFile string, isBusiness bool) (*OneDriveClient, erro
 		HTTPClient: http.DefaultClient,
 		TokenFile:  tokenFile,
 		Token:      token,
+		OAConfig:	nil,
 		TokenLock:  &sync.Mutex{},
 		IsBusiness: isBusiness,
+	}
+
+	if (client_id != "") {
+	    oneOauthConfig := oauth2.Config{
+	        ClientID: 		client_id,
+	        ClientSecret: 	client_secret,
+	        Scopes:       	[]string{"Files.ReadWrite", "offline_access"},
+	        Endpoint: oauth2.Endpoint{
+	            AuthURL:  "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+	            TokenURL: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+	        },
+	    }
+
+		client.OAConfig = &oneOauthConfig
 	}
 
 	if isBusiness {
@@ -218,15 +235,25 @@ func (client *OneDriveClient) RefreshToken(force bool) (err error) {
 		return nil
 	}
 
-	readCloser, _, err := client.call(client.RefreshTokenURL, "POST", client.Token, "")
-	if err != nil {
-		return fmt.Errorf("failed to refresh the access token: %v", err)
-	}
+	if (client.OAConfig == nil) {
+		readCloser, _, err := client.call(client.RefreshTokenURL, "POST", client.Token, "")
+		if err != nil {
+			return fmt.Errorf("failed to refresh the access token: %v", err)
+		}
 
-	defer readCloser.Close()
+		defer readCloser.Close()
 
-	if err = json.NewDecoder(readCloser).Decode(client.Token); err != nil {
-		return err
+		if err = json.NewDecoder(readCloser).Decode(client.Token); err != nil {
+			return err
+		}
+	} else {
+		ctx := context.Background()
+		tokenSource := client.OAConfig.TokenSource(ctx, client.Token)
+	    token, err := tokenSource.Token()
+	    if err != nil {
+	        return fmt.Errorf("failed to refresh the access token: %v", err)
+	    }
+	    client.Token = token
 	}
 
 	description, err := json.Marshal(client.Token)
