@@ -5,13 +5,14 @@
 package duplicacy
 
 import (
+	"bufio"
 	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
-	"math"
 	"os"
 	"path"
 	"regexp"
@@ -20,6 +21,7 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
+	"runtime"
 	"sync"
 	"sync/atomic"
 
@@ -207,27 +209,32 @@ func CreateSnapshotManager(config *Config, storage Storage) *SnapshotManager {
 }
 
 // DownloadSnapshot downloads the specified snapshot.
-func (manager *SnapshotManager) DownloadSnapshot(snapshotID string, revision int) *Snapshot {
+func (manager *SnapshotManager) DownloadSnapshot(snapshotID string, revision int, checkExistence bool) *Snapshot {
 
 	snapshotDir := fmt.Sprintf("snapshots/%s", snapshotID)
-	manager.storage.CreateDirectory(0, snapshotDir)
 	manager.snapshotCache.CreateDirectory(0, snapshotDir)
 
 	snapshotPath := fmt.Sprintf("snapshots/%s/%d", snapshotID, revision)
 
-	// We must check if the snapshot file exists in the storage, because the snapshot cache may store a copy of the
-	// file even if the snapshot has been deleted in the storage (possibly by a different client)
-	exist, _, _, err := manager.storage.GetFileInfo(0, snapshotPath)
-	if err != nil {
-		LOG_ERROR("SNAPSHOT_INFO", "Failed to get the information on the snapshot %s at revision %d: %v",
-			snapshotID, revision, err)
-		return nil
-	}
+	if checkExistence {
+		// Do we EVER need to CREATE snapshot directory in storage on download? 
+		// This is quite wasteful in a loop
+		manager.storage.CreateDirectory(0, snapshotDir)
 
-	if !exist {
-		LOG_ERROR("SNAPSHOT_NOT_EXIST", "Snapshot %s at revision %d does not exist", snapshotID, revision)
-		return nil
+		// We must check if the snapshot file exists in the storage, because the snapshot cache may store a copy of the
+		// file even if the snapshot has been deleted in the storage (possibly by a different client)
+		exist, _, _, err := manager.storage.GetFileInfo(0, snapshotPath)
+		if err != nil {
+			LOG_ERROR("SNAPSHOT_INFO", "Failed to get the information on the snapshot %s at revision %d: %v",
+				snapshotID, revision, err)
+			return nil
+		}
 
+		if !exist {
+			LOG_ERROR("SNAPSHOT_NOT_EXIST", "Snapshot %s at revision %d does not exist", snapshotID, revision)
+			return nil
+
+		}
 	}
 
 	description := manager.DownloadFile(snapshotPath, snapshotPath)
@@ -484,7 +491,7 @@ func (manager *SnapshotManager) ListSnapshotIDs() (snapshotIDs []string, err err
 	return snapshotIDs, nil
 }
 
-// ListSnapshotRevisions returns the list of all revisions given a snapshot id.
+// ListSnapshotRevisions returns a sorted list of all revisions given a snapshot id.
 func (manager *SnapshotManager) ListSnapshotRevisions(snapshotID string) (revisions []int, err error) {
 
 	LOG_TRACE("SNAPSHOT_LIST_REVISIONS", "Listing revisions for snapshot %s", snapshotID)
@@ -540,7 +547,7 @@ func (manager *SnapshotManager) downloadLatestSnapshot(snapshotID string) (remot
 	}
 
 	if latest > 0 {
-		remote = manager.DownloadSnapshot(snapshotID, latest)
+		remote = manager.DownloadSnapshot(snapshotID, latest, false)
 	}
 
 	return remote
@@ -622,28 +629,352 @@ func (manager *SnapshotManager) GetSnapshotChunks(snapshot *Snapshot, keepChunkH
 	return chunks
 }
 
-// GetSnapshotChunkHashes has an option to retrieve chunk hashes in addition to chunk ids.
-func (manager *SnapshotManager) GetSnapshotChunkHashes(snapshot *Snapshot, chunkHashes *map[string]bool, chunkIDs map[string]bool) {
+
+// Chunk id and hash (256 bit) are defined as 64 character hex string
+type StrHash = string
+// Chunk id and hash (256 bit) are defined as 32 byte packed binary
+type BinHash = [32]byte
+// StrHash is used in most of the duplicacy code, but it is not efficient,
+// especially with lookups and assignment of maps keyed on the hash
+// BinHash is a significantly more efficient representation
+
+type StrHashList = []StrHash
+type BinHashList = []BinHash
+
+// Idiomatic Go representation of a set is map into struct{}, not bool
+// struct{} doesn't take space like bool, and avoids triple values for
+// bool maps (key not found, key found with true, key found with false)
+type StrHashSet = map[StrHash]struct{}
+type BinHashSet = map[BinHash]struct{}
+
+
+// Optimized conversion of BinHash into StrHash
+func HexToStr(pb BinHash) (s StrHash) {
+	const hextable = "0123456789abcdef"
+
+	var ub [64]byte
+	j := 0
+
+	for _, bb := range pb {
+		ub[j] = hextable[bb >> 4]
+		j++
+		ub[j] = hextable[bb & 0x0F]
+		j++
+	}
+
+	return string(ub[:])
+}
+
+
+// Conversion of StrHash into HexHash, can be improved more but there was
+// no need so far
+func StrToHex(ub StrHash) (b BinHash) {
+	bb, err := hex.DecodeString(ub)
+
+	if err != nil {
+		LOG_ERROR("STR_TO_HEX", "Malformed hex str %s: %v", ub, err)
+		return
+	}
+
+	copy(b[:], bb)
+	return b
+}
+
+// Cache files used in reading/writing lists and sets of chunk ids
+// in functions below are the same across lists and sets, e.g. the same
+// file can populate a list or a set on read (with different functions)
+
+// Reads a list of chunk ids from a cache file into a list
+// Supports performance optimizations of snapshot checking / stats
+func ReadListFromCache(cachePath string)(m BinHashList, success bool) {
+
+	cacheFile, err := os.Open(cachePath)
+	if err != nil {
+		if !os.IsNotExist(err) { // Cache not existing is not an error
+			LOG_WARN("READ_LIST_FROM_CACHE", "Failed to open cache file %s: %v", cachePath, err)
+		}
+		return nil, false
+	}
+
+	defer cacheFile.Close()
+
+	scanner := bufio.NewReader(cacheFile)
+
+	var hintsize int64
+	err = binary.Read(scanner, binary.LittleEndian, &hintsize)
+	if err != nil {
+		LOG_ERROR("READ_LIST_FROM_CACHE", "Malformed cache file %s: %v", cachePath, err)
+		return nil, false
+	}
+
+
+    m = make(BinHashList, 0, hintsize) // Pre-allocate to avoid reallocs on grow
+
+    var pb BinHash // packed hex
+
+    for {
+    	n, err := io.ReadFull(scanner, pb[:]); 
+
+    	if err == io.EOF { break }
+
+		if err != nil || n < 32 {
+			LOG_ERROR("READ_LIST_FROM_CACHE", "Malformed cache file %s: %v %d", cachePath, err, n)
+			return nil, false
+		}
+
+        m = append(m, pb)
+    }
+
+	return m, true
+}
+
+// Writes a list of chunk ids from a list into a cache file
+// Supports performance optimizations of snapshot checking / stats
+// Less performance critical vs reading as cache writing should happen less
+// frequently 
+func WriteListToCache(cachePath string, m BinHashList) (success bool) {
+
+	cacheFile, err := os.OpenFile(cachePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		LOG_WARN("WRITE_LIST_TO_CACHE", "Failed to open cache file %s: %v", cachePath, err)
+		return false
+	}
+
+	defer cacheFile.Close()
+
+	w := bufio.NewWriter(cacheFile)
+
+	err = binary.Write(w, binary.LittleEndian, int64(len(m)))
+	if err != nil {
+		LOG_ERROR("WRITE_LIST_TO_CACHE", "Unable to write to cache file %s: %v", cachePath, err)
+		return false
+	}
+
+    for _, chunk := range m {
+		if nn, err := w.Write(chunk[:]); err != nil {
+			LOG_ERROR("WRITE_LIST_TO_CACHE", "Unable to write to cache file %s: %v (%d)", cachePath, err, nn)
+			return false
+		}
+	}
+
+	w.Flush()
+
+	return true
+}
+
+// Reads a set of chunk ids from a cache file into a list
+// Supports performance optimizations of snapshot checking / stats
+func ReadSetFromCache(cachePath string)(m BinHashSet, success bool) {
+
+	cacheFile, err := os.Open(cachePath)
+	if err != nil {
+		if !os.IsNotExist(err) { // Cache not existing is not an error
+			LOG_WARN("READ_SET_FROM_CACHE", "Failed to open cache file %s: %v", cachePath, err)
+		}
+		return nil, false
+	}
+
+	defer cacheFile.Close()
+
+	scanner := bufio.NewReader(cacheFile)
+
+	var hintsize int64
+	err = binary.Read(scanner, binary.LittleEndian, &hintsize)
+	if err != nil {
+		LOG_ERROR("READ_SET_FROM_CACHE", "Malformed cache file %s: %v", cachePath, err)
+		return nil, false
+	}
+
+
+    m = make(BinHashSet, hintsize)
+
+    var pb BinHash // packed hex
+
+    for {
+    	n, err := io.ReadFull(scanner, pb[:]); 
+
+    	if err == io.EOF { break }
+
+		if err != nil || n < 32 {
+			LOG_ERROR("READ_SET_FROM_CACHE", "Malformed cache file %s: %v %d", cachePath, err, n)
+			return nil, false
+		}
+
+        m[pb] = struct{}{}
+    }
+
+	return m, true
+}
+
+// Writes a list of chunk ids from a set into a cache file
+// Supports performance optimizations of snapshot checking / stats
+// Less performance critical vs reading as cache writing should happen less
+// frequently 
+func WriteSetToCache(cachePath string, m BinHashSet) (success bool) {
+
+	cacheFile, err := os.OpenFile(cachePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+	if err != nil {
+		LOG_WARN("WRITE_SET_TO_CACHE", "Failed to open cache file %s: %v", cachePath, err)
+		return false
+	}
+
+	defer cacheFile.Close()
+
+	w := bufio.NewWriter(cacheFile)
+
+	err = binary.Write(w, binary.LittleEndian, int64(len(m)))
+	if err != nil {
+		LOG_ERROR("WRITE_SET_TO_CACHE", "Unable to write to cache file %s: %v", cachePath, err)
+		return false
+	}
+
+    for chunk := range m {
+		if nn, err := w.Write(chunk[:]); err != nil {
+			LOG_ERROR("WRITE_SET_TO_CACHE", "Unable to write to cache file %s: %v (%d)", cachePath, err, nn)
+			return false
+		}
+	}
+
+	w.Flush()
+
+	return true
+}
+
+
+// GetSnapshotChunks returns all chunks referenced by a given snapshot. If
+// keepChunkHashes is true, snapshot.ChunkHashes will be populated.
+func (manager *SnapshotManager) GetSnapshotChunkIDList(
+	snapshot *Snapshot, 
+	keepChunkHashes bool,
+) (chunkIDs BinHashList) {
+
+    snapshotChunksIDsCacheEnabled := manager.storage.IsSnapshotChunksIDsCacheEnabled()
+	snapshotChunksIDsCacheRootDir := manager.storage.GetSnapshotChunksIDsCacheRootDir()
+
+	var chunkIdsPath string
+
+	if snapshotChunksIDsCacheEnabled {
+		err := os.Mkdir(path.Join(snapshotChunksIDsCacheRootDir, "snapshotchunks"), 0744)
+		if err != nil && !os.IsExist(err) {
+			LOG_WARN("SNAPSHOT_CHUNKS_CACHE_DIR", "Failed to create the snapshot chunk ids cache directory %s: %v", path.Join(snapshotChunksIDsCacheRootDir, "snapshotchunks"), err)
+		}
+
+		snapshotChunksDir := fmt.Sprintf(path.Join(snapshotChunksIDsCacheRootDir, "snapshotchunks/%s"), snapshot.ID)
+		err = os.Mkdir(snapshotChunksDir, 0744)
+		if err != nil && !os.IsExist(err) {
+			LOG_WARN("SNAPSHOT_CHUNKS_CACHE_DIR", "Failed to create the snapshot chunk ids cache directory %s: %v", snapshotChunksDir, err)
+		}
+
+		chunkIdsPath = path.Join(snapshotChunksIDsCacheRootDir, fmt.Sprintf("snapshotchunks/%s/%d.ids", snapshot.ID, snapshot.Revision))
+
+		if chunkIDs, status := ReadListFromCache(chunkIdsPath); status == true  {
+			LOG_DEBUG("CHUNK_CACHE", "Snapshot %s/%d chunk ids have been loaded from the cache", snapshot.ID, snapshot.Revision)
+			return chunkIDs
+		}
+	}
+
+	chunkIDs = make(BinHashList, 0)
+
+	for _, chunkHash := range snapshot.FileSequence {
+		chunkIDs = append(chunkIDs, StrToHex(manager.config.GetChunkIDFromHash(chunkHash)))
+	}
+
+	for _, chunkHash := range snapshot.ChunkSequence {
+		chunkIDs = append(chunkIDs, StrToHex(manager.config.GetChunkIDFromHash(chunkHash)))
+	}
+
+	for _, chunkHash := range snapshot.LengthSequence {
+		chunkIDs = append(chunkIDs, StrToHex(manager.config.GetChunkIDFromHash(chunkHash)))
+	}
+
+	if len(snapshot.ChunkHashes) == 0 {
+
+		description := manager.DownloadSequence(snapshot.ChunkSequence)
+		err := snapshot.LoadChunks(description)
+		if err != nil {
+			LOG_ERROR("SNAPSHOT_CHUNK", "Failed to load chunks for snapshot %s at revision %d: %v",
+				snapshot.ID, snapshot.Revision, err)
+			return nil
+		}
+	}
+
+	for _, chunkHash := range snapshot.ChunkHashes {
+		chunkIDs = append(chunkIDs, StrToHex(manager.config.GetChunkIDFromHash(chunkHash)))
+	}
+
+	if snapshotChunksIDsCacheEnabled {
+		WriteListToCache(chunkIdsPath, chunkIDs)
+	}	
+
+	if !keepChunkHashes {
+		snapshot.ClearChunks()
+	}
+
+	return chunkIDs
+}
+
+
+// GetSnapshotChunkIDMapWithHashes has an option to retrieve chunk hashes 
+// in addition to chunk ids.
+func (manager *SnapshotManager) GetSnapshotChunkIDMapWithHashes(
+	snapshot *Snapshot, 
+	chunkHashes *map[string]bool,
+)(chunkIDs BinHashSet) {
+
+    snapshotChunksIDsCacheEnabled := manager.storage.IsSnapshotChunksIDsCacheEnabled()
+	snapshotChunksIDsCacheRootDir := manager.storage.GetSnapshotChunksIDsCacheRootDir()
+
+	var chunkIdsPath string
+
+	if snapshotChunksIDsCacheEnabled {
+		err := os.Mkdir(path.Join(snapshotChunksIDsCacheRootDir, "snapshotchunks"), 0744)
+		if err != nil && !os.IsExist(err) {
+			LOG_WARN("SNAPSHOT_CHUNKS_CACHE_DIR", "Failed to create the snapshot chunk ids cache directory %s: %v", path.Join(snapshotChunksIDsCacheRootDir, "snapshotchunks"), err)
+		}
+
+		snapshotChunksDir := fmt.Sprintf(path.Join(snapshotChunksIDsCacheRootDir, "snapshotchunks/%s"), snapshot.ID)
+		err = os.Mkdir(snapshotChunksDir, 0744)
+		if err != nil && !os.IsExist(err) {
+			LOG_WARN("SNAPSHOT_CHUNKS_CACHE_DIR", "Failed to create the snapshot chunk ids cache directory %s: %v", snapshotChunksDir, err)
+		}
+
+		chunkIdsPath = path.Join(snapshotChunksIDsCacheRootDir, fmt.Sprintf("snapshotchunks/%s/%d.ids", snapshot.ID, snapshot.Revision))
+
+		if chunkHashes == nil { // Hashes are not cached, so may as well skip ids
+			if chunkIDs, status := ReadSetFromCache(chunkIdsPath); status == true  {
+				LOG_DEBUG("CHUNK_CACHE", "Snapshot %s/%d chunk ids have been loaded from the cache", snapshot.ID, snapshot.Revision)
+				return chunkIDs
+			}
+		}
+	}
+
+	chunkIDs = make(BinHashSet)
+
+	// manager.config.GetChunkIDFromHash(chunkHash) should be returning
+	// binary (at least as a variant) to avoid wrapping into string and
+	// then unwrapping via StrToHex, but with caching enabled this logic
+	// will only be executed once (before writing into cache), so it is
+	// not critical at the moment
 
 	for _, chunkHash := range snapshot.FileSequence {
 		if chunkHashes != nil {
 			(*chunkHashes)[chunkHash] = true
 		}
-		chunkIDs[manager.config.GetChunkIDFromHash(chunkHash)] = true
+		chunkIDs[StrToHex(manager.config.GetChunkIDFromHash(chunkHash))] = struct{}{}
 	}
 
 	for _, chunkHash := range snapshot.ChunkSequence {
 		if chunkHashes != nil {
 			(*chunkHashes)[chunkHash] = true
 		}
-		chunkIDs[manager.config.GetChunkIDFromHash(chunkHash)] = true
+		chunkIDs[StrToHex(manager.config.GetChunkIDFromHash(chunkHash))] = struct{}{}
 	}
 
 	for _, chunkHash := range snapshot.LengthSequence {
 		if chunkHashes != nil {
 			(*chunkHashes)[chunkHash] = true
 		}
-		chunkIDs[manager.config.GetChunkIDFromHash(chunkHash)] = true
+		chunkIDs[StrToHex(manager.config.GetChunkIDFromHash(chunkHash))] = struct{}{}
 	}
 
 	if len(snapshot.ChunkHashes) == 0 {
@@ -661,10 +992,16 @@ func (manager *SnapshotManager) GetSnapshotChunkHashes(snapshot *Snapshot, chunk
 		if chunkHashes != nil {
 			(*chunkHashes)[chunkHash] = true
 		}
-		chunkIDs[manager.config.GetChunkIDFromHash(chunkHash)] = true
+		chunkIDs[StrToHex(manager.config.GetChunkIDFromHash(chunkHash))] = struct{}{}
 	}
 
+	if snapshotChunksIDsCacheEnabled {
+		WriteSetToCache(chunkIdsPath, chunkIDs)
+	}	
+
 	snapshot.ClearChunks()
+
+	return chunkIDs
 }
 
 // ListSnapshots shows the information about a snapshot.
@@ -694,6 +1031,7 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 	}
 
 	numberOfSnapshots := 0
+	checkExistence := len(revisionsToList)>0
 
 	for _, snapshotID = range snapshotIDs {
 
@@ -708,7 +1046,8 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 
 		for _, revision := range revisions {
 
-			snapshot := manager.DownloadSnapshot(snapshotID, revision)
+			// Need to check existence if explicitly specified
+			snapshot := manager.DownloadSnapshot(snapshotID, revision, checkExistence)
 			if tag != "" && snapshot.Tag != tag {
 				continue
 			}
@@ -778,9 +1117,100 @@ func (manager *SnapshotManager) ListSnapshots(snapshotID string, revisionsToList
 
 }
 
+
+// Removes snapshot chunks id cache entries that no longer have corresponding
+// revision in the storage
+func CleanupSnapshotChunkIDsCache(
+	snapshotID string, 
+	allSnapshotRevisionsSet map[int]struct{},
+    snapshotChunksIDsCacheEnabled bool,
+    snapshotChunksIDsCacheRootDir string,
+) {
+
+	if snapshotChunksIDsCacheEnabled {
+		err := os.Mkdir(path.Join(snapshotChunksIDsCacheRootDir, "snapshotchunks"), 0744)
+		if err != nil && !os.IsExist(err) {
+			LOG_WARN("SNAPSHOT_CHUNKS_CACHE_DIR", "Failed to create the snapshot chunk ids cache directory %s: %v", path.Join(snapshotChunksIDsCacheRootDir, "snapshotchunks"), err)
+			return
+		}
+
+		snapshotChunksDir := fmt.Sprintf(path.Join(snapshotChunksIDsCacheRootDir, "snapshotchunks/%s"), snapshotID)
+		err = os.Mkdir(snapshotChunksDir, 0744)
+		if err != nil && !os.IsExist(err) {
+			LOG_WARN("SNAPSHOT_CHUNKS_CACHE_DIR", "Failed to create the snapshot chunk ids cache directory %s: %v", snapshotChunksDir, err)
+			return
+		}
+
+	    cacheDirF, err := os.Open(snapshotChunksDir)
+	    if err != nil {
+		    LOG_WARN("SNAPSHOT_CHUNKS_CACHE_DIR", "Unable to list snapshot chunk ids cache directory %s: %v", snapshotChunksDir, err)
+			return
+	    }
+	    files, err := cacheDirF.Readdir(0)
+	    if err != nil {
+		    LOG_WARN("SNAPSHOT_CHUNKS_CACHE_DIR", "Unable to list snapshot chunk ids cache directory %s: %v", snapshotChunksDir, err)
+			return
+	    }
+
+	    for _, f := range files {
+	        fName := f.Name()
+	        if f.IsDir() || !strings.HasSuffix(fName, ".ids") { continue }
+	        r, err := strconv.Atoi(strings.TrimSuffix(fName, ".ids"))
+	        if err != nil { continue }
+
+	        if _, isFound := allSnapshotRevisionsSet[r]; !isFound {
+		        snapshotChunkFile := fmt.Sprintf(path.Join(snapshotChunksIDsCacheRootDir, "snapshotchunks/%s/%s"), snapshotID, fName)
+		        LOG_DEBUG("CLEANUP_SNAPSHOT_CHUNK_IDS_CACHE", "Removing snapshot %s cache file %s", snapshotID, fName)
+		        if os.Remove(snapshotChunkFile) != nil {
+		        	LOG_WARN("CLEANUP_SNAPSHOT_CHUNK_IDS_CACHE", "Unable to remove snapshot chunk ids cache file %s: %v", snapshotChunkFile, err)
+		        }
+	        }
+	    }		
+	}
+}
+
+
+// Special values for snapshotIndex field within ChunkInfo below
+const (
+	SNAPSHOT_INDEX_NONE		int32	= -2
+	SNAPSHOT_INDEX_MULTIPLE			= -1
+)
+
+// Special values for isUnique field within ChunkInfo below
+const (
+	CHUNK_UNIQUE_UNDEFINED	int8	= -1
+	CHUNK_UNIQUE_FALSE				=  0
+	CHUNK_UNIQUE_TRUE				=  1
+)
+
+type ChunkInfo struct {
+	// Stores the chunk file size for each chunk
+	size			int64 
+	// Store the index of the snapshot that references each chunk; 
+	// if the chunk is shared by multiple chunks, the index is -1
+	// if the chunk is not referenced, the index is -2
+	snapshotIndex	int32
+	// Indicates whether or not a chunk is shared by multiple snapshots
+	isUnique		int8
+}
+
+
 // CheckSnapshots checks if there is any problem with a snapshot.
-func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToCheck []int, tag string, showStatistics bool, showTabular bool,
-	checkFiles bool, checkChunks, searchFossils bool, resurrect bool, rewriteChunks bool, threads int, allowFailures bool) bool {
+func (manager *SnapshotManager) CheckSnapshots(
+	snapshotID string, 
+	revisionsToCheck []int, 
+	tag string, 
+	showStatistics bool, 
+	showTabular bool,
+	checkFiles bool, 
+	checkChunks, 
+	searchFossils bool, 
+	resurrect bool, 
+	rewriteChunks bool, 
+	threads int, 
+	allowFailures bool,
+	checkReadsChunkFileListFromCacheOnly bool,
+) bool {
 
 	manager.CreateChunkOperator(resurrect, rewriteChunks, threads, allowFailures)
 	defer func() {
@@ -794,21 +1224,85 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	snapshotMap := make(map[string][]*Snapshot)
 	var err error
 
-	// Stores the chunk file size for each chunk
-	chunkSizeMap := make(map[string]int64)
-
-	// Indicate whether or not a chunk is shared by multiple snapshots
-	chunkUniqueMap := make(map[string]bool)
-
-	// Store the index of the snapshot that references each chunk; if the chunk is shared by multiple chunks, the index is -1
-	chunkSnapshotMap := make(map[string]int)
+	var chunkInfoMap map[BinHash]ChunkInfo = nil // will be created later
+	var nChunks int
 
 	emptyChunks := 0
 
 	LOG_INFO("SNAPSHOT_CHECK", "Listing all chunks")
-	allChunks, allSizes := manager.ListAllFiles(manager.storage, chunkDir)
+	
+	var allChunks	[]string 	= nil
+	var allSizes	[]int64 	= nil
 
-	for i, chunk := range allChunks {
+	chunksXsizesFilePath := path.Join(manager.snapshotCache.storageDir, "chunksXsizes.lst")
+
+	if (!checkReadsChunkFileListFromCacheOnly) {
+
+		// List all chunk files on storage, expensive for cloud storages
+		allChunks, allSizes = manager.ListAllFiles(manager.storage, chunkDir)
+		nChunks = len(allChunks)
+
+		// Save list of all chunk files into "chunksXsizes.lst" file in cache
+		chunksXsizesFileW, err := os.OpenFile(chunksXsizesFilePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
+		if err != nil {
+			LOG_ERROR("SNAPSHOT_CHECK", "Failed to create chunksXsizes file %s: %v", chunksXsizesFilePath, err)
+			return false
+		}
+
+		w := bufio.NewWriter(chunksXsizesFileW)
+
+	    for i, chunk := range allChunks {
+
+			_, err = fmt.Fprintf(w, "%s\t%d\n", chunk, allSizes[i])
+			if err != nil {
+				LOG_ERROR("SNAPSHOT_CHECK", "Unable to write to chunksXsizes file %s: %v", chunksXsizesFilePath, err)
+				return false
+			}
+		}
+
+		w.Flush()
+
+		if err = chunksXsizesFileW.Close(); err != nil {
+			LOG_ERROR("SNAPSHOT_CHECK", "Failed to close chunksXsizes file %s: %v", chunksXsizesFilePath, err)
+			return false
+		}
+
+		allChunks = nil
+		allSizes = nil
+		runtime.GC() // now is a good time to run GC
+	}
+
+	// Always read chunk file list from cache, even if we just wrote it
+	// This avoids doubling memory consumption of keeping allChunks/allSizes
+	// as well as newly created ChunkInfo map in memory at the same time
+	chunkInfoMap = make(map[BinHash]ChunkInfo, nChunks)
+
+	var totalChunkSize int64
+
+	chunksXsizesFileR, err := os.Open(chunksXsizesFilePath)
+	if err != nil {
+		LOG_ERROR("SNAPSHOT_CHECK", "Failed to open chunksXsizes file %s: %v", chunksXsizesFilePath, err)
+		return false
+	}
+	fileScanner := bufio.NewScanner(chunksXsizesFileR)
+    fileScanner.Split(bufio.ScanLines)
+    var i int = -1
+  
+    for fileScanner.Scan() {
+		i++
+
+		sa := strings.Split(fileScanner.Text(), "\t")
+        if len(sa) != 2 {
+			LOG_ERROR("SNAPSHOT_CHECK", "Malformed chunksXsizes file %s", chunksXsizesFilePath)
+			return false
+        }
+        chunk := sa[0]
+        csize, err := strconv.ParseInt(sa[1], 10, 64)
+		if err != nil {
+			LOG_ERROR("SNAPSHOT_CHECK", "Malformed chunksXsizes file %s: %v", chunksXsizesFilePath, err)
+			return false
+		}
+
 		if len(chunk) == 0 || chunk[len(chunk)-1] == '/' {
 			continue
 		}
@@ -818,13 +1312,24 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 		}
 
 		chunk = strings.Replace(chunk, "/", "", -1)
-		chunkSizeMap[chunk] = allSizes[i]
+		chunkInfoMap[StrToHex(chunk)] = ChunkInfo {
+			size: 			csize,
+			snapshotIndex:	SNAPSHOT_INDEX_NONE,
+			isUnique: 		CHUNK_UNIQUE_UNDEFINED,
+		}
+		totalChunkSize += csize
 
-		if allSizes[i] == 0 && !strings.HasSuffix(chunk, ".tmp") {
+		if csize == 0 && !strings.HasSuffix(chunk, ".tmp") {
 			LOG_WARN("SNAPSHOT_CHECK", "Chunk %s has a size of 0", chunk)
 			emptyChunks++
 		}
+    }
+	if err = chunksXsizesFileR.Close(); err != nil {
+		LOG_ERROR("SNAPSHOT_CHECK", "Failed to close chunksXsizes file %s: %v", chunksXsizesFilePath, err)
+		return false
 	}
+
+	runtime.GC() // Now is a good time to run GC
 
 	if snapshotID == "" || showStatistics || showTabular {
 		snapshotIDs, err := manager.ListSnapshotIDs()
@@ -840,22 +1345,43 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	} else {
 		snapshotMap[snapshotID] = nil
 	}
-
-	snapshotIDIndex := 0
+	
+	var snapshotIDIndex int32 = 0
 	totalMissingChunks := 0
+
 	for snapshotID = range snapshotMap {
+
+		// always list all revisions even if specified explicitly as we will
+		// need to check existence of each on the storage, it is more 
+		// efficient to list them once
+		allSnapshotRevisions, err := manager.ListSnapshotRevisions(snapshotID)
+		if err != nil {
+			LOG_ERROR("SNAPSHOT_LIST", "Failed to list all revisions for snapshot %s: %v", snapshotID, err)
+			return false
+		}
+		allSnapshotRevisionsSet := make(map[int]struct{}, len(allSnapshotRevisions))
+		for _, rev := range allSnapshotRevisions {
+			allSnapshotRevisionsSet[rev] = struct{}{}
+		}
+
+		CleanupSnapshotChunkIDsCache(
+			snapshotID, 
+			allSnapshotRevisionsSet,
+			manager.storage.IsSnapshotChunksIDsCacheEnabled(),
+    		manager.storage.GetSnapshotChunksIDsCacheRootDir(),
+		)
 
 		revisions := revisionsToCheck
 		if len(revisions) == 0 || showStatistics || showTabular {
-			revisions, err = manager.ListSnapshotRevisions(snapshotID)
-			if err != nil {
-				LOG_ERROR("SNAPSHOT_LIST", "Failed to list all revisions for snapshot %s: %v", snapshotID, err)
-				return false
-			}
+			revisions = allSnapshotRevisions
 		}
 
 		for _, revision := range revisions {
-			snapshot := manager.DownloadSnapshot(snapshotID, revision)
+			if _, isFound := allSnapshotRevisionsSet[revision]; !isFound {
+				LOG_WARN("SNAPSHOT_REVISION", "Snapshot %s revision %d is not found", snapshotID, revision)
+				continue
+			}
+			snapshot := manager.DownloadSnapshot(snapshotID, revision, false)
 			if tag != "" && snapshot.Tag != tag {
 				continue
 			}
@@ -869,11 +1395,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	}
 	LOG_INFO("SNAPSHOT_CHECK", "%d snapshots and %d revisions", len(snapshotMap), totalRevisions)
 
-	var totalChunkSize int64
-	for _, size := range chunkSizeMap {
-		totalChunkSize += size
-	}
-	LOG_INFO("SNAPSHOT_CHECK", "Total chunk size is %s in %d chunks", PrettyNumber(totalChunkSize), len(chunkSizeMap))
+	LOG_INFO("SNAPSHOT_CHECK", "Total chunk size is %s in %d chunks", PrettyNumber(totalChunkSize), len(chunkInfoMap))
 
 	var allChunkHashes *map[string]bool
 	if checkChunks && !checkFiles {
@@ -892,25 +1414,24 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 				continue
 			}
 
-			chunks := make(map[string]bool)
-			manager.GetSnapshotChunkHashes(snapshot, allChunkHashes, chunks)
+			chunks := manager.GetSnapshotChunkIDMapWithHashes(snapshot, allChunkHashes)
 
 			missingChunks := 0
 			for chunkID := range chunks {
 
-				_, found := chunkSizeMap[chunkID]
+				chunkInfo, found := chunkInfoMap[chunkID]
 
 				if !found {
 
 					// Look up the chunk again in case it actually exists, but only if there aren't
 					// too many missing chunks.
 					if missingChunks < 100 {
-						_, exist, _, err := manager.storage.FindChunk(0, chunkID, false)
+						_, exist, _, err := manager.storage.FindChunk(0, HexToStr(chunkID), false)
 						if err != nil {
 							LOG_WARN("SNAPSHOT_VALIDATE", "Failed to check the existence of chunk %s: %v",
-							         chunkID, err)
+							         HexToStr(chunkID), err)
 						} else if exist {
-							LOG_INFO("SNAPSHOT_VALIDATE", "Chunk %s is confirmed to exist", chunkID)
+							LOG_INFO("SNAPSHOT_VALIDATE", "Chunk %s is confirmed to exist", HexToStr(chunkID))
 							continue
 						}
 					}
@@ -919,14 +1440,14 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 						missingChunks += 1
 						LOG_WARN("SNAPSHOT_VALIDATE",
 							"Chunk %s referenced by snapshot %s at revision %d does not exist",
-							chunkID, snapshotID, snapshot.Revision)
+							HexToStr(chunkID), snapshotID, snapshot.Revision)
 						continue
 					}
 
-					chunkPath, exist, size, err := manager.storage.FindChunk(0, chunkID, true)
+					chunkPath, exist, size, err := manager.storage.FindChunk(0, HexToStr(chunkID), true)
 					if err != nil {
 						LOG_ERROR("SNAPSHOT_VALIDATE", "Failed to check the existence of fossil %s: %v",
-							chunkID, err)
+							HexToStr(chunkID), err)
 						return false
 					}
 
@@ -934,32 +1455,44 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 						missingChunks += 1
 						LOG_WARN("SNAPSHOT_VALIDATE",
 							"Chunk %s referenced by snapshot %s at revision %d does not exist",
-							chunkID, snapshotID, snapshot.Revision)
+							HexToStr(chunkID), snapshotID, snapshot.Revision)
 						continue
 					}
 
 					if resurrect {
-						manager.resurrectChunk(chunkPath, chunkID)
+						manager.resurrectChunk(chunkPath, HexToStr(chunkID))
 					} else {
 						LOG_WARN("SNAPSHOT_FOSSIL", "Chunk %s referenced by snapshot %s at revision %d "+
-							"has been marked as a fossil", chunkID, snapshotID, snapshot.Revision)
+							"has been marked as a fossil", HexToStr(chunkID), snapshotID, snapshot.Revision)
 					}
 
-					chunkSizeMap[chunkID] = size
-				}
-
-				if unique, found := chunkUniqueMap[chunkID]; !found {
-					chunkUniqueMap[chunkID] = true
-				} else {
-					if unique {
-						chunkUniqueMap[chunkID] = false
+					chunkInfo = ChunkInfo {
+						size: 			size,
+						snapshotIndex:	SNAPSHOT_INDEX_NONE,
+						isUnique: 		CHUNK_UNIQUE_UNDEFINED,
 					}
+					chunkInfoMap[chunkID] = chunkInfo
+					totalChunkSize += size
 				}
 
-				if previousSnapshotIDIndex, found := chunkSnapshotMap[chunkID]; !found {
-					chunkSnapshotMap[chunkID] = snapshotIDIndex
-				} else if previousSnapshotIDIndex != snapshotIDIndex && previousSnapshotIDIndex != -1 {
-					chunkSnapshotMap[chunkID] = -1
+				if showTabular || showStatistics {
+					// Only need these for stats
+					if chunkInfo.isUnique == CHUNK_UNIQUE_UNDEFINED {
+						chunkInfo.isUnique = CHUNK_UNIQUE_TRUE
+					} else {
+						if chunkInfo.isUnique == CHUNK_UNIQUE_TRUE {
+							chunkInfo.isUnique = CHUNK_UNIQUE_FALSE
+						}
+					}
+
+					if chunkInfo.snapshotIndex == SNAPSHOT_INDEX_NONE {
+						chunkInfo.snapshotIndex = snapshotIDIndex
+					} else {
+						if chunkInfo.snapshotIndex != snapshotIDIndex {
+							chunkInfo.snapshotIndex = SNAPSHOT_INDEX_MULTIPLE
+						}
+					}
+					chunkInfoMap[chunkID] = chunkInfo
 				}
 			}
 
@@ -987,10 +1520,12 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	}
 
 	if showTabular {
-		manager.ShowStatisticsTabular(snapshotMap, chunkSizeMap, chunkUniqueMap, chunkSnapshotMap)
+		manager.ShowStatisticsTabular(snapshotMap, chunkInfoMap)
 	} else if showStatistics {
-		manager.ShowStatistics(snapshotMap, chunkSizeMap, chunkUniqueMap, chunkSnapshotMap)
+		manager.ShowStatistics(snapshotMap, chunkInfoMap)
 	}
+
+	runtime.GC()
 
 	// Don't verify chunks with -files
 	if !checkChunks || checkFiles {
@@ -1118,27 +1653,26 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 }
 
 // Print snapshot and revision statistics
-func (manager *SnapshotManager) ShowStatistics(snapshotMap map[string][]*Snapshot, chunkSizeMap map[string]int64, chunkUniqueMap map[string]bool,
-	chunkSnapshotMap map[string]int) {
+func (manager *SnapshotManager) ShowStatistics(
+	snapshotMap map[string][]*Snapshot, 
+	chunkInfoMap map[BinHash]ChunkInfo,
+) {
 	for snapshotID, snapshotList := range snapshotMap {
 
-		snapshotChunks := make(map[string]bool)
+		snapshotChunks := make(BinHashSet)
 
 		for _, snapshot := range snapshotList {
-
-			chunks := make(map[string]bool)
-			for _, chunkID := range manager.GetSnapshotChunks(snapshot, false) {
-				chunks[chunkID] = true
-				snapshotChunks[chunkID] = true
-			}
 
 			var totalChunkSize int64
 			var uniqueChunkSize int64
 
-			for chunkID := range chunks {
-				chunkSize := chunkSizeMap[chunkID]
+			for _, chunkID := range manager.GetSnapshotChunkIDList(snapshot, false) {
+				snapshotChunks[chunkID] = struct{}{}
+
+				chunkInfo := chunkInfoMap[chunkID]
+				chunkSize := chunkInfo.size
 				totalChunkSize += chunkSize
-				if chunkUniqueMap[chunkID] {
+				if chunkInfo.isUnique == CHUNK_UNIQUE_TRUE {
 					uniqueChunkSize += chunkSize
 				}
 			}
@@ -1154,10 +1688,11 @@ func (manager *SnapshotManager) ShowStatistics(snapshotMap map[string][]*Snapsho
 		var totalChunkSize int64
 		var uniqueChunkSize int64
 		for chunkID := range snapshotChunks {
-			chunkSize := chunkSizeMap[chunkID]
+			chunkInfo := chunkInfoMap[chunkID]
+			chunkSize := chunkInfo.size
 			totalChunkSize += chunkSize
 
-			if chunkSnapshotMap[chunkID] != -1 {
+			if chunkInfo.snapshotIndex != SNAPSHOT_INDEX_MULTIPLE {
 				uniqueChunkSize += chunkSize
 			}
 		}
@@ -1167,36 +1702,25 @@ func (manager *SnapshotManager) ShowStatistics(snapshotMap map[string][]*Snapsho
 }
 
 // Print snapshot and revision statistics in tabular format
-func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string][]*Snapshot, chunkSizeMap map[string]int64, chunkUniqueMap map[string]bool,
-	chunkSnapshotMap map[string]int) {
+func (manager *SnapshotManager) ShowStatisticsTabular(
+	snapshotMap map[string][]*Snapshot, 
+	chunkInfoMap map[BinHash]ChunkInfo,
+) {
 	tableBuffer := new(bytes.Buffer)
 	tableWriter := tabwriter.NewWriter(tableBuffer, 0, 0, 1, ' ', tabwriter.AlignRight|tabwriter.Debug)
 
 	for snapshotID, snapshotList := range snapshotMap {
 		fmt.Fprintln(tableWriter, "")
 		fmt.Fprintln(tableWriter, " snap \trev \t \tfiles \tbytes \tchunks \tbytes \tuniq \tbytes \tnew \tbytes \t")
-		snapshotChunks := make(map[string]bool)
+	
+		snapshotChunks := make(BinHashSet)
 
-		earliestSeenChunks := make(map[string]int)
-
+		// snapshotList is already sorted in ascending order by CheckSnapshots
+		// (ListSnapshotRevision returns sorted results)
+		// This is important as populating snapshotChunks effectively
+		// identifies earliest seen chunks because of that, to avoid
+		// extra looping over all snapshot chunks
 		for _, snapshot := range snapshotList {
-			for _, chunkID := range manager.GetSnapshotChunks(snapshot, false) {
-				if earliestSeenChunks[chunkID] == 0 {
-					earliestSeenChunks[chunkID] = math.MaxInt32
-				}
-				if earliestSeenChunks[chunkID] > snapshot.Revision {
-					earliestSeenChunks[chunkID] = snapshot.Revision
-				}
-			}
-		}
-
-		for _, snapshot := range snapshotList {
-
-			chunks := make(map[string]bool)
-			for _, chunkID := range manager.GetSnapshotChunks(snapshot, false) {
-				chunks[chunkID] = true
-				snapshotChunks[chunkID] = true
-			}
 
 			var totalChunkSize int64
 			var uniqueChunkSize int64
@@ -1205,15 +1729,19 @@ func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string][]*
 			var newChunkCount int64
 			var newChunkSize int64
 
-			for chunkID := range chunks {
-				chunkSize := chunkSizeMap[chunkID]
+			for _, chunkID := range manager.GetSnapshotChunkIDList(snapshot, false) {
+				chunkInfo := chunkInfoMap[chunkID]
+				chunkSize := chunkInfo.size
 				totalChunkSize += chunkSize
 				totalChunkCount += 1
-				if earliestSeenChunks[chunkID] == snapshot.Revision {
+
+				if _, isFound := snapshotChunks[chunkID]; !isFound { 
+					// This is a new chunk for this snapshot
 					newChunkCount += 1
 					newChunkSize += chunkSize
+					snapshotChunks[chunkID] = struct{}{}
 				}
-				if chunkUniqueMap[chunkID] {
+				if chunkInfo.isUnique == CHUNK_UNIQUE_TRUE {
 					uniqueChunkSize += chunkSize
 					uniqueChunkCount += 1
 				}
@@ -1234,11 +1762,12 @@ func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string][]*
 		var totalChunkCount int64
 		var uniqueChunkCount int64
 		for chunkID := range snapshotChunks {
-			chunkSize := chunkSizeMap[chunkID]
+			chunkInfo := chunkInfoMap[chunkID]
+			chunkSize := chunkInfo.size
 			totalChunkSize += chunkSize
 			totalChunkCount += 1
 
-			if chunkSnapshotMap[chunkID] != -1 {
+			if chunkInfo.snapshotIndex != SNAPSHOT_INDEX_MULTIPLE {
 				uniqueChunkSize += chunkSize
 				uniqueChunkCount += 1
 			}
@@ -1458,7 +1987,7 @@ func (manager *SnapshotManager) PrintFile(snapshotID string, revision int, path 
 			return false
 		}
 	} else {
-		snapshot = manager.DownloadSnapshot(snapshotID, revision)
+		snapshot = manager.DownloadSnapshot(snapshotID, revision, true)
 	}
 
 	if snapshot == nil {
@@ -1524,7 +2053,7 @@ func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []
 
 		}
 	} else {
-		rightSnapshot = manager.DownloadSnapshot(snapshotID, revisions[1])
+		rightSnapshot = manager.DownloadSnapshot(snapshotID, revisions[1], true)
 		manager.DownloadSnapshotSequences(rightSnapshot)
 	}
 
@@ -1536,7 +2065,7 @@ func (manager *SnapshotManager) Diff(top string, snapshotID string, revisions []
 			return false
 		}
 	} else {
-		leftSnapshot = manager.DownloadSnapshot(snapshotID, revisions[0])
+		leftSnapshot = manager.DownloadSnapshot(snapshotID, revisions[0], true)
 	}
 
 	manager.DownloadSnapshotSequences(leftSnapshot)
@@ -1726,6 +2255,7 @@ func (manager *SnapshotManager) ShowHistory(top string, snapshotID string, revis
 	} ()
 
 	var err error
+	checkExistence := len(revisions)>0
 
 	if len(revisions) == 0 {
 		revisions, err = manager.ListSnapshotRevisions(snapshotID)
@@ -1738,7 +2268,7 @@ func (manager *SnapshotManager) ShowHistory(top string, snapshotID string, revis
 	var lastVersion *Entry
 	sort.Ints(revisions)
 	for _, revision := range revisions {
-		snapshot := manager.DownloadSnapshot(snapshotID, revision)
+		snapshot := manager.DownloadSnapshot(snapshotID, revision, checkExistence)
 		manager.DownloadSnapshotSequences(snapshot)
 		file := manager.FindFile(snapshot, filePath, true)
 
@@ -1959,7 +2489,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 		sort.Ints(revisions)
 		var snapshots []*Snapshot
 		for _, revision := range revisions {
-			snapshot := manager.DownloadSnapshot(id, revision)
+			snapshot := manager.DownloadSnapshot(id, revision, false)
 			if snapshot != nil {
 				snapshots = append(snapshots, snapshot)
 			}

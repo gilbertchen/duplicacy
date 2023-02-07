@@ -69,6 +69,14 @@ type Storage interface {
 
 	// Set the maximum transfer speeds.
 	SetRateLimits(downloadRateLimit int, uploadRateLimit int)
+
+	// If cache for snapshot chunk ids is enabled
+	IsSnapshotChunksIDsCacheEnabled() bool
+	SetIsSnapshotChunksIDsCacheEnabled(flag bool)
+
+	// Root directory for snapshot chunk ids cache
+	GetSnapshotChunksIDsCacheRootDir() string
+	SetSnapshotChunksIDsCacheRootDir(s string)
 }
 
 // StorageBase is the base struct from which all storages are derived from
@@ -80,6 +88,23 @@ type StorageBase struct {
 
 	readLevels []int // At which nesting level to find the chunk with the given id
 	writeLevel int   // Store the uploaded chunk to this level
+
+	snapshotChunksIDsCacheEnabled bool // Enables cache for snapshot chunk ids
+	snapshotChunksIDsCacheRootDir string // Root directory for snapshot chunk ids cache
+}
+
+func (storage *StorageBase) IsSnapshotChunksIDsCacheEnabled() bool {
+	return storage.snapshotChunksIDsCacheEnabled
+}
+func (storage *StorageBase) SetIsSnapshotChunksIDsCacheEnabled(flag bool) {
+	storage.snapshotChunksIDsCacheEnabled = flag
+}
+
+func (storage *StorageBase) GetSnapshotChunksIDsCacheRootDir() string {
+	return storage.snapshotChunksIDsCacheRootDir
+}
+func (storage *StorageBase) SetSnapshotChunksIDsCacheRootDir(s string) {
+	storage.snapshotChunksIDsCacheRootDir = s
 }
 
 // SetRateLimits sets the maximum download and upload rates
