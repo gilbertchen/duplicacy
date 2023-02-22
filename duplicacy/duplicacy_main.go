@@ -1231,8 +1231,44 @@ func pruneSnapshots(context *cli.Context) {
 	duplicacy.SavePassword(*preference, "password", password)
 
 	backupManager.SetupSnapshotCache(preference.Name)
-	backupManager.SnapshotManager.PruneSnapshots(selfID, snapshotID, revisions, tags, retentions,
-		exhaustive, exclusive, ignoredIDs, dryRun, deleteOnly, collectOnly, threads)
+
+	snapshotChunksIDsCacheEnabled := duplicacy.GetPasswordFromPreference(
+		*preference, "snapshot_chunks_ids_cache_enabled",
+	)
+	if strings.ToLower(snapshotChunksIDsCacheEnabled) == "true" {
+		storage.SetIsSnapshotChunksIDsCacheEnabled(true)
+	} else {
+		storage.SetIsSnapshotChunksIDsCacheEnabled(false)
+	}
+
+	snapshotChunksIDsCacheRootDir := duplicacy.GetPasswordFromPreference(
+		*preference, "snapshot_chunks_ids_cache_root_dir",
+	)
+	if snapshotChunksIDsCacheRootDir == "" {
+		storage.SetSnapshotChunksIDsCacheRootDir(backupManager.GetCachePath())
+	} else {
+		storage.SetSnapshotChunksIDsCacheRootDir(snapshotChunksIDsCacheRootDir)
+	}
+
+	pruneReadsChunkFileListFromCacheOnly := duplicacy.GetPasswordFromPreference(
+		*preference, "prune_reads_chunk_filelist_from_cache_only",
+	) == "true"
+
+    backupManager.SnapshotManager.PruneSnapshots(
+    	selfID, 
+    	snapshotID, 
+    	revisions, 
+    	tags, 
+    	retentions,
+		exhaustive, 
+		exclusive, 
+		ignoredIDs, 
+		dryRun, 
+		deleteOnly, 
+		collectOnly, 
+		threads,
+		pruneReadsChunkFileListFromCacheOnly,
+	)
 
 	runScript(context, preference.Name, "post")
 }
