@@ -669,7 +669,28 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			client_secret = GetPassword(preference, matched[1] + "_client_secret", prompt, true, resetPassword)
 		}
 
-		oneDriveStorage, err := CreateOneDriveStorage(tokenFile, matched[1] == "odb", storagePath, threads, client_id, client_secret, drive_id)
+		// OneDrive Business uses Graph API which supports request batching
+		// "disabled" - (-1) disabled
+		// "max"      - ( 0) enabled, max requests per batch (normally, 20)
+		// "<nn>"     - (nn) enabled, specified requests per batch
+		max_batch_requests := -1
+
+		if matched[1] == "odb" {
+			max_batch_requests_str := GetPasswordFromPreference(preference, matched[1] + "_max_batch_requests")
+			if max_batch_requests_str == "max" {
+				max_batch_requests = 20 
+			} else if max_batch_requests_str != "" {
+				n, err := strconv.Atoi(max_batch_requests_str)
+				if err == nil {
+					max_batch_requests = n
+					if max_batch_requests > 20 {
+						max_batch_requests = 20
+					}
+				}
+			}
+		}
+
+		oneDriveStorage, err := CreateOneDriveStorage(tokenFile, matched[1] == "odb", storagePath, threads, max_batch_requests, client_id, client_secret, drive_id)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the OneDrive storage at %s: %v", storageURL, err)
 			return nil
