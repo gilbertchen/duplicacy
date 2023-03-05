@@ -696,6 +696,15 @@ func StrToHex(ub StrHash) (b BinHash) {
 	return b
 }
 
+
+func StrToHexCheckForErrors(ub StrHash) (b BinHash, err error) {
+	bb, err := hex.DecodeString(ub)
+
+	copy(b[:], bb)
+	return b, err
+}
+
+
 // Cache files used in reading/writing lists and sets of chunk ids
 // in functions below are the same across lists and sets, e.g. the same
 // file can populate a list or a set on read (with different functions)
@@ -1344,16 +1353,23 @@ func (manager *SnapshotManager) CheckSnapshots(
 		}
 
 		chunk = strings.Replace(chunk, "/", "", -1)
-		chunkInfoMap[StrToHex(chunk)] = ChunkInfo {
-			size: 			csize,
-			snapshotIndex:	SNAPSHOT_INDEX_NONE,
-			isUnique: 		CHUNK_UNIQUE_UNDEFINED,
-		}
-		totalChunkSize += csize
 
 		if csize == 0 && !strings.HasSuffix(chunk, ".tmp") {
 			LOG_WARN("SNAPSHOT_CHECK", "Chunk %s has a size of 0", chunk)
 			emptyChunks++
+		}
+
+		chunkID, err := StrToHexCheckForErrors(chunk)
+		if err == nil {
+			chunkInfoMap[chunkID] = ChunkInfo {
+				size: 			csize,
+				snapshotIndex:	SNAPSHOT_INDEX_NONE,
+				isUnique: 		CHUNK_UNIQUE_UNDEFINED,
+			}
+			totalChunkSize += csize
+		} else {
+			LOG_WARN("SNAPSHOT_CHECK", "%s is not a chunk", chunk)
+			continue
 		}
     }
 	if err = chunksXsizesFileR.Close(); err != nil {
@@ -3080,7 +3096,13 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(
 				chunk := strings.Replace(file, "/", "", -1)
 				chunk = strings.Replace(chunk, ".fsl", "", -1)
 
-				if _, found := referencedChunks[StrToHex(chunk)]; found {
+				chunkID, err := StrToHexCheckForErrors(chunk)
+				if err != nil {
+					LOG_WARN("FOSSIL_CHECK", "File %s is not a chunk", file)
+					continue
+				}
+
+				if _, found := referencedChunks[chunkID]; found {
 
 					if dryRun {
 						LOG_INFO("FOSSIL_REFERENCED", "Found referenced fossil %s", file)
@@ -3117,7 +3139,11 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(
 			continue
 		}
 
-		chunkID := StrToHex(chunk)
+		chunkID, err := StrToHexCheckForErrors(chunk)
+		if err != nil {
+			LOG_WARN("CHUNK_UNKNOWN_FILE", "File %s is not a chunk", file)
+			continue
+		}
 
 		if value, found := referencedChunks[chunkID]; !found {
 			if dryRun {
