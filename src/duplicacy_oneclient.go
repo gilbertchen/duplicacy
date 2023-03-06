@@ -201,7 +201,7 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 			continue
 		} else if response.StatusCode == 409 {
 			return nil, 0, OneDriveError{Status: response.StatusCode, Message: "Conflict"}
-		} else if response.StatusCode > 401 && response.StatusCode != 404 {
+		} else if response.StatusCode >= 400 && response.StatusCode != 404 {
 			delay := int((rand.Float32() * 0.5 + 0.5) * 1000.0 * float32(backoff))
 			if backoffList, found := response.Header["Retry-After"]; found && len(backoffList) > 0 {
 				retryAfter, _ := strconv.Atoi(backoffList[0])
