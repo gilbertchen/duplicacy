@@ -1019,6 +1019,8 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	numberOfVerifiedChunks := len(verifiedChunks)
 
 	saveVerifiedChunks := func() {
+		verifiedChunksLock.Lock()
+		defer verifiedChunksLock.Unlock()
 		if len(verifiedChunks) > numberOfVerifiedChunks {
 			var description []byte
 			description, err = json.Marshal(verifiedChunks)
