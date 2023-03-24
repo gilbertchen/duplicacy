@@ -9,7 +9,7 @@ require (
 	github.com/bkaradzic/go-lz4 v1.0.0
 	github.com/gilbertchen/azure-sdk-for-go v14.1.2-0.20180323033227-8fd4663cab7c+incompatible
 	github.com/gilbertchen/cli v1.2.1-0.20160223210219-1de0a1836ce9
-	github.com/gilbertchen/go-dropbox v0.0.0-20221207034530-08c0c180a4f9
+	github.com/gilbertchen/go-dropbox v0.0.0-20230321030224-087ef8db1916
 	github.com/gilbertchen/go-ole v1.2.0
 	github.com/gilbertchen/goamz v0.0.0-20170712012135-eada9f4e8cc2
 	github.com/gilbertchen/gopass v0.0.0-20170109162249-bf9dde6d0d2c
