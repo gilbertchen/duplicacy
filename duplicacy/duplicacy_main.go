@@ -371,6 +371,8 @@ func configRepository(context *cli.Context, init bool) {
 		} else if existingConfig.CompressionLevel != 100 {
 			duplicacy.LOG_ERROR("STORAGE_COMPRESSION", "This storage is configured with an invalid compression level %d", existingConfig.CompressionLevel)
 			return
+		} else if existingConfig.CompressionLevel != duplicacy.DEFAULT_COMPRESSION_LEVEL {
+			duplicacy.LOG_INFO("STORAGE_COMPRESSION", "Compression level: %d", existingConfig.CompressionLevel)
 		}
 
 		// Don't print config in the background mode
@@ -378,8 +380,6 @@ func configRepository(context *cli.Context, init bool) {
 			existingConfig.Print()
 		}
 	} else {
-		compressionLevel := 100
-
 		averageChunkSize := duplicacy.AtoSize(context.String("chunk-size"))
 		if averageChunkSize == 0 {
 			fmt.Fprintf(context.App.Writer, "Invalid average chunk size: %s.\n\n", context.String("chunk-size"))
@@ -485,6 +485,18 @@ func configRepository(context *cli.Context, init bool) {
 					duplicacy.LOG_ERROR("STORAGE_ERASURECODE", "Invalid erasure coding parameters: %s", shards)
 				}
 			}
+		}
+
+		compressionLevel := 100
+		zstdLevel := context.String("zstd-level")
+		if zstdLevel != "" {
+			if level, found := duplicacy.ZSTD_COMPRESSION_LEVELS[zstdLevel]; found {
+				compressionLevel = level
+			} else {
+				duplicacy.LOG_ERROR("STORAGE_COMPRESSION", "Invalid zstd compression level: %s", zstdLevel)
+			}
+		} else if context.Bool("zstd") {
+			compressionLevel = duplicacy.ZSTD_COMPRESSION_LEVEL_DEFAULT
 		}
 
 		duplicacy.ConfigStorage(storage, iterations, compressionLevel, averageChunkSize, maximumChunkSize,
@@ -785,6 +797,17 @@ func backupRepository(context *cli.Context) {
 
 	backupManager.SetupSnapshotCache(preference.Name)
 	backupManager.SetDryRun(dryRun)
+
+	zstdLevel := context.String("zstd-level")
+	if zstdLevel != "" {
+		if level, found := duplicacy.ZSTD_COMPRESSION_LEVELS[zstdLevel]; found {
+			backupManager.SetCompressionLevel(level)
+		} else {
+			duplicacy.LOG_ERROR("STORAGE_COMPRESSION", "Invalid zstd compression level: %s", zstdLevel)
+		}
+	} else if context.Bool("zstd") {
+		backupManager.SetCompressionLevel(duplicacy.ZSTD_COMPRESSION_LEVEL_DEFAULT)
+	}
 
 	metadataChunkSize := context.Int("metadata-chunk-size")
 	maximumInMemoryEntries := context.Int("max-in-memory-entries")
@@ -1428,6 +1451,15 @@ func main() {
 					Usage:    "the minimum size of chunks (defaults to chunk-size/4)",
 					Argument: "<size>",
 				},
+				cli.StringFlag{
+					Name:     "zstd-level",
+					Usage:    "set zstd compression level (fast, default, better, or best)",
+					Argument: "<level>",
+				},
+				cli.BoolFlag{
+					Name:     "zstd",
+					Usage:    "short for -zstd default",
+				},
 				cli.IntFlag{
 					Name:     "iterations",
 					Usage:    "the number of iterations used in storage key derivation (default is 16384)",
@@ -1494,6 +1526,15 @@ func main() {
 				cli.BoolFlag{
 					Name:  "dry-run",
 					Usage: "dry run for testing, don't backup anything. Use with -stats and -d",
+				},
+				cli.StringFlag{
+					Name:     "zstd-level",
+					Usage:    "set zstd compression level (fast, default, better, or best)",
+					Argument: "<level>",
+				},
+				cli.BoolFlag{
+					Name:     "zstd",
+					Usage:    "short for -zstd default",
 				},
 				cli.BoolFlag{
 					Name:  "vss",
@@ -1937,6 +1978,15 @@ func main() {
 					Name:     "min-chunk-size, min",
 					Usage:    "the minimum size of chunks (default is chunk-size/4)",
 					Argument: "<size>",
+				},
+				cli.StringFlag{
+					Name:     "zstd-level",
+					Usage:    "set zstd compression level (fast, default, better, or best)",
+					Argument: "<level>",
+				},
+				cli.BoolFlag{
+					Name:     "zstd",
+					Usage:    "short for -zstd default",
 				},
 				cli.IntFlag{
 					Name:     "iterations",

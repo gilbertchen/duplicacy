@@ -24,6 +24,7 @@ import (
 	"github.com/bkaradzic/go-lz4"
 	"github.com/minio/highwayhash"
 	"github.com/klauspost/reedsolomon"
+	"github.com/klauspost/compress/zstd"
 
 	// This is a fork of github.com/minio/highwayhash at 1.0.1 that computes incorrect hash on
 	// arm64 machines.  We need this fork to be able to read the chunks created by Duplicacy
@@ -267,6 +268,38 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string, isMetada
 		deflater, _ := zlib.NewWriterLevel(encryptedBuffer, chunk.config.CompressionLevel)
 		deflater.Write(chunk.buffer.Bytes())
 		deflater.Close()
+	} else if chunk.config.CompressionLevel >= ZSTD_COMPRESSION_LEVEL_FASTEST && chunk.config.CompressionLevel <= ZSTD_COMPRESSION_LEVEL_BEST  {
+		encryptedBuffer.Write([]byte("ZSTD"))
+
+		compressionLevel := zstd.SpeedDefault
+		if chunk.config.CompressionLevel == ZSTD_COMPRESSION_LEVEL_FASTEST {
+			compressionLevel = zstd.SpeedFastest
+		} else if chunk.config.CompressionLevel == ZSTD_COMPRESSION_LEVEL_BETTER {
+			compressionLevel = zstd.SpeedBetterCompression
+		} else if chunk.config.CompressionLevel == ZSTD_COMPRESSION_LEVEL_BEST {
+			compressionLevel = zstd.SpeedBestCompression
+		}
+
+		deflater, err := zstd.NewWriter(encryptedBuffer, zstd.WithEncoderLevel(compressionLevel))
+		if err != nil {
+			return err
+		}
+
+		// Make sure we have enough space in encryptedBuffer
+		availableLength := encryptedBuffer.Cap() - len(encryptedBuffer.Bytes())
+		maximumLength := deflater.MaxEncodedSize(chunk.buffer.Len())
+		if availableLength < maximumLength {
+			encryptedBuffer.Grow(maximumLength - availableLength)
+		}
+		_, err = deflater.Write(chunk.buffer.Bytes())
+		if err != nil {
+			return fmt.Errorf("ZSTD compression error: %v", err)
+		}
+
+		err = deflater.Close()
+		if err != nil {
+			return fmt.Errorf("ZSTD compression error: %v", err)
+		}
 	} else if chunk.config.CompressionLevel == DEFAULT_COMPRESSION_LEVEL {
 		encryptedBuffer.Write([]byte("LZ4 "))
 		// Make sure we have enough space in encryptedBuffer
@@ -361,7 +394,6 @@ func (chunk *Chunk) Encrypt(encryptionKey []byte, derivationKey string, isMetada
 	chunk.buffer.Write(header)
 
 	return nil
-
 }
 
 // This is to ensure compatibility with Vertical Backup, which still uses HMAC-SHA256 (instead of HMAC-BLAKE2) to
@@ -633,6 +665,24 @@ func (chunk *Chunk) Decrypt(encryptionKey []byte, derivationKey string) (err err
 		chunk.hash = nil
 		return nil, rewriteNeeded
 	}
+
+	if len(compressed) > 4 && string(compressed[:4]) == "ZSTD" {
+		chunk.buffer.Reset()
+		chunk.hasher = chunk.config.NewKeyedHasher(chunk.config.HashKey)
+		chunk.hash = nil
+
+		encryptedBuffer.Read(encryptedBuffer.Bytes()[:4])
+		inflater, err := zstd.NewReader(encryptedBuffer)
+		if err != nil {
+			return err, false
+		}
+		defer inflater.Close()
+		if _, err = io.Copy(chunk, inflater); err != nil {
+			return err, false
+		}
+		return nil, rewriteNeeded
+	}
+
 	inflater, err := zlib.NewReader(encryptedBuffer)
 	if err != nil {
 		return err, false

@@ -35,6 +35,19 @@ var DEFAULT_KEY = []byte("duplicacy")
 // standard zlib levels of -1 to 9.
 var DEFAULT_COMPRESSION_LEVEL = 100
 
+// zstd compression levels starting from 200
+var ZSTD_COMPRESSION_LEVEL_FASTEST = 200
+var ZSTD_COMPRESSION_LEVEL_DEFAULT = 201
+var ZSTD_COMPRESSION_LEVEL_BETTER = 202
+var ZSTD_COMPRESSION_LEVEL_BEST = 203
+
+var ZSTD_COMPRESSION_LEVELS = map[string]int {
+    "fastest": ZSTD_COMPRESSION_LEVEL_FASTEST,
+	"default": ZSTD_COMPRESSION_LEVEL_DEFAULT,
+	"better":  ZSTD_COMPRESSION_LEVEL_BETTER,
+	"best":    ZSTD_COMPRESSION_LEVEL_BEST,
+}
+
 // The new banner of the config file (to differentiate from the old format where the salt and iterations are fixed)
 var CONFIG_BANNER = "duplicacy\001"
 
@@ -202,6 +215,14 @@ func (config *Config) Print() {
 
 }
 
+func (config *Config) PrintCompressionLevel() {
+	for name, level := range ZSTD_COMPRESSION_LEVELS {
+		if level == config.CompressionLevel {
+			LOG_INFO("COMPRESSION_LEVEL", "Zstd compression is enabled (level: %s)", name)
+		}
+	}
+}
+
 func CreateConfigFromParameters(compressionLevel int, averageChunkSize int, maximumChunkSize int, mininumChunkSize int,
 	isEncrypted bool, copyFrom *Config, bitCopy bool) (config *Config) {
 
@@ -294,7 +315,10 @@ func (config *Config) PutChunk(chunk *Chunk) {
 }
 
 func (config *Config) NewKeyedHasher(key []byte) hash.Hash {
-	if config.CompressionLevel == DEFAULT_COMPRESSION_LEVEL {
+	// Early versions of Duplicacy used SHA256 as the hash function for chunk IDs at the time when
+	// only zlib compression was supported.  Later SHA256 was replaced by Blake2b and LZ4 was used
+	// for compression (with compression level set to 100).
+	if config.CompressionLevel >= DEFAULT_COMPRESSION_LEVEL {
 		hasher, err := blake2.New(&blake2.Config{Size: 32, Key: key})
 		if err != nil {
 			LOG_ERROR("HASH_KEY", "Invalid hash key: %x", key)
@@ -339,7 +363,7 @@ func (hasher *DummyHasher) BlockSize() int {
 func (config *Config) NewFileHasher() hash.Hash {
 	if SkipFileHash {
 		return &DummyHasher{}
-	} else if config.CompressionLevel == DEFAULT_COMPRESSION_LEVEL {
+	} else if config.CompressionLevel >= DEFAULT_COMPRESSION_LEVEL {
 		hasher, _ := blake2.New(&blake2.Config{Size: 32})
 		return hasher
 	} else {

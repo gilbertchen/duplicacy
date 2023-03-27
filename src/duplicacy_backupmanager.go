@@ -47,6 +47,10 @@ func (manager *BackupManager) SetDryRun(dryRun bool) {
 	manager.config.dryRun = dryRun
 }
 
+func (manager *BackupManager) SetCompressionLevel(level int) {
+	manager.config.CompressionLevel = level
+}
+
 // CreateBackupManager creates a backup manager using the specified 'storage'.  'snapshotID' is a unique id to
 // identify snapshots created for this repository.  'top' is the top directory of the repository.  'password' is the
 // master key which can be nil if encryption is not enabled.
@@ -137,6 +141,8 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	startTime := time.Now().Unix()
 
 	LOG_DEBUG("BACKUP_PARAMETERS", "top: %s, quick: %t, tag: %s", top, quickMode, tag)
+
+	manager.config.PrintCompressionLevel()
 
 	if manager.config.DataShards != 0 && manager.config.ParityShards != 0 {
 		LOG_INFO("BACKUP_ERASURECODING", "Erasure coding is enabled with %d data shards and %d parity shards",
