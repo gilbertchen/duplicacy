@@ -329,7 +329,7 @@ func (client *B2Client) AuthorizeAccount(threadIndex int) (err error, allowed bo
 	if client.DownloadURL == "" {
 		client.DownloadURL = output.DownloadURL
 	}
-	LOG_INFO("BACKBLAZE_URL", "download URL is: %s", client.DownloadURL)
+	LOG_INFO("BACKBLAZE_URL", "Download URL is: %s", client.DownloadURL)
 	client.IsAuthorized = true
 
 	client.LastAuthorizationTime = time.Now().Unix()
@@ -584,8 +584,26 @@ func (client *B2Client) HideFile(threadIndex int, fileName string) (fileID strin
 
 func (client *B2Client) DownloadFile(threadIndex int, filePath string) (io.ReadCloser, int64, error) {
 
-	url := client.getDownloadURL() + "/file/" + client.BucketName + "/" + B2Escape(client.StorageDir + filePath)
+	if !strings.HasSuffix(filePath, ".fsl") {
+		url := client.getDownloadURL() + "/file/" + client.BucketName + "/" + B2Escape(client.StorageDir + filePath)
 
+		readCloser, _, len, err := client.call(threadIndex, url, http.MethodGet, make(map[string]string), 0)
+		return readCloser, len, err
+	}
+
+	// We're trying to download a fossil file.  We need to find the file ID of the last 'upload' of the file.
+	filePath = strings.TrimSuffix(filePath, ".fsl")
+	entries, err := client.ListFileNames(threadIndex, filePath, true, true)
+	fileId := ""
+	for _, entry := range entries {
+		if entry.FileName == filePath && entry.Action == "upload" && entry.Size > 0 {
+			fileId = entry.FileID
+			break
+		}
+	}
+
+	// Proceed with the b2_download_file_by_id call
+	url := client.getAPIURL() + "/b2api/v1/b2_download_file_by_id?fileId=" + fileId
 	readCloser, _, len, err := client.call(threadIndex, url, http.MethodGet, make(map[string]string), 0)
 	return readCloser, len, err
 }
