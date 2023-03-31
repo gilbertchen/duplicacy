@@ -43,6 +43,10 @@ type BackupManager struct {
 	cachePath string
 }
 
+func (manager *BackupManager) GetCachePath() string {
+	return manager.cachePath
+}
+
 func (manager *BackupManager) SetDryRun(dryRun bool) {
 	manager.config.dryRun = dryRun
 }
@@ -688,7 +692,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 		localSnapshot.ListLocalFiles(top, manager.nobackupFile, manager.filtersFile, manager.excludeByAttribute, localListingChannel, nil, nil)
 	} ()
 
-	remoteSnapshot := manager.SnapshotManager.DownloadSnapshot(manager.snapshotID, revision)
+	remoteSnapshot := manager.SnapshotManager.DownloadSnapshot(manager.snapshotID, revision, true)
 	manager.SnapshotManager.DownloadSnapshotSequences(remoteSnapshot)
 	go func() {
 		// List remote files
@@ -1640,7 +1644,7 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 				continue
 			}
 
-			snapshot := manager.SnapshotManager.DownloadSnapshot(id, revision)
+			snapshot := manager.SnapshotManager.DownloadSnapshot(id, revision, true)
 			snapshots = append(snapshots, snapshot)
 		}
 
