@@ -201,7 +201,12 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 			continue
 		} else if response.StatusCode == 409 {
 			return nil, 0, OneDriveError{Status: response.StatusCode, Message: "Conflict"}
-		} else if response.StatusCode >= 400 && response.StatusCode != 404 {
+		} else if response.StatusCode >= 400 && response.StatusCode != 404 && !(
+				  method == "PATCH" && response.StatusCode == 400) {
+			// MoveFile uses PATCH method, and it unfortunately relies on
+			// processing 400 errors for detecting non-existent target
+			// folders. So in this case we bubble up 400 errors to be handled
+			// in MoveFile
 			delay := int((rand.Float32() * 0.5 + 0.5) * 1000.0 * float32(backoff))
 			if backoffList, found := response.Header["Retry-After"]; found && len(backoffList) > 0 {
 				retryAfter, _ := strconv.Atoi(backoffList[0])
