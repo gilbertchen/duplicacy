@@ -757,6 +757,43 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			return nil
 		}
 		return storjStorage
+	} else if matched[1] == "smb" {
+		server := matched[3]
+		username := matched[2]
+		if username == "" {
+			LOG_ERROR("STORAGE_CREATE", "No username is provided to access the SAMBA storage")
+			return nil
+		}
+		username = username[:len(username)-1]
+		storageDir := matched[5]
+		port := 445
+
+		if strings.Contains(server, ":") {
+			index := strings.Index(server, ":")
+			port, _ = strconv.Atoi(server[index+1:])
+			server = server[:index]
+		}
+
+		if !strings.Contains(storageDir, "/") {
+			LOG_ERROR("STORAGE_CREATE", "No share name specified for the SAMBA storage")
+			return nil
+		}
+
+		index := strings.Index(storageDir, "/")
+		shareName := storageDir[:index]
+		storageDir = storageDir[index+1:]
+
+		prompt := fmt.Sprintf("Enter the SAMBA password:")
+		password := GetPassword(preference, "smb_password", prompt, true, resetPassword)
+		sambaStorage, err := CreateSambaStorage(server, port, username, password, shareName, storageDir, threads)
+		if err != nil {
+			LOG_ERROR("STORAGE_CREATE", "Failed to load the SAMBA storage at %s: %v", storageURL, err)
+			return nil
+		}
+		SavePassword(preference, "smb_password", password)
+		return sambaStorage
+
+
 	} else {
 		LOG_ERROR("STORAGE_CREATE", "The storage type '%s' is not supported", matched[1])
 		return nil

@@ -136,15 +136,15 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
 	} else if *testStorageName == "one" {
-		storage, err := CreateOneDriveStorage(config["token_file"], false, config["storage_path"], threads)
+		storage, err := CreateOneDriveStorage(config["token_file"], false, config["storage_path"], threads, "", "", "")
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
 	} else if *testStorageName == "odb" {
-		storage, err := CreateOneDriveStorage(config["token_file"], true, config["storage_path"], threads)
+		storage, err := CreateOneDriveStorage(config["token_file"], true, config["storage_path"], threads, "", "", "")
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
 	} else if *testStorageName == "one" {
-		storage, err := CreateOneDriveStorage(config["token_file"], false, config["storage_path"], threads)
+		storage, err := CreateOneDriveStorage(config["token_file"], false, config["storage_path"], threads, "", "", "")
 		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
 		return storage, err
 	} else if *testStorageName == "hubic" {
@@ -171,6 +171,21 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		return storage, err
 	} else if *testStorageName == "storj" {
 		storage, err := CreateStorjStorage(config["satellite"], config["key"], config["passphrase"], config["bucket"], config["storage_path"], threads)
+		if err != nil {
+			return nil, err
+		}
+		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
+		return storage, err
+	} else if *testStorageName == "storj" {
+		storage, err := CreateStorjStorage(config["satellite"], config["key"], config["passphrase"], config["bucket"], config["storage_path"], threads)
+		if err != nil {
+			return nil, err
+		}
+		storage.SetDefaultNestingLevels([]int{2, 3}, 2)
+		return storage, err
+	} else if *testStorageName == "smb" {
+		port, _ := strconv.Atoi(config["port"])
+		storage, err := CreateSambaStorage(config["server"], port, config["username"], config["password"], config["share"], config["storage_path"], threads)
 		if err != nil {
 			return nil, err
 		}
