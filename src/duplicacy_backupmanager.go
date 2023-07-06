@@ -98,10 +98,12 @@ func (manager *BackupManager) LoadRSAPrivateKey(keyFile string, passphrase strin
 // SetupSnapshotCache creates the snapshot cache, which is merely a local storage under the default .duplicacy
 // directory
 func (manager *BackupManager) SetupSnapshotCache(storageName string) bool {
-
 	preferencePath := GetDuplicacyPreferencePath()
-	cacheDir := path.Join(preferencePath, "cache", storageName)
+	return manager.SetupSnapshotCacheDir(path.Join(preferencePath, "cache", storageName))
+}
 
+// SetupSnapshotCacheDir creates the snapshot cache under the specified cacheDir
+func (manager *BackupManager) SetupSnapshotCacheDir(cacheDir string) bool {
 	storage, err := CreateFileStorage(cacheDir, false, 1)
 	if err != nil {
 		LOG_ERROR("BACKUP_CACHE", "Failed to create the snapshot cache dir: %v", err)
@@ -116,7 +118,7 @@ func (manager *BackupManager) SetupSnapshotCache(storageName string) bool {
 		}
 	}
 
-	manager.cachePath = path.Join(preferencePath, "cache", storageName)
+	manager.cachePath = cacheDir
 
 	storage.SetDefaultNestingLevels([]int{1}, 1)
 	manager.snapshotCache = storage

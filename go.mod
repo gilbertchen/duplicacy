@@ -32,6 +32,7 @@ require (
 require (
 	github.com/Azure/go-autorest v10.15.5+incompatible // indirect
 	github.com/calebcase/tmpfile v1.0.3 // indirect
+	github.com/cvilsmeier/sqinn-go v1.1.2 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/dnaeon/go-vcr v1.2.0 // indirect
 	github.com/gilbertchen/highwayhash v0.0.0-20221109044721-eeab1f4799d8 // indirect
@@ -40,6 +41,7 @@ require (
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/googleapis/gax-go/v2 v2.0.5 // indirect
+	github.com/hashicorp/golang-lru v0.5.4 // indirect
 	github.com/jmespath/go-jmespath v0.3.0 // indirect
 	github.com/klauspost/compress v1.16.3 // indirect
 	github.com/klauspost/cpuid v1.3.1 // indirect
@@ -53,6 +55,7 @@ require (
 	github.com/spacemonkeygo/monkit/v3 v3.0.17 // indirect
 	github.com/vaughan0/go-ini v0.0.0-20130923145212-a98ad7ee00ec // indirect
 	github.com/vivint/infectious v0.0.0-20200605153912-25a574ae18a3 // indirect
+	github.com/winfsp/cgofuse v1.5.0 // indirect
 	github.com/zeebo/errs v1.3.0 // indirect
 	go.opencensus.io v0.22.3 // indirect
 	golang.org/x/mod v0.4.2 // indirect
