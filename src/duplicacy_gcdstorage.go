@@ -775,7 +775,7 @@ func (storage *GCDStorage) GetFileInfo(threadIndex int, filePath string) (exist 
 // DownloadFile reads the file at 'filePath' into the chunk.
 func (storage *GCDStorage) DownloadFile(threadIndex int, filePath string, chunk *Chunk) (err error) {
 	// We never download the fossil so there is no need to convert the path
-	fileID, err := storage.getIDFromPath(threadIndex, filePath, false)
+	fileID, err := storage.getIDFromPath(threadIndex, storage.convertFilePath(filePath), false)
 	if err != nil {
 		return err
 	}
