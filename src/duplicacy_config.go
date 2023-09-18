@@ -169,10 +169,9 @@ func (config *Config) UnmarshalJSON(description []byte) (err error) {
 	return nil
 }
 
-func (config *Config) IsCompatiableWith(otherConfig *Config) bool {
+func (config *Config) IsCompatibleWith(otherConfig *Config) bool {
 
-	return config.CompressionLevel == otherConfig.CompressionLevel &&
-		config.AverageChunkSize == otherConfig.AverageChunkSize &&
+	return config.AverageChunkSize == otherConfig.AverageChunkSize &&
 		config.MaximumChunkSize == otherConfig.MaximumChunkSize &&
 		config.MinimumChunkSize == otherConfig.MinimumChunkSize &&
 		bytes.Equal(config.ChunkSeed, otherConfig.ChunkSeed) &&
@@ -255,7 +254,6 @@ func CreateConfigFromParameters(compressionLevel int, averageChunkSize int, maxi
 	}
 
 	if copyFrom != nil {
-		config.CompressionLevel = copyFrom.CompressionLevel
 
 		config.AverageChunkSize = copyFrom.AverageChunkSize
 		config.MaximumChunkSize = copyFrom.MaximumChunkSize
@@ -265,6 +263,8 @@ func CreateConfigFromParameters(compressionLevel int, averageChunkSize int, maxi
 		config.HashKey = copyFrom.HashKey
 
 		if bitCopy {
+			config.CompressionLevel = copyFrom.CompressionLevel
+
 			config.IDKey = copyFrom.IDKey
 			config.ChunkKey = copyFrom.ChunkKey
 			config.FileKey = copyFrom.FileKey

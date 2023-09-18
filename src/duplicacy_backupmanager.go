@@ -1558,7 +1558,7 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapshotID string,
 	revisionsToBeCopied []int, uploadingThreads int, downloadingThreads int) bool {
 
-	if !manager.config.IsCompatiableWith(otherManager.config) {
+	if !manager.config.IsCompatibleWith(otherManager.config) {
 		LOG_ERROR("CONFIG_INCOMPATIBLE", "Two storages are not compatible for the copy operation")
 		return false
 	}
