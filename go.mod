@@ -1,6 +1,6 @@
 module github.com/gilbertchen/duplicacy
 
-go 1.16
+go 1.20
 
 require (
 	cloud.google.com/go v0.38.0
@@ -13,8 +13,11 @@ require (
 	github.com/gilbertchen/go-ole v1.2.0
 	github.com/gilbertchen/goamz v0.0.0-20170712012135-eada9f4e8cc2
 	github.com/gilbertchen/gopass v0.0.0-20170109162249-bf9dde6d0d2c
+	github.com/gilbertchen/highwayhash v0.0.0-20221109044721-eeab1f4799d8
 	github.com/gilbertchen/keyring v0.0.0-20221004152639-1661cbebc508
 	github.com/gilbertchen/xattr v0.0.0-20160926155429-68e7a6806b01
+	github.com/hirochachacha/go-smb2 v1.1.0
+	github.com/klauspost/compress v1.16.3
 	github.com/klauspost/reedsolomon v1.9.9
 	github.com/minio/blake2b-simd v0.0.0-20160723061019-3f5f724cb5b1
 	github.com/minio/highwayhash v1.0.2
@@ -34,15 +37,14 @@ require (
 	github.com/calebcase/tmpfile v1.0.3 // indirect
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible // indirect
 	github.com/dnaeon/go-vcr v1.2.0 // indirect
-	github.com/gilbertchen/highwayhash v0.0.0-20221109044721-eeab1f4799d8 // indirect
+	github.com/geoffgarside/ber v1.1.0 // indirect
 	github.com/goamz/goamz v0.0.0-20180131231218-8b901b531db8 // indirect
 	github.com/godbus/dbus v4.1.0+incompatible // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
+	github.com/golang/protobuf v1.3.3 // indirect
 	github.com/googleapis/gax-go/v2 v2.0.5 // indirect
-	github.com/hirochachacha/go-smb2 v1.1.0 // indirect
 	github.com/jmespath/go-jmespath v0.3.0 // indirect
-	github.com/klauspost/compress v1.16.3 // indirect
 	github.com/klauspost/cpuid v1.3.1 // indirect
 	github.com/kr/fs v0.1.0 // indirect
 	github.com/kr/text v0.2.0 // indirect
