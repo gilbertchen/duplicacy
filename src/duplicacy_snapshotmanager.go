@@ -2427,7 +2427,13 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[s
 	}
 
 	allFiles, _ := manager.ListAllFiles(manager.storage, chunkDir)
+	uniqueFiles := make(map[string]bool)
 	for _, file := range allFiles {
+		if _, found := uniqueFiles[file]; found {
+			continue
+		}
+		uniqueFiles[file] = true
+
 		if len(file) == 0 || file[len(file)-1] == '/' {
 			continue
 		}
