@@ -5,6 +5,8 @@
 package duplicacy
 
 import (
+	"bytes"
+	"encoding/json"
 	"io/ioutil"
 	"math/rand"
 	"os"
@@ -13,11 +15,10 @@ import (
 	"sort"
 	"strings"
 	"testing"
-	"bytes"
-	"encoding/json"
 
-	"github.com/gilbertchen/xattr"
-    "github.com/vmihailenco/msgpack"
+	"github.com/pkg/xattr"
+
+	"github.com/vmihailenco/msgpack"
 )
 
 func TestEntrySort(t *testing.T) {
@@ -175,7 +176,7 @@ func TestEntryOrder(t *testing.T) {
 	directories = append(directories, CreateEntry("", 0, 0, 0))
 
 	entries := make([]*Entry, 0, 4)
-    entryChannel := make(chan *Entry, 1024)
+	entryChannel := make(chan *Entry, 1024)
 	entries = append(entries, CreateEntry("", 0, 0, 0))
 
 	for len(directories) > 0 {
@@ -233,8 +234,16 @@ func TestEntryOrder(t *testing.T) {
 // TestEntryExcludeByAttribute tests the excludeByAttribute parameter to the ListEntries function
 func TestEntryExcludeByAttribute(t *testing.T) {
 
-	if !(runtime.GOOS == "darwin" || runtime.GOOS == "linux") {
-		t.Skip("skipping test not darwin or linux")
+	var excludeAttrName string
+	var excludeAttrValue []byte
+
+	if runtime.GOOS == "darwin" {
+		excludeAttrName = "com.apple.metadata:com_apple_backup_excludeItem"
+		excludeAttrValue = []byte("com.apple.backupd")
+	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "netbsd" || runtime.GOOS == "solaris" {
+		excludeAttrName = "user.duplicacy_exclude"
+	} else {
+		t.Skip("skipping test, not darwin, linux, freebsd, netbsd, or solaris")
 	}
 
 	testDir := filepath.Join(os.TempDir(), "duplicacy_test")
@@ -273,7 +282,7 @@ func TestEntryExcludeByAttribute(t *testing.T) {
 	for _, file := range DATA {
 		fullPath := filepath.Join(testDir, file)
 		if strings.Contains(file, "exclude") {
-			xattr.Setxattr(fullPath, "com.apple.metadata:com_apple_backup_excludeItem", []byte("com.apple.backupd"))
+			xattr.Set(fullPath, excludeAttrName, excludeAttrValue)
 		}
 	}
 
