@@ -756,6 +756,8 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the Storj storage at %s: %v", storageURL, err)
 			return nil
 		}
+		SavePassword(preference, "storj_key", apiKey)
+		SavePassword(preference, "storj_passphrase", passphrase)
 		return storjStorage
 	} else if matched[1] == "smb" {
 		server := matched[3]
