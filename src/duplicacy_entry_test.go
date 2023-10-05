@@ -240,10 +240,12 @@ func TestEntryExcludeByAttribute(t *testing.T) {
 	if runtime.GOOS == "darwin" {
 		excludeAttrName = "com.apple.metadata:com_apple_backup_excludeItem"
 		excludeAttrValue = []byte("com.apple.backupd")
-	} else if runtime.GOOS == "linux" || runtime.GOOS == "freebsd" || runtime.GOOS == "netbsd" || runtime.GOOS == "solaris" {
+	} else if runtime.GOOS == "linux" {
 		excludeAttrName = "user.duplicacy_exclude"
+	} else if runtime.GOOS == "freebsd" || runtime.GOOS == "netbsd" {
+		excludeAttrName = "duplicacy_exclude"
 	} else {
-		t.Skip("skipping test, not darwin, linux, freebsd, netbsd, or solaris")
+		t.Skip("skipping test, not darwin, linux, freebsd, or netbsd")
 	}
 
 	testDir := filepath.Join(os.TempDir(), "duplicacy_test")

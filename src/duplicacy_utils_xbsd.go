@@ -2,14 +2,12 @@
 // Free for personal use and commercial trial
 // Commercial use requires per-user licenses available from https://duplicacy.com
 
-// +build freebsd netbsd linux solaris
+//go:build freebsd || netbsd
+// +build freebsd netbsd
 
 package duplicacy
 
-import (
-)
-
 func excludedByAttribute(attributes map[string][]byte) bool {
-	_, ok := attributes["user.duplicacy_exclude"]
+	_, ok := attributes["duplicacy_exclude"]
 	return ok
 }
