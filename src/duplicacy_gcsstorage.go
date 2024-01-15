@@ -8,10 +8,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/url"
+	"os"
 	"time"
 
 	gcs "cloud.google.com/go/storage"
@@ -45,7 +45,7 @@ func CreateGCSStorage(tokenFile string, bucketName string, storageDir string, th
 
 	ctx := context.Background()
 
-	description, err := ioutil.ReadFile(tokenFile)
+	description, err := os.ReadFile(tokenFile)
 	if err != nil {
 		return nil, err
 	}

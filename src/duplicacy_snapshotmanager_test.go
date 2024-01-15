@@ -9,7 +9,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"strings"
@@ -650,7 +649,7 @@ func TestPruneGhostSnapshots(t *testing.T) {
 	createTestSnapshot(snapshotManager, "vm1@host1", 2, now-2*day-3600, now-2*day-60, []string{chunkHash2, chunkHash3}, "tag")
 	checkTestSnapshots(snapshotManager, 2, 0)
 
-	snapshot1, err := ioutil.ReadFile(path.Join(testDir, "snapshots", "vm1@host1", "1"))
+	snapshot1, err := os.ReadFile(path.Join(testDir, "snapshots", "vm1@host1", "1"))
 	if err != nil {
 		t.Errorf("Failed to read snapshot file: %v", err)
 	}
@@ -662,7 +661,7 @@ func TestPruneGhostSnapshots(t *testing.T) {
 
 	// Recover the snapshot file for revision 1; this is to simulate a scenario where prune may encounter a network error after
 	// leaving the fossil collection but before deleting any snapshots.
-	err = ioutil.WriteFile(path.Join(testDir, "snapshots", "vm1@host1", "1"), snapshot1, 0644)
+	err = os.WriteFile(path.Join(testDir, "snapshots", "vm1@host1", "1"), snapshot1, 0644)
 	if err != nil {
 		t.Errorf("Failed to write snapshot file: %v", err)
 	}

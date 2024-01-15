@@ -9,15 +9,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
-	"sort"
 
-    "github.com/vmihailenco/msgpack"
-
+	"github.com/vmihailenco/msgpack"
 )
 
 // Snapshot represents a backup of the repository.
@@ -60,12 +58,12 @@ func CreateEmptySnapshot(id string) (snapshto *Snapshot) {
 
 type DirectoryListing struct {
 	directory string
-	files *[]Entry
+	files     *[]Entry
 }
 
 func (snapshot *Snapshot) ListLocalFiles(top string, nobackupFile string,
-								         filtersFile string, excludeByAttribute bool, listingChannel chan *Entry,
-								         skippedDirectories *[]string, skippedFiles *[]string) {
+	filtersFile string, excludeByAttribute bool, listingChannel chan *Entry,
+	skippedDirectories *[]string, skippedFiles *[]string) {
 
 	var patterns []string
 
@@ -104,7 +102,7 @@ func (snapshot *Snapshot) ListLocalFiles(top string, nobackupFile string,
 	close(listingChannel)
 }
 
-func (snapshot *Snapshot)ListRemoteFiles(config *Config, chunkOperator *ChunkOperator, entryOut func(*Entry) bool) {
+func (snapshot *Snapshot) ListRemoteFiles(config *Config, chunkOperator *ChunkOperator, entryOut func(*Entry) bool) {
 
 	var chunks []string
 	for _, chunkHash := range snapshot.FileSequence {
@@ -124,12 +122,12 @@ func (snapshot *Snapshot)ListRemoteFiles(config *Config, chunkOperator *ChunkOpe
 		if chunk != nil {
 			config.PutChunk(chunk)
 		}
-	} ()
+	}()
 
 	// Normally if Version is 0 then the snapshot is created by CLI v2 but unfortunately CLI 3.0.1 does not set the
 	// version bit correctly when copying old backups.  So we need to check the first byte -- if it is '[' then it is
 	// the old format.  The new format starts with a string encoded in msgpack and the first byte can't be '['.
-	if snapshot.Version == 0 || reader.GetFirstByte() == '['{
+	if snapshot.Version == 0 || reader.GetFirstByte() == '[' {
 		LOG_INFO("SNAPSHOT_VERSION", "snapshot %s at revision %d is encoded in an old version format", snapshot.ID, snapshot.Revision)
 		files := make([]*Entry, 0)
 		decoder := json.NewDecoder(reader)
@@ -200,7 +198,7 @@ func (snapshot *Snapshot)ListRemoteFiles(config *Config, chunkOperator *ChunkOpe
 
 	} else {
 		LOG_ERROR("SNAPSHOT_VERSION", "snapshot %s at revision %d is encoded in unsupported version %d format",
-				  snapshot.ID, snapshot.Revision, snapshot.Version)
+			snapshot.ID, snapshot.Revision, snapshot.Version)
 		return
 	}
 
@@ -243,7 +241,7 @@ func ProcessFilterFile(patternFile string, includedFiles []string) (patterns []s
 	}
 	includedFiles = append(includedFiles, patternFile)
 	LOG_INFO("SNAPSHOT_FILTER", "Parsing filter file %s", patternFile)
-	patternFileContent, err := ioutil.ReadFile(patternFile)
+	patternFileContent, err := os.ReadFile(patternFile)
 	if err == nil {
 		patternFileLines := strings.Split(string(patternFileContent), "\n")
 		patterns = ProcessFilterLines(patternFileLines, includedFiles)
@@ -263,7 +261,7 @@ func ProcessFilterLines(patternFileLines []string, includedFiles []string) (patt
 			if patternIncludeFile == "" {
 				continue
 			}
-			if ! filepath.IsAbs(patternIncludeFile) {
+			if !filepath.IsAbs(patternIncludeFile) {
 				basePath := ""
 				if len(includedFiles) == 0 {
 					basePath, _ = os.Getwd()
@@ -490,4 +488,3 @@ func encodeSequence(sequence []string) []string {
 
 	return sequenceInHex
 }
-

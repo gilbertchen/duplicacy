@@ -9,10 +9,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"mime/multipart"
 	"net/http"
+	"os"
 	"sync"
 	"time"
 
@@ -45,7 +45,7 @@ type ACDClient struct {
 
 func NewACDClient(tokenFile string) (*ACDClient, error) {
 
-	description, err := ioutil.ReadFile(tokenFile)
+	description, err := os.ReadFile(tokenFile)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +208,7 @@ func (client *ACDClient) RefreshToken() (err error) {
 		return err
 	}
 
-	err = ioutil.WriteFile(client.TokenFile, description, 0644)
+	err = os.WriteFile(client.TokenFile, description, 0644)
 	if err != nil {
 		return err
 	}

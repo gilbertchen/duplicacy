@@ -6,7 +6,6 @@ package duplicacy
 
 import (
 	"encoding/json"
-	"io/ioutil"
 	"syscall"
 	"unsafe"
 )
@@ -86,7 +85,7 @@ func keyringGet(key string) (value string) {
 		return ""
 	}
 
-	description, err := ioutil.ReadFile(keyringFile)
+	description, err := io.ReadFile(keyringFile)
 	if err != nil {
 		LOG_DEBUG("KEYRING_READ", "Keyring file not read: %v", err)
 		return ""
@@ -125,7 +124,7 @@ func keyringSet(key string, value string) bool {
 
 	keyring := make(map[string][]byte)
 
-	description, err := ioutil.ReadFile(keyringFile)
+	description, err := io.ReadFile(keyringFile)
 	if err == nil {
 		err = json.Unmarshal(description, &keyring)
 		if err != nil {
@@ -160,7 +159,7 @@ func keyringSet(key string, value string) bool {
 		return false
 	}
 
-	err = ioutil.WriteFile(keyringFile, description, 0600)
+	err = io.WriteFile(keyringFile, description, 0600)
 	if err != nil {
 		LOG_DEBUG("KEYRING_WRITE", "Failed to save the keyring storage to file %s: %v", keyringFile, err)
 		return false

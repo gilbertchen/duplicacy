@@ -5,7 +5,8 @@
 package duplicacy
 
 import (
-	"io/ioutil"
+	"bytes"
+	"encoding/json"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -13,11 +14,9 @@ import (
 	"sort"
 	"strings"
 	"testing"
-	"bytes"
-	"encoding/json"
 
 	"github.com/gilbertchen/xattr"
-    "github.com/vmihailenco/msgpack"
+	"github.com/vmihailenco/msgpack"
 )
 
 func TestEntrySort(t *testing.T) {
@@ -165,7 +164,7 @@ func TestEntryOrder(t *testing.T) {
 			continue
 		}
 
-		err := ioutil.WriteFile(fullPath, []byte(file), 0700)
+		err := os.WriteFile(fullPath, []byte(file), 0700)
 		if err != nil {
 			t.Errorf("WriteFile(%s) returned an error: %s", fullPath, err)
 		}
@@ -175,7 +174,7 @@ func TestEntryOrder(t *testing.T) {
 	directories = append(directories, CreateEntry("", 0, 0, 0))
 
 	entries := make([]*Entry, 0, 4)
-    entryChannel := make(chan *Entry, 1024)
+	entryChannel := make(chan *Entry, 1024)
 	entries = append(entries, CreateEntry("", 0, 0, 0))
 
 	for len(directories) > 0 {
@@ -264,7 +263,7 @@ func TestEntryExcludeByAttribute(t *testing.T) {
 			continue
 		}
 
-		err := ioutil.WriteFile(fullPath, []byte(file), 0700)
+		err := os.WriteFile(fullPath, []byte(file), 0700)
 		if err != nil {
 			t.Errorf("WriteFile(%s) returned an error: %s", fullPath, err)
 		}
