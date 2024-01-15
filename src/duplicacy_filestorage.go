@@ -7,7 +7,6 @@ package duplicacy
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path"
@@ -69,7 +68,7 @@ func (storage *FileStorage) ListFiles(threadIndex int, dir string) (files []stri
 
 	fullPath := path.Join(storage.storageDir, dir)
 
-	list, err := ioutil.ReadDir(fullPath)
+	list, err := os.ReadDir(fullPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil, nil
@@ -79,11 +78,15 @@ func (storage *FileStorage) ListFiles(threadIndex int, dir string) (files []stri
 
 	for _, f := range list {
 		name := f.Name()
-		if (f.IsDir() || f.Mode() & os.ModeSymlink != 0) && name[len(name)-1] != '/' {
+		fileInfo, err := f.Info()
+		if err != nil {
+			return nil, nil, err
+		}
+		if (f.IsDir() || fileInfo.Mode()&os.ModeSymlink != 0) && name[len(name)-1] != '/' {
 			name += "/"
 		}
 		files = append(files, name)
-		sizes = append(sizes, f.Size())
+		sizes = append(sizes, fileInfo.Size())
 	}
 
 	return files, sizes, nil
@@ -165,7 +168,7 @@ func (storage *FileStorage) UploadFile(threadIndex int, filePath string, content
 				return err
 			}
 		} else {
-			if !stat.IsDir() && stat.Mode() & os.ModeSymlink == 0 {
+			if !stat.IsDir() && stat.Mode()&os.ModeSymlink == 0 {
 				return fmt.Errorf("The path %s is not a directory or symlink", dir)
 			}
 		}
