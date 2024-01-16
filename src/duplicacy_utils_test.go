@@ -7,7 +7,6 @@ package duplicacy
 import (
 	"bytes"
 	"io"
-	"io/ioutil"
 	"time"
 
 	crypto_rand "crypto/rand"
@@ -92,13 +91,13 @@ func TestMatchPattern(t *testing.T) {
 		}
 	}
 
-	for _, pattern := range []string{ "+", "-", "i:", "e:", "+a", "-a", "i:a", "e:a"} {
+	for _, pattern := range []string{"+", "-", "i:", "e:", "+a", "-a", "i:a", "e:a"} {
 		if IsUnspecifiedFilter(pattern) {
 			t.Errorf("pattern %s has a specified filter", pattern)
 		}
 	}
 
-	for _, pattern := range []string{ "i", "e", "ia", "ib", "a", "b"} {
+	for _, pattern := range []string{"i", "e", "ia", "ib", "a", "b"} {
 		if !IsUnspecifiedFilter(pattern) {
 			t.Errorf("pattern %s does not have a specified filter", pattern)
 		}
@@ -117,7 +116,7 @@ func TestRateLimit(t *testing.T) {
 	rateLimiter := CreateRateLimitedReader(content, expectedRate)
 
 	startTime := time.Now()
-	n, err := io.Copy(ioutil.Discard, rateLimiter)
+	n, err := io.Copy(io.Discard, rateLimiter)
 	if err != nil {
 		t.Errorf("Error reading from the rate limited reader: %v", err)
 		return
@@ -132,7 +131,7 @@ func TestRateLimit(t *testing.T) {
 	t.Logf("Elapsed time: %s, actual rate: %.3f kB/s, expected rate: %d kB/s", elapsed, actualRate, expectedRate)
 
 	startTime = time.Now()
-	n, err = RateLimitedCopy(ioutil.Discard, bytes.NewBuffer(content), expectedRate)
+	n, err = RateLimitedCopy(io.Discard, bytes.NewBuffer(content), expectedRate)
 	if err != nil {
 		t.Errorf("Error writing with rate limit: %v", err)
 		return

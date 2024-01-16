@@ -8,8 +8,8 @@ import (
 	"bytes"
 	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
 	"crypto/rsa"
+	"crypto/sha256"
 	"crypto/x509"
 	"encoding/binary"
 	"encoding/hex"
@@ -18,12 +18,11 @@ import (
 	"fmt"
 	"hash"
 	"os"
-	"strings"
+	"reflect"
 	"runtime"
 	"runtime/debug"
+	"strings"
 	"sync/atomic"
-	"io/ioutil"
-	"reflect"
 
 	blake2 "github.com/minio/blake2b-simd"
 )
@@ -41,8 +40,8 @@ var ZSTD_COMPRESSION_LEVEL_DEFAULT = 201
 var ZSTD_COMPRESSION_LEVEL_BETTER = 202
 var ZSTD_COMPRESSION_LEVEL_BEST = 203
 
-var ZSTD_COMPRESSION_LEVELS = map[string]int {
-    "fastest": ZSTD_COMPRESSION_LEVEL_FASTEST,
+var ZSTD_COMPRESSION_LEVELS = map[string]int{
+	"fastest": ZSTD_COMPRESSION_LEVEL_FASTEST,
 	"default": ZSTD_COMPRESSION_LEVEL_DEFAULT,
 	"better":  ZSTD_COMPRESSION_LEVEL_BETTER,
 	"best":    ZSTD_COMPRESSION_LEVEL_BEST,
@@ -85,12 +84,12 @@ type Config struct {
 	FileKey []byte `json:"-"`
 
 	// for erasure coding
-	DataShards int `json:'data-shards'`
+	DataShards   int `json:'data-shards'`
 	ParityShards int `json:'parity-shards'`
 
 	// for RSA encryption
 	rsaPrivateKey *rsa.PrivateKey
-	rsaPublicKey *rsa.PublicKey
+	rsaPublicKey  *rsa.PublicKey
 
 	chunkPool      chan *Chunk
 	numberOfChunks int32
@@ -102,17 +101,17 @@ type aliasedConfig Config
 
 type jsonableConfig struct {
 	*aliasedConfig
-	ChunkSeed string `json:"chunk-seed"`
-	HashKey   string `json:"hash-key"`
-	IDKey     string `json:"id-key"`
-	ChunkKey  string `json:"chunk-key"`
-	FileKey   string `json:"file-key"`
+	ChunkSeed    string `json:"chunk-seed"`
+	HashKey      string `json:"hash-key"`
+	IDKey        string `json:"id-key"`
+	ChunkKey     string `json:"chunk-key"`
+	FileKey      string `json:"file-key"`
 	RSAPublicKey string `json:"rsa-public-key"`
 }
 
 func (config *Config) MarshalJSON() ([]byte, error) {
 
-	publicKey := []byte {}
+	publicKey := []byte{}
 	if config.rsaPublicKey != nil {
 		publicKey, _ = x509.MarshalPKIXPublicKey(config.rsaPublicKey)
 	}
@@ -596,7 +595,7 @@ func (config *Config) loadRSAPublicKey(keyFile string) {
 
 	// keyFile may be the actually key, in which case we don't need to read from a file
 	if !strings.Contains(keyFile, "-----BEGIN") {
-		encodedKey, err = ioutil.ReadFile(keyFile)
+		encodedKey, err = os.ReadFile(keyFile)
 		if err != nil {
 			LOG_ERROR("BACKUP_KEY", "Failed to read the public key file: %v", err)
 			return
@@ -641,7 +640,7 @@ func (config *Config) loadRSAPrivateKey(keyFile string, passphrase string) {
 
 	// keyFile may be the actually key, in which case we don't need to read from a file
 	if !strings.Contains(keyFile, "-----BEGIN") {
-		encodedKey, err = ioutil.ReadFile(keyFile)
+		encodedKey, err = os.ReadFile(keyFile)
 		if err != nil {
 			LOG_ERROR("RSA_PRIVATE", "Failed to read the private key file: %v", err)
 			return

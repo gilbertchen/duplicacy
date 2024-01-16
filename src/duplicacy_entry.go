@@ -4,10 +4,11 @@
 package duplicacy
 
 import (
+	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -16,11 +17,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"bytes"
-	"crypto/sha256"
 
-    "github.com/vmihailenco/msgpack"
-
+	"github.com/vmihailenco/msgpack"
 )
 
 // This is the hidden directory in the repository for storing various files.
@@ -110,10 +108,10 @@ func (entry *Entry) Copy() *Entry {
 		UID: entry.UID,
 		GID: entry.GID,
 
-		StartChunk: entry.StartChunk,
+		StartChunk:  entry.StartChunk,
 		StartOffset: entry.StartOffset,
-		EndChunk: entry.EndChunk,
-		EndOffset: entry.EndOffset,
+		EndChunk:    entry.EndChunk,
+		EndOffset:   entry.EndOffset,
 
 		Attributes: entry.Attributes,
 	}
@@ -362,12 +360,12 @@ func (entry *Entry) EncodeMsgpack(encoder *msgpack.Encoder) error {
 
 	if entry.Attributes != nil {
 		attributes := make([]string, numberOfAttributes)
-        i := 0
-        for attribute := range *entry.Attributes {
-            attributes[i] = attribute
-            i++
-        }
-        sort.Strings(attributes)
+		i := 0
+		for attribute := range *entry.Attributes {
+			attributes[i] = attribute
+			i++
+		}
+		sort.Strings(attributes)
 		for _, attribute := range attributes {
 			err = encoder.EncodeString(attribute)
 			if err != nil {
@@ -380,7 +378,7 @@ func (entry *Entry) EncodeMsgpack(encoder *msgpack.Encoder) error {
 		}
 	}
 
-    return nil
+	return nil
 }
 
 func (entry *Entry) DecodeMsgpack(decoder *msgpack.Decoder) error {
@@ -498,8 +496,8 @@ func (entry *Entry) GetPermissions() os.FileMode {
 
 func (entry *Entry) GetParent() string {
 	path := entry.Path
-	if path != "" && path[len(path) - 1] == '/' {
-		path = path[:len(path) - 1]
+	if path != "" && path[len(path)-1] == '/' {
+		path = path[:len(path)-1]
 	}
 	i := strings.LastIndex(path, "/")
 	if i == -1 {
@@ -596,7 +594,7 @@ func ComparePaths(left string, right string) int {
 	for i := p; i < len(left); i++ {
 		c3 = left[i]
 		if c3 == '/' {
-			last1 = i == len(left) - 1
+			last1 = i == len(left)-1
 			break
 		}
 	}
@@ -606,7 +604,7 @@ func ComparePaths(left string, right string) int {
 	for i := p; i < len(right); i++ {
 		c4 = right[i]
 		if c4 == '/' {
-			last2 = i == len(right) - 1
+			last2 = i == len(right)-1
 			break
 		}
 	}
@@ -703,14 +701,24 @@ func ListEntries(top string, path string, patterns []string, nobackupFile string
 
 	fullPath := joinPath(top, path)
 
-	files := make([]os.FileInfo, 0, 1024)
+	dirEntries := make([]os.DirEntry, 0, 1024)
 
-	files, err = ioutil.ReadDir(fullPath)
+	dirEntries, err = os.ReadDir(fullPath)
 	if err != nil {
 		return directoryList, nil, err
 	}
 
-	// This binary search works because ioutil.ReadDir returns files sorted by Name() by default
+	// Map os.DirEntry to os.FileInfo
+	files := make([]os.FileInfo, 0, 1024)
+	for _, file := range dirEntries {
+		fileInfo, err := file.Info()
+		if err != nil {
+			return directoryList, nil, err
+		}
+		files = append(files, fileInfo)
+	}
+
+	// This binary search works because os.ReadDir returns files sorted by Name() by default
 	if nobackupFile != "" {
 		ii := sort.Search(len(files), func(ii int) bool { return strings.Compare(files[ii].Name(), nobackupFile) >= 0 })
 		if ii < len(files) && files[ii].Name() == nobackupFile {

@@ -10,7 +10,6 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"os"
 	"path/filepath"
@@ -113,7 +112,7 @@ func Benchmark(localDirectory string, storage Storage, fileSize int64, chunkSize
 
 	startTime := float64(time.Now().UnixNano()) / 1e9
 	LOG_INFO("BENCHMARK_WRITE", "Writing random data to local disk")
-	err = ioutil.WriteFile(filename, data, 0600)
+	err = io.WriteFile(filename, data, 0600)
 	if err != nil {
 		LOG_ERROR("BENCHMARK_WRITE", "Failed to write the random data: %v", err)
 		return false

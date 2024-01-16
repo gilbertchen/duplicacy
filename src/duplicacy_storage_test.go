@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path"
 	"runtime/debug"
@@ -41,7 +40,7 @@ func loadStorage(localStoragePath string, threads int) (Storage, error) {
 		return storage, err
 	}
 
-	description, err := ioutil.ReadFile("test_storage.conf")
+	description, err := os.ReadFile("test_storage.conf")
 	if err != nil {
 		return nil, err
 	}

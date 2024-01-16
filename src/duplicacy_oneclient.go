@@ -5,19 +5,19 @@
 package duplicacy
 
 import (
-	"context"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net/http"
-	"strings"
+	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
-	"path/filepath"
 
 	"golang.org/x/oauth2"
 )
@@ -46,14 +46,14 @@ type OneDriveClient struct {
 	IsConnected bool
 	TestMode    bool
 
-	IsBusiness bool
+	IsBusiness      bool
 	RefreshTokenURL string
-	APIURL string
+	APIURL          string
 }
 
 func NewOneDriveClient(tokenFile string, isBusiness bool, client_id string, client_secret string, drive_id string) (*OneDriveClient, error) {
 
-	description, err := ioutil.ReadFile(tokenFile)
+	description, err := os.ReadFile(tokenFile)
 	if err != nil {
 		return nil, err
 	}
@@ -67,21 +67,21 @@ func NewOneDriveClient(tokenFile string, isBusiness bool, client_id string, clie
 		HTTPClient: http.DefaultClient,
 		TokenFile:  tokenFile,
 		Token:      token,
-		OAConfig:	nil,
+		OAConfig:   nil,
 		TokenLock:  &sync.Mutex{},
 		IsBusiness: isBusiness,
 	}
 
-	if (client_id != "") {
-	    oneOauthConfig := oauth2.Config{
-	        ClientID: 		client_id,
-	        ClientSecret: 	client_secret,
-	        Scopes:       	[]string{"Files.ReadWrite", "offline_access"},
-	        Endpoint: oauth2.Endpoint{
-	            AuthURL:  "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
-	            TokenURL: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
-	        },
-	    }
+	if client_id != "" {
+		oneOauthConfig := oauth2.Config{
+			ClientID:     client_id,
+			ClientSecret: client_secret,
+			Scopes:       []string{"Files.ReadWrite", "offline_access"},
+			Endpoint: oauth2.Endpoint{
+				AuthURL:  "https://login.microsoftonline.com/common/oauth2/v2.0/authorize",
+				TokenURL: "https://login.microsoftonline.com/common/oauth2/v2.0/token",
+			},
+		}
 
 		client.OAConfig = &oneOauthConfig
 	}
@@ -90,7 +90,7 @@ func NewOneDriveClient(tokenFile string, isBusiness bool, client_id string, clie
 		client.RefreshTokenURL = "https://duplicacy.com/odb_refresh"
 		client.APIURL = "https://graph.microsoft.com/v1.0/me/drive"
 		if drive_id != "" {
-			client.APIURL = "https://graph.microsoft.com/v1.0/drives/"+drive_id
+			client.APIURL = "https://graph.microsoft.com/v1.0/drives/" + drive_id
 		}
 	} else {
 		client.RefreshTokenURL = "https://duplicacy.com/one_refresh"
@@ -138,7 +138,7 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 
 		if reader, ok := inputReader.(*RateLimitedReader); ok {
 			request.ContentLength = reader.Length()
-			request.Header.Set("Content-Range", fmt.Sprintf("bytes 0-%d/%d", reader.Length() - 1, reader.Length()))
+			request.Header.Set("Content-Range", fmt.Sprintf("bytes 0-%d/%d", reader.Length()-1, reader.Length()))
 		}
 
 		if url != client.RefreshTokenURL {
@@ -202,10 +202,10 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 		} else if response.StatusCode == 409 {
 			return nil, 0, OneDriveError{Status: response.StatusCode, Message: "Conflict"}
 		} else if response.StatusCode > 401 && response.StatusCode != 404 {
-			delay := int((rand.Float32() * 0.5 + 0.5) * 1000.0 * float32(backoff))
+			delay := int((rand.Float32()*0.5 + 0.5) * 1000.0 * float32(backoff))
 			if backoffList, found := response.Header["Retry-After"]; found && len(backoffList) > 0 {
 				retryAfter, _ := strconv.Atoi(backoffList[0])
-				if retryAfter * 1000 > delay {
+				if retryAfter*1000 > delay {
 					delay = retryAfter * 1000
 				}
 			}
@@ -238,7 +238,7 @@ func (client *OneDriveClient) RefreshToken(force bool) (err error) {
 		return nil
 	}
 
-	if (client.OAConfig == nil) {
+	if client.OAConfig == nil {
 		readCloser, _, err := client.call(client.RefreshTokenURL, "POST", client.Token, "")
 		if err != nil {
 			return fmt.Errorf("failed to refresh the access token: %v", err)
@@ -252,11 +252,11 @@ func (client *OneDriveClient) RefreshToken(force bool) (err error) {
 	} else {
 		ctx := context.Background()
 		tokenSource := client.OAConfig.TokenSource(ctx, client.Token)
-	    token, err := tokenSource.Token()
-	    if err != nil {
-	        return fmt.Errorf("failed to refresh the access token: %v", err)
-	    }
-	    client.Token = token
+		token, err := tokenSource.Token()
+		if err != nil {
+			return fmt.Errorf("failed to refresh the access token: %v", err)
+		}
+		client.Token = token
 	}
 
 	description, err := json.Marshal(client.Token)
@@ -264,7 +264,7 @@ func (client *OneDriveClient) RefreshToken(force bool) (err error) {
 		return err
 	}
 
-	err = ioutil.WriteFile(client.TokenFile, description, 0644)
+	err = os.WriteFile(client.TokenFile, description, 0644)
 	if err != nil {
 		return err
 	}
@@ -327,7 +327,9 @@ func (client *OneDriveClient) ListEntries(path string) ([]OneDriveEntry, error) 
 func (client *OneDriveClient) GetFileInfo(path string) (string, bool, int64, error) {
 
 	url := client.APIURL + "/root:/" + path
-	if path == "" { url = client.APIURL + "/root" }
+	if path == "" {
+		url = client.APIURL + "/root"
+	}
 	url += "?select=id,name,size,folder"
 
 	readCloser, _, err := client.call(url, "GET", 0, "")
@@ -361,7 +363,7 @@ func (client *OneDriveClient) UploadFile(path string, content []byte, rateLimit 
 
 	// Upload file using the simple method; this is only possible for OneDrive Personal or if the file
 	// is smaller than 4MB for OneDrive Business
-	if !client.IsBusiness || (client.TestMode && rand.Int() % 2 == 0) {
+	if !client.IsBusiness || (client.TestMode && rand.Int()%2 == 0) {
 		url := client.APIURL + "/root:/" + path + ":/content"
 
 		readCloser, _, err := client.call(url, "PUT", CreateRateLimitedReader(content, rateLimit), "application/octet-stream")
@@ -386,17 +388,17 @@ func (client *OneDriveClient) CreateUploadSession(path string) (uploadURL string
 
 	type CreateUploadSessionItem struct {
 		ConflictBehavior string `json:"@microsoft.graph.conflictBehavior"`
-		Name string `json:"name"`
+		Name             string `json:"name"`
 	}
 
-	input := map[string]interface{} {
-		"item": CreateUploadSessionItem {
+	input := map[string]interface{}{
+		"item": CreateUploadSessionItem{
 			ConflictBehavior: "replace",
-			Name: filepath.Base(path),
+			Name:             filepath.Base(path),
 		},
 	}
 
-	readCloser, _, err := client.call(client.APIURL + "/root:/" + path + ":/createUploadSession", "POST", input, "application/json")
+	readCloser, _, err := client.call(client.APIURL+"/root:/"+path+":/createUploadSession", "POST", input, "application/json")
 	if err != nil {
 		return "", err
 	}

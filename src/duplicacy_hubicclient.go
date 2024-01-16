@@ -9,11 +9,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
 	net_url "net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -54,7 +54,7 @@ type HubicClient struct {
 
 func NewHubicClient(tokenFile string) (*HubicClient, error) {
 
-	description, err := ioutil.ReadFile(tokenFile)
+	description, err := os.ReadFile(tokenFile)
 	if err != nil {
 		return nil, err
 	}
@@ -240,7 +240,7 @@ func (client *HubicClient) RefreshToken(force bool) (err error) {
 		return err
 	}
 
-	err = ioutil.WriteFile(client.TokenFile, description, 0644)
+	err = os.WriteFile(client.TokenFile, description, 0644)
 	if err != nil {
 		return err
 	}

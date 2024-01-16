@@ -8,11 +8,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"math/rand"
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"strings"
 	"sync"
@@ -38,8 +38,8 @@ type GCDStorage struct {
 	service     *drive.Service
 	idCache     map[string]string // only directories are saved in this cache
 	idCacheLock sync.Mutex
-	backoffs    []int // desired backoff time in seconds for each thread
-	attempts    []int // number of failed attempts since last success for each thread
+	backoffs    []int  // desired backoff time in seconds for each thread
+	attempts    []int  // number of failed attempts since last success for each thread
 	driveID     string // the ID of the shared drive or 'root' (GCDUserDrive) if the user's drive
 	spaces      string // 'appDataFolder' if scope is drive.appdata; 'drive' otherwise
 
@@ -347,7 +347,7 @@ func CreateGCDStorage(tokenFile string, driveID string, storagePath string, thre
 
 	ctx := context.Background()
 
-	description, err := ioutil.ReadFile(tokenFile)
+	description, err := os.ReadFile(tokenFile)
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +382,7 @@ func CreateGCDStorage(tokenFile string, driveID string, storagePath string, thre
 		}
 
 		if subject, ok := object["subject"]; ok {
-		    config.Subject = subject.(string)
+			config.Subject = subject.(string)
 		}
 
 		tokenSource = config.TokenSource(ctx)
@@ -440,7 +440,6 @@ func CreateGCDStorage(tokenFile string, driveID string, storagePath string, thre
 		storage.backoffs[i] = 1
 		storage.attempts[i] = 0
 	}
-
 
 	if scope == drive.DriveAppdataScope {
 		storage.spaces = "appDataFolder"
@@ -535,7 +534,7 @@ func (storage *GCDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 		}
 		return files, nil, nil
 	} else {
-		lock := sync.Mutex {}
+		lock := sync.Mutex{}
 		allFiles := []string{}
 		allSizes := []int64{}
 
@@ -563,8 +562,8 @@ func (storage *GCDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 
 					LOG_DEBUG("GCD_STORAGE", "Listing %s; %d items returned", parent, len(entries))
 
-					files := []string {}
-					sizes := []int64 {}
+					files := []string{}
+					sizes := []int64{}
 					for _, entry := range entries {
 						if entry.MimeType != GCDDirectoryMimeType {
 							name := entry.Name
@@ -578,7 +577,7 @@ func (storage *GCDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 							files = append(files, name)
 							sizes = append(sizes, entry.Size)
 						} else {
-							directoryChannel <- parent+"/"+entry.Name
+							directoryChannel <- parent + "/" + entry.Name
 							storage.savePathID(parent+"/"+entry.Name, entry.Id)
 						}
 					}
@@ -587,14 +586,14 @@ func (storage *GCDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 					allSizes = append(allSizes, sizes...)
 					lock.Unlock()
 					directoryChannel <- ""
-				} (parent)
+				}(parent)
 			}
 
 			if activeWorkers > 0 {
 				select {
-				case err := <- errorChannel:
+				case err := <-errorChannel:
 					return nil, nil, err
-				case directory := <- directoryChannel:
+				case directory := <-directoryChannel:
 					if directory == "" {
 						activeWorkers--
 					} else {
