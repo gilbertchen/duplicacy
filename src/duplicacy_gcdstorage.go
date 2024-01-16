@@ -408,22 +408,21 @@ func CreateGCDStorage(tokenFile string, driveID string, storagePath string, thre
 	if len(driveID) == 0 {
 		driveID = GCDUserDrive
 	} else {
-		driveList, err := drive.NewTeamdrivesService(service).List().Do()
-		if err != nil {
-			return nil, fmt.Errorf("Failed to look up the drive id: %v", err)
-		}
-
-		found := false
-		for _, teamDrive := range driveList.TeamDrives {
-			if teamDrive.Id == driveID || teamDrive.Name == driveID {
-				driveID = teamDrive.Id
-				found = true
-				break
+		// In case the driveID is a name, convert it to an id
+		query := fmt.Sprintf("name='%s'", driveID)
+		driveList, err := drive.NewDrivesService(service).List().Q(query).Do()
+		if err == nil {
+			found := false
+			for _, drive := range driveList.Drives {
+				if drive.Name == driveID {
+					found = true
+					driveID = drive.Id
+					break
+				}
 			}
-		}
-
-		if !found {
-			return nil, fmt.Errorf("%s is not the id or name of a shared drive", driveID)
+			if !found {
+				return nil, fmt.Errorf("%s is not the id or name of a shared drive", driveID)
+			}
 		}
 	}
 
