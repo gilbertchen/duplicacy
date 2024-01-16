@@ -90,48 +90,40 @@ func (storage *S3Storage) ListFiles(threadIndex int, dir string) (files []string
 
 	if dir == "snapshots/" {
 		dir = storage.storageDir + dir
-		input := s3.ListObjectsInput{
+		input := s3.ListObjectsV2Input{
 			Bucket:    aws.String(storage.bucket),
 			Prefix:    aws.String(dir),
 			Delimiter: aws.String("/"),
-			MaxKeys:   aws.Int64(1000),
 		}
 
-		output, err := storage.client.ListObjects(&input)
+		err := storage.client.ListObjectsV2Pages(&input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
+			for _, subDir := range page.CommonPrefixes {
+				files = append(files, (*subDir.Prefix)[len(dir):])
+			}
+			return true
+		})
 		if err != nil {
 			return nil, nil, err
 		}
 
-		for _, subDir := range output.CommonPrefixes {
-			files = append(files, (*subDir.Prefix)[len(dir):])
-		}
 		return files, nil, nil
 	} else {
 		dir = storage.storageDir + dir
-		marker := ""
-		for {
-			input := s3.ListObjectsInput{
-				Bucket:  aws.String(storage.bucket),
-				Prefix:  aws.String(dir),
-				MaxKeys: aws.Int64(1000),
-				Marker:  aws.String(marker),
-			}
+		input := s3.ListObjectsV2Input{
+			Bucket:  aws.String(storage.bucket),
+			Prefix:  aws.String(dir),
+			MaxKeys: aws.Int64(1000),
+		}
 
-			output, err := storage.client.ListObjects(&input)
-			if err != nil {
-				return nil, nil, err
-			}
-
-			for _, object := range output.Contents {
+		err := storage.client.ListObjectsV2Pages(&input, func(page *s3.ListObjectsV2Output, lastPage bool) bool {
+			for _, object := range page.Contents {
 				files = append(files, (*object.Key)[len(dir):])
 				sizes = append(sizes, *object.Size)
 			}
-
-			if !*output.IsTruncated {
-				break
-			}
-
-			marker = *output.Contents[len(output.Contents)-1].Key
+			return true
+		})
+		if err != nil {
+			return nil, nil, err
 		}
 		return files, sizes, nil
 	}
