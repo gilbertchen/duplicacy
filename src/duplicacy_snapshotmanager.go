@@ -18,10 +18,10 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"text/tabwriter"
-	"time"
 	"sync"
 	"sync/atomic"
+	"text/tabwriter"
+	"time"
 
 	"github.com/aryann/difflib"
 )
@@ -1849,12 +1849,12 @@ func (manager *SnapshotManager) resurrectChunk(fossilPath string, chunkID string
 func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string, revisionsToBeDeleted []int,
 	tags []string, retentions []string,
 	exhaustive bool, exclusive bool, ignoredIDs []string,
-	dryRun bool, deleteOnly bool, collectOnly bool, threads int) bool {
+	dryRun bool, deleteOnly bool, collectOnly bool, threads int, keep_max int) bool {
 
 	LOG_DEBUG("DELETE_PARAMETERS",
-		"id: %s, revisions: %v, tags: %v, retentions: %v, exhaustive: %t, exclusive: %t, "+
+		"id: %s, revisions: %v, tags: %v, keep_max: %d, retentions: %v, exhaustive: %t, exclusive: %t, "+
 			"dryrun: %t, deleteOnly: %t, collectOnly: %t",
-		snapshotID, revisionsToBeDeleted, tags, retentions,
+		snapshotID, revisionsToBeDeleted, tags, keep_max, retentions,
 		exhaustive, exclusive, dryRun, deleteOnly, collectOnly)
 
 	if len(revisionsToBeDeleted) > 0 && (len(tags) > 0 || len(retentions) > 0) {
@@ -1887,6 +1887,12 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 			}
 		}
 	}()
+
+	// A keep-max structure
+	type KeepMax struct {
+		ID string
+		Tag string
+	}
 
 	// A retention policy is specified in the form 'interval:age', where both 'interval' and 'age' are numbers of
 	// days. A retention policy applies to a snapshot if the snapshot is older than the age.  For snapshots older
@@ -2219,6 +2225,25 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 				}
 			}
 
+		} else if len(tags) > 0 && keep_max != -1 {
+			var keepMaxMap = make(map[KeepMax]int)
+			for i := 0; i < len(tags); i++ {
+				var tag_snapshots []*Snapshot
+				for j := 0; j < len(snapshots); j++ {
+					if snapshots[j].Tag == tags[i] {
+						keepMaxMap[KeepMax{snapshots[j].ID, snapshots[j].Tag}] += 1
+						tag_snapshots = append(tag_snapshots, snapshots[j])
+					}
+				}
+				for k := 0; k < len(tag_snapshots)-keep_max; k++ {
+					LOG_DEBUG("SNAPSHOT_KEEP_PRUNE", "Pruning snapshot ID: %s, revision: %d, tag: %s", tag_snapshots[k].ID, tag_snapshots[k].Revision, tag_snapshots[k].Tag)
+					tag_snapshots[k].Flag = true
+					toBeDeleted++
+				}
+			}
+			for km, total := range keepMaxMap {
+				LOG_INFO("SNAPSHOT_KEEP_MAX", "Keeping %d of %d snapshots for snapshot %s tag %s", MinInt(keep_max, total), total, km.ID, km.Tag)
+			}
 		} else if len(tags) > 0 {
 			for _, snapshot := range snapshots {
 				if _, found := tagMap[snapshot.Tag]; found {
