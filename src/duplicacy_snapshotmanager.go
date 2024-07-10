@@ -1083,20 +1083,23 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 				if chunk == nil {
 					continue
 				}
-				chunkID := manager.config.GetChunkIDFromHash(chunkHashes[chunkIndex])
-				verifiedChunksLock.Lock()
-				verifiedChunks[chunkID] = startTime.Unix()
-				verifiedChunksLock.Unlock()
 
-				downloadedChunkSize := atomic.AddInt64(&totalDownloadedChunkSize, int64(chunk.GetLength()))
-				downloadedChunks := atomic.AddInt64(&totalDownloadedChunks, 1)
+				if !chunk.isBroken {
+					chunkID := manager.config.GetChunkIDFromHash(chunkHashes[chunkIndex])
+					verifiedChunksLock.Lock()
+					verifiedChunks[chunkID] = startTime.Unix()
+					verifiedChunksLock.Unlock()
 
-				elapsedTime := time.Now().Sub(startTime).Seconds()
-				speed := int64(float64(downloadedChunkSize) / elapsedTime)
-				remainingTime := int64(float64(totalChunks - downloadedChunks) / float64(downloadedChunks) * elapsedTime)
-				percentage := float64(downloadedChunks) / float64(totalChunks) * 100.0
-				LOG_INFO("VERIFY_PROGRESS", "Verified chunk %s (%d/%d), %sB/s %s %.1f%%",
-						chunkID, downloadedChunks, totalChunks, PrettySize(speed), PrettyTime(remainingTime), percentage)
+					downloadedChunkSize := atomic.AddInt64(&totalDownloadedChunkSize, int64(chunk.GetLength()))
+					downloadedChunks := atomic.AddInt64(&totalDownloadedChunks, 1)
+
+					elapsedTime := time.Now().Sub(startTime).Seconds()
+					speed := int64(float64(downloadedChunkSize) / elapsedTime)
+					remainingTime := int64(float64(totalChunks - downloadedChunks) / float64(downloadedChunks) * elapsedTime)
+					percentage := float64(downloadedChunks) / float64(totalChunks) * 100.0
+					LOG_INFO("VERIFY_PROGRESS", "Verified chunk %s (%d/%d), %sB/s %s %.1f%%",
+							chunkID, downloadedChunks, totalChunks, PrettySize(speed), PrettyTime(remainingTime), percentage)
+				}
 
 				manager.config.PutChunk(chunk)
 			}
