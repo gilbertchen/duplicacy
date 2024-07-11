@@ -1032,6 +1032,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 					LOG_WARN("SNAPSHOT_VERIFY", "Failed to save the verified chunks file: %v", err)
 				} else {
 					LOG_INFO("SNAPSHOT_VERIFY", "Added %d chunks to the list of verified chunks", len(verifiedChunks) - numberOfVerifiedChunks)
+					numberOfVerifiedChunks = len(verifiedChunks)
 				}
 			}
 		}
@@ -1063,6 +1064,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	var totalDownloadedChunkSize int64
 	var totalDownloadedChunks int64
 	totalChunks := int64(len(chunkHashes))
+	lastSaveTime := time.Now().Unix()
 
 	chunkChannel := make(chan int, threads)
 	var wg sync.WaitGroup
@@ -1087,8 +1089,15 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 				if !chunk.isBroken {
 					chunkID := manager.config.GetChunkIDFromHash(chunkHashes[chunkIndex])
 					verifiedChunksLock.Lock()
-					verifiedChunks[chunkID] = startTime.Unix()
-					verifiedChunksLock.Unlock()
+					now := time.Now().Unix()
+					verifiedChunks[chunkID] = now
+					if now > lastSaveTime + 5 * 60 {
+						lastSaveTime = now
+						verifiedChunksLock.Unlock()
+						saveVerifiedChunks()
+					} else {
+						verifiedChunksLock.Unlock()
+					}
 
 					downloadedChunkSize := atomic.AddInt64(&totalDownloadedChunkSize, int64(chunk.GetLength()))
 					downloadedChunks := atomic.AddInt64(&totalDownloadedChunks, 1)
