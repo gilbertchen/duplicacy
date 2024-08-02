@@ -1190,6 +1190,8 @@ func pruneSnapshots(context *cli.Context) {
 	revisions := getRevisions(context)
 	tags := context.StringSlice("t")
 	retentions := context.StringSlice("keep")
+	keep_max := context.Int("keep-max")
+	duplicacy.LOG_DEBUG("PRUNE_KEEP_MAX", "keep_max: %d, tags: %s", keep_max, tags)
 	selfID := preference.SnapshotID
 	snapshotID := preference.SnapshotID
 	if context.Bool("all") {
@@ -1197,7 +1199,14 @@ func pruneSnapshots(context *cli.Context) {
 	} else if context.String("id") != "" {
 		snapshotID = context.String("id")
 	}
-
+	if keep_max != -1 && len(tags) == 0 || len(tags) > 1 {
+		fmt.Fprintf(context.App.Writer, "A single tag (-t option) is required if -keep-max is specified\n")
+		os.Exit(ArgumentExitCode)
+	}
+	if len(retentions) != 0 && keep_max != -1 {
+		fmt.Fprintf(context.App.Writer, "The -keep and -keep-max options are mutually exclusive\n")
+		os.Exit(ArgumentExitCode)
+	}
 	ignoredIDs := context.StringSlice("ignore")
 	exhaustive := context.Bool("exhaustive")
 	exclusive := context.Bool("exclusive")
@@ -1216,7 +1225,7 @@ func pruneSnapshots(context *cli.Context) {
 
 	backupManager.SetupSnapshotCache(preference.Name)
 	backupManager.SnapshotManager.PruneSnapshots(selfID, snapshotID, revisions, tags, retentions,
-		exhaustive, exclusive, ignoredIDs, dryRun, deleteOnly, collectOnly, threads)
+		exhaustive, exclusive, ignoredIDs, dryRun, deleteOnly, collectOnly, threads, keep_max)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1892,6 +1901,12 @@ func main() {
 					Name:     "keep",
 					Usage:    "keep 1 snapshot every n days for snapshots older than m days",
 					Argument: "<n:m>",
+				},
+				cli.IntFlag{
+					Name:     "keep-max",
+					Value:    -1,
+					Usage:    "keep n snapshots matching the specified tag(s), requires -t",
+					Argument: "<n>",
 				},
 				cli.BoolFlag{
 					Name:  "exhaustive",
