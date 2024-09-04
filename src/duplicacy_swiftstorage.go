@@ -24,7 +24,7 @@ type SwiftStorage struct {
 }
 
 // CreateSwiftStorage creates an OpenStack Swift storage object.  storageURL is in the form of
-// `user@authURL/container/path?arg1=value1&arg2=value2``
+// `user@authURL/container/path?arg1=value1&arg2=value2`
 func CreateSwiftStorage(storageURL string, key string, threads int) (storage *SwiftStorage, err error) {
 
 	// This is the map to store all arguments
@@ -108,7 +108,7 @@ func CreateSwiftStorage(storageURL string, key string, threads int) (storage *Sw
 		arguments["protocol"] = "https"
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), time.Duration(timeout)*time.Second)
+	ctx := context.Background()
 
 	// Please refer to https://godoc.org/github.com/ncw/swift#Connection
 	connection := swift.Connection{
