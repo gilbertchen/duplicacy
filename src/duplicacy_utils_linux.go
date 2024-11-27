@@ -4,10 +4,7 @@
 
 package duplicacy
 
-import (
-)
-
-func excludedByAttribute(attirbutes map[string][]byte) bool {
-	_, ok := attirbutes["duplicacy_exclude"]
+func excludedByAttribute(attributes map[string][]byte) bool {
+	_, ok := attributes["user.duplicacy_exclude"]
 	return ok
 }
