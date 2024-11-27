@@ -396,7 +396,7 @@ type B2ListFileNamesOutput struct {
 
 func (client *B2Client) ListFileNames(threadIndex int, startFileName string, singleFile bool, includeVersions bool) (files []*B2Entry, err error) {
 
-	maxFileCount := 1000
+	maxFileCount := 10 * 1000
 	if singleFile {
 		if includeVersions {
 			maxFileCount = 4
