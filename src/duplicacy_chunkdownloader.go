@@ -189,7 +189,7 @@ func (downloader *ChunkDownloader) WaitForChunk(chunkIndex int) (chunk *Chunk) {
 		}
 		task := &downloader.taskList[i]
 		if !task.needed {
-			break
+			continue
 		}
 
 		if !task.isDownloading {
