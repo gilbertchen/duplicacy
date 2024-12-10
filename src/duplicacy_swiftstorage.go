@@ -44,9 +44,8 @@ func CreateSwiftStorage(storageURL string, key string, threads int) (storage *Sw
 
 	// Take out the user name if there is one
 	if strings.Contains(storageURL, "@") {
-		userAndURL := strings.Split(storageURL, "@")
-		arguments["user"] = userAndURL[0]
-		storageURL = userAndURL[1]
+		lastAtIndex := strings.LastIndex(storageURL, "@")
+		arguments["user"], storageURL = storageURL[:lastAtIndex], storageURL[lastAtIndex+1:]
 	}
 
 	// The version is used to split authURL and container/path
