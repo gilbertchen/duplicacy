@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"regexp"
 
 	"github.com/ncw/swift/v2"
 )
@@ -42,13 +43,6 @@ func CreateSwiftStorage(storageURL string, key string, threads int) (storage *Sw
 		}
 	}
 
-	// Take out the user name if there is one
-	if strings.Contains(storageURL, "@") {
-		userAndURL := strings.Split(storageURL, "@")
-		arguments["user"] = userAndURL[0]
-		storageURL = userAndURL[1]
-	}
-
 	// The version is used to split authURL and container/path
 	versions := []string{"/v1/", "/v1.0/", "/v2/", "/v2.0/", "/v3/", "/v3.0/", "/v4/", "/v4.0/"}
 	storageDir := ""
@@ -57,6 +51,17 @@ func CreateSwiftStorage(storageURL string, key string, threads int) (storage *Sw
 			urlAndStorageDir := strings.SplitN(storageURL, version, 2)
 			storageURL = urlAndStorageDir[0] + version[0:len(version)-1]
 			storageDir = urlAndStorageDir[1]
+		}
+	}
+
+	// Take out the user name if there is one
+	if strings.Contains(storageURL, "@") {
+		// Use regex to split the username and the rest of the URL
+		lineRegex := regexp.MustCompile(`^(.+)@([^@]+)$`)
+		match := lineRegex.FindStringSubmatch(storageURL)
+		if match != nil {
+			arguments["user"] = match[1]
+			storageURL = match[2]
 		}
 	}
 
