@@ -1,6 +1,6 @@
 // Copyright (c) Acrosync LLC. All rights reserved.
 // Free for personal use and commercial trial
-// Commercial use requires per-user licenses available from https://duplicacy.com
+// Commercial use requires per-user licenses available from https://util.com
 
 package main
 
@@ -20,11 +20,12 @@ import (
 
 	_ "net/http/pprof"
 
-	"github.com/gilbertchen/cli"
-
 	"io/ioutil"
 
-	"github.com/gilbertchen/duplicacy/src"
+	"github.com/gilbertchen/cli"
+	"github.com/gilbertchen/duplicacy/src/backend"
+	"github.com/gilbertchen/duplicacy/src/core"
+	"github.com/gilbertchen/duplicacy/src/util"
 )
 
 const (
@@ -35,18 +36,18 @@ var ScriptEnabled bool
 var GitCommit = "unofficial"
 
 func getRepositoryPreference(context *cli.Context, storageName string) (repository string,
-	preference *duplicacy.Preference) {
+	preference *util.Preference) {
 
 	repository, err := os.Getwd()
 	if err != nil {
-		duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
+		util.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
 		return "", nil
 	}
 
 	for {
-		stat, err := os.Stat(path.Join(repository, duplicacy.DUPLICACY_DIRECTORY)) //TOKEEP
+		stat, err := os.Stat(path.Join(repository, util.DUPLICACY_DIRECTORY)) //TOKEEP
 		if err != nil && !os.IsNotExist(err) {
-			duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the information about the directory %s: %v",
+			util.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the information about the directory %s: %v",
 				repository, err)
 			return "", nil
 		}
@@ -57,38 +58,38 @@ func getRepositoryPreference(context *cli.Context, storageName string) (reposito
 
 		parent := path.Dir(repository)
 		if parent == repository || parent == "" {
-			duplicacy.LOG_ERROR("REPOSITORY_PATH", "Repository has not been initialized")
+			util.LOG_ERROR("REPOSITORY_PATH", "Repository has not been initialized")
 			return "", nil
 		}
 		repository = parent
 	}
-	duplicacy.LoadPreferences(repository)
+	util.LoadPreferences(repository)
 
-	preferencePath := duplicacy.GetDuplicacyPreferencePath()
-	duplicacy.SetKeyringFile(path.Join(preferencePath, "keyring"))
+	preferencePath := util.GetDuplicacyPreferencePath()
+	util.SetKeyringFile(path.Join(preferencePath, "keyring"))
 
 	if storageName == "" {
 		storageName = context.String("storage")
 	}
 
 	if storageName == "" {
-		if duplicacy.Preferences[0].RepositoryPath != "" {
-			repository = duplicacy.Preferences[0].RepositoryPath
-			duplicacy.LOG_INFO("REPOSITORY_SET", "Repository set to %s", repository)
+		if util.Preferences[0].RepositoryPath != "" {
+			repository = util.Preferences[0].RepositoryPath
+			util.LOG_INFO("REPOSITORY_SET", "Repository set to %s", repository)
 		}
-		return repository, &duplicacy.Preferences[0]
+		return repository, &util.Preferences[0]
 	}
 
-	preference = duplicacy.FindPreference(storageName)
+	preference = util.FindPreference(storageName)
 
 	if preference == nil {
-		duplicacy.LOG_ERROR("STORAGE_NONE", "No storage named '%s' is found", storageName)
+		util.LOG_ERROR("STORAGE_NONE", "No storage named '%s' is found", storageName)
 		return "", nil
 	}
 
 	if preference.RepositoryPath != "" {
 		repository = preference.RepositoryPath
-		duplicacy.LOG_INFO("REPOSITORY_SET", "Repository set to %s", repository)
+		util.LOG_INFO("REPOSITORY_SET", "Repository set to %s", repository)
 	}
 
 	return repository, preference
@@ -132,23 +133,23 @@ func getRevisions(context *cli.Context) (revisions []int) {
 
 func setGlobalOptions(context *cli.Context) {
 	if context.GlobalBool("log") {
-		duplicacy.EnableLogHeader()
+		util.EnableLogHeader()
 	}
 
 	if context.GlobalBool("stack") {
-		duplicacy.EnableStackTrace()
+		util.EnableStackTrace()
 	}
 
 	if context.GlobalBool("verbose") {
-		duplicacy.SetLoggingLevel(duplicacy.TRACE)
+		util.SetLoggingLevel(util.TRACE)
 	}
 
 	if context.GlobalBool("debug") {
-		duplicacy.SetLoggingLevel(duplicacy.DEBUG)
+		util.SetLoggingLevel(util.DEBUG)
 	}
 
 	if context.GlobalBool("print-memory-usage") {
-		go duplicacy.PrintMemoryUsage()
+		go util.PrintMemoryUsage()
 	}
 
 	ScriptEnabled = true
@@ -164,10 +165,10 @@ func setGlobalOptions(context *cli.Context) {
 	}
 
 	for _, logID := range context.GlobalStringSlice("suppress") {
-		duplicacy.SuppressLog(logID)
+		util.SuppressLog(logID)
 	}
 
-	duplicacy.RunInBackground = context.GlobalBool("background")
+	util.RunInBackground = context.GlobalBool("background")
 }
 
 func runScript(context *cli.Context, storageName string, phase string) bool {
@@ -176,7 +177,7 @@ func runScript(context *cli.Context, storageName string, phase string) bool {
 		return false
 	}
 
-	preferencePath := duplicacy.GetDuplicacyPreferencePath()
+	preferencePath := util.GetDuplicacyPreferencePath()
 	scriptDir, _ := filepath.Abs(path.Join(preferencePath, "scripts"))
 	scriptNames := []string{phase + "-" + context.Command.Name,
 		storageName + "-" + phase + "-" + context.Command.Name}
@@ -198,34 +199,34 @@ func runScript(context *cli.Context, storageName string, phase string) bool {
 		return false
 	}
 
-	duplicacy.LOG_INFO("SCRIPT_RUN", "Running script %s", script)
+	util.LOG_INFO("SCRIPT_RUN", "Running script %s", script)
 
 	output, err := exec.Command(script, os.Args...).CombinedOutput()
 	for _, line := range strings.Split(string(output), "\n") {
 		line := strings.TrimSpace(line)
 		if line != "" {
-			duplicacy.LOG_INFO("SCRIPT_OUTPUT", line)
+			util.LOG_INFO("SCRIPT_OUTPUT", line)
 		}
 	}
 
 	if err != nil {
-		duplicacy.LOG_ERROR("SCRIPT_ERROR", "Failed to run %s script: %v", script, err)
+		util.LOG_ERROR("SCRIPT_ERROR", "Failed to run %s script: %v", script, err)
 		return false
 	}
 
 	return true
 }
 
-func loadRSAPrivateKey(keyFile string, passphrase string, preference *duplicacy.Preference, backupManager *duplicacy.BackupManager, resetPasswords bool) {
+func loadRSAPrivateKey(keyFile string, passphrase string, preference *util.Preference, backupManager *core.BackupManager, resetPasswords bool) {
 	if keyFile == "" {
 		return
 	}
 
 	prompt := fmt.Sprintf("Enter the passphrase for %s:", keyFile)
 	if passphrase == "" {
-		passphrase = duplicacy.GetPassword(*preference, "rsa_passphrase", prompt, false, resetPasswords)
+		passphrase = util.GetPassword(*preference, "rsa_passphrase", prompt, false, resetPasswords)
 		backupManager.LoadRSAPrivateKey(keyFile, passphrase)
-		duplicacy.SavePassword(*preference, "rsa_passphrase", passphrase)
+		util.SavePassword(*preference, "rsa_passphrase", passphrase)
 	} else {
 		backupManager.LoadRSAPrivateKey(keyFile, passphrase)
 	}
@@ -243,7 +244,7 @@ func addStorage(context *cli.Context) {
 func configRepository(context *cli.Context, init bool) {
 
 	setGlobalOptions(context)
-	defer duplicacy.CatchLogException()
+	defer util.CatchLogException()
 
 	numberOfArgs := 3
 	if init {
@@ -273,7 +274,7 @@ func configRepository(context *cli.Context, init bool) {
 		storageURL = context.Args()[2]
 
 		if strings.ToLower(storageName) == "ssh" {
-			duplicacy.LOG_ERROR("PREFERENCE_INVALID", "'%s' is an invalid storage name", storageName)
+			util.LOG_ERROR("PREFERENCE_INVALID", "'%s' is an invalid storage name", storageName)
 			return
 		}
 	}
@@ -281,7 +282,7 @@ func configRepository(context *cli.Context, init bool) {
 	snapshotIDRegex := regexp.MustCompile(`^[A-Za-z0-9_\-]+$`)
 	matched := snapshotIDRegex.FindStringSubmatch(snapshotID)
 	if matched == nil {
-		duplicacy.LOG_ERROR("PREFERENCE_INVALID", "'%s' is an invalid snapshot id", snapshotID)
+		util.LOG_ERROR("PREFERENCE_INVALID", "'%s' is an invalid snapshot id", snapshotID)
 		return
 	}
 
@@ -291,44 +292,44 @@ func configRepository(context *cli.Context, init bool) {
 	if init {
 		repository, err = os.Getwd()
 		if err != nil {
-			duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
+			util.LOG_ERROR("REPOSITORY_PATH", "Failed to retrieve the current working directory: %v", err)
 			return
 		}
 
 		preferencePath := context.String("pref-dir")
 		if preferencePath == "" {
-			preferencePath = path.Join(repository, duplicacy.DUPLICACY_DIRECTORY) // TOKEEP
+			preferencePath = path.Join(repository, util.DUPLICACY_DIRECTORY) // TOKEEP
 		}
 
 		if stat, _ := os.Stat(path.Join(preferencePath, "preferences")); stat != nil {
-			duplicacy.LOG_ERROR("REPOSITORY_INIT", "The repository %s has already been initialized", repository)
+			util.LOG_ERROR("REPOSITORY_INIT", "The repository %s has already been initialized", repository)
 			return
 		}
 
 		err = os.Mkdir(preferencePath, 0744)
 		if err != nil && !os.IsExist(err) {
-			duplicacy.LOG_ERROR("REPOSITORY_INIT", "Failed to create the directory %s: %v",
+			util.LOG_ERROR("REPOSITORY_INIT", "Failed to create the directory %s: %v",
 				preferencePath, err)
 			return
 		}
 		if context.String("pref-dir") != "" {
 			// out of tree preference file
 			// write real path into .duplicacy file inside repository
-			duplicacyFileName := path.Join(repository, duplicacy.DUPLICACY_FILE)
+			duplicacyFileName := path.Join(repository, util.DUPLICACY_FILE)
 			d1 := []byte(preferencePath)
 			err = ioutil.WriteFile(duplicacyFileName, d1, 0644)
 			if err != nil {
-				duplicacy.LOG_ERROR("REPOSITORY_PATH", "Failed to write %s file inside repository  %v", duplicacyFileName, err)
+				util.LOG_ERROR("REPOSITORY_PATH", "Failed to write %s file inside repository  %v", duplicacyFileName, err)
 				return
 			}
 		}
-		duplicacy.SetDuplicacyPreferencePath(preferencePath)
-		duplicacy.SetKeyringFile(path.Join(preferencePath, "keyring"))
+		util.SetDuplicacyPreferencePath(preferencePath)
+		util.SetKeyringFile(path.Join(preferencePath, "keyring"))
 
 	} else {
 		repository, _ = getRepositoryPreference(context, "")
-		if duplicacy.FindPreference(storageName) != nil {
-			duplicacy.LOG_ERROR("STORAGE_DUPLICATE", "There is already a storage named '%s'", storageName)
+		if util.FindPreference(storageName) != nil {
+			util.LOG_ERROR("STORAGE_DUPLICATE", "There is already a storage named '%s'", storageName)
 			return
 		}
 	}
@@ -337,7 +338,7 @@ func configRepository(context *cli.Context, init bool) {
 	if context.String("repository") != "" {
 		repositoryPath = context.String("repository")
 	}
-	preference := duplicacy.Preference{
+	preference := util.Preference{
 		Name:           storageName,
 		SnapshotID:     snapshotID,
 		RepositoryPath: repositoryPath,
@@ -345,39 +346,39 @@ func configRepository(context *cli.Context, init bool) {
 		Encrypted:      context.Bool("encrypt"),
 	}
 
-	storage := duplicacy.CreateStorage(preference, true, 1)
+	storage := backend.CreateStorage(preference, true, 1)
 	storagePassword := ""
 	if preference.Encrypted {
 		prompt := fmt.Sprintf("Enter storage password for %s:", preference.StorageURL)
-		storagePassword = duplicacy.GetPassword(preference, "password", prompt, false, true)
+		storagePassword = util.GetPassword(preference, "password", prompt, false, true)
 	} else {
 		if context.String("key") != "" {
-			duplicacy.LOG_ERROR("STORAGE_CONFIG", "RSA encryption can't be enabled with an unencrypted storage")
+			util.LOG_ERROR("STORAGE_CONFIG", "RSA encryption can't be enabled with an unencrypted storage")
 			return
 		}
 	}
 
-	existingConfig, _, err := duplicacy.DownloadConfig(storage, storagePassword)
+	existingConfig, _, err := core.DownloadConfig(storage, storagePassword)
 	if err != nil {
-		duplicacy.LOG_ERROR("STORAGE_CONFIG", "Failed to download the configuration file from the storage: %v", err)
+		util.LOG_ERROR("STORAGE_CONFIG", "Failed to download the configuration file from the storage: %v", err)
 		return
 	}
 
 	if existingConfig != nil {
-		duplicacy.LOG_INFO("STORAGE_CONFIGURED",
+		util.LOG_INFO("STORAGE_CONFIGURED",
 			"The storage '%s' has already been initialized", preference.StorageURL)
 		if existingConfig.CompressionLevel >= -1 && existingConfig.CompressionLevel <= 9 {
-			duplicacy.LOG_INFO("STORAGE_FORMAT", "This storage is configured to use the pre-1.2.0 format")
-		} else if existingConfig.CompressionLevel != duplicacy.DEFAULT_COMPRESSION_LEVEL {
-			duplicacy.LOG_INFO("STORAGE_COMPRESSION", "Compression level: %d", existingConfig.CompressionLevel)
+			util.LOG_INFO("STORAGE_FORMAT", "This storage is configured to use the pre-1.2.0 format")
+		} else if existingConfig.CompressionLevel != core.DEFAULT_COMPRESSION_LEVEL {
+			util.LOG_INFO("STORAGE_COMPRESSION", "Compression level: %d", existingConfig.CompressionLevel)
 		}
 
 		// Don't print config in the background mode
-		if !duplicacy.RunInBackground {
+		if !util.RunInBackground {
 			existingConfig.Print()
 		}
 	} else {
-		averageChunkSize := duplicacy.AtoSize(context.String("chunk-size"))
+		averageChunkSize := util.AtoSize(context.String("chunk-size"))
 		if averageChunkSize == 0 {
 			fmt.Fprintf(context.App.Writer, "Invalid average chunk size: %s.\n\n", context.String("chunk-size"))
 			cli.ShowCommandHelp(context, context.Command.Name)
@@ -400,7 +401,7 @@ func configRepository(context *cli.Context, init bool) {
 		minimumChunkSize := averageChunkSize / 4
 
 		if context.String("max-chunk-size") != "" {
-			maximumChunkSize = duplicacy.AtoSize(context.String("max-chunk-size"))
+			maximumChunkSize = util.AtoSize(context.String("max-chunk-size"))
 			if maximumChunkSize < averageChunkSize {
 				fmt.Fprintf(context.App.Writer, "Invalid maximum chunk size: %s.\n\n",
 					context.String("max-chunk-size"))
@@ -410,7 +411,7 @@ func configRepository(context *cli.Context, init bool) {
 		}
 
 		if context.String("min-chunk-size") != "" {
-			minimumChunkSize = duplicacy.AtoSize(context.String("min-chunk-size"))
+			minimumChunkSize = util.AtoSize(context.String("min-chunk-size"))
 			if minimumChunkSize > averageChunkSize || minimumChunkSize == 0 {
 				fmt.Fprintf(context.App.Writer, "Invalid minimum chunk size: %s.\n\n",
 					context.String("min-chunk-size"))
@@ -420,42 +421,42 @@ func configRepository(context *cli.Context, init bool) {
 		}
 
 		if preference.Encrypted {
-			repeatedPassword := duplicacy.GetPassword(preference, "password", "Re-enter storage password:",
+			repeatedPassword := util.GetPassword(preference, "password", "Re-enter storage password:",
 				false, true)
 			if repeatedPassword != storagePassword {
-				duplicacy.LOG_ERROR("STORAGE_PASSWORD", "Storage passwords do not match")
+				util.LOG_ERROR("STORAGE_PASSWORD", "Storage passwords do not match")
 				return
 			}
 		}
 
-		var otherConfig *duplicacy.Config
+		var otherConfig *core.Config
 		var bitCopy bool
 		if context.String("copy") != "" {
 
-			otherPreference := duplicacy.FindPreference(context.String("copy"))
+			otherPreference := util.FindPreference(context.String("copy"))
 
 			if otherPreference == nil {
-				duplicacy.LOG_ERROR("STORAGE_NOTFOUND", "Storage '%s' can't be found", context.String("copy"))
+				util.LOG_ERROR("STORAGE_NOTFOUND", "Storage '%s' can't be found", context.String("copy"))
 				return
 			}
 
-			otherStorage := duplicacy.CreateStorage(*otherPreference, false, 1)
+			otherStorage := backend.CreateStorage(*otherPreference, false, 1)
 
 			otherPassword := ""
 			if otherPreference.Encrypted {
 				prompt := fmt.Sprintf("Enter storage password for %s:", otherPreference.StorageURL)
-				otherPassword = duplicacy.GetPassword(*otherPreference, "password", prompt, false, false)
+				otherPassword = util.GetPassword(*otherPreference, "password", prompt, false, false)
 			}
 
-			otherConfig, _, err = duplicacy.DownloadConfig(otherStorage, otherPassword)
+			otherConfig, _, err = core.DownloadConfig(otherStorage, otherPassword)
 			if err != nil {
-				duplicacy.LOG_ERROR("STORAGE_COPY", "Failed to download the configuration file from the storage: %v",
+				util.LOG_ERROR("STORAGE_COPY", "Failed to download the configuration file from the storage: %v",
 					err)
 				return
 			}
 
 			if otherConfig == nil {
-				duplicacy.LOG_ERROR("STORAGE_NOT_CONFIGURED",
+				util.LOG_ERROR("STORAGE_NOT_CONFIGURED",
 					"The storage to copy the configuration from has not been initialized")
 			}
 
@@ -464,7 +465,7 @@ func configRepository(context *cli.Context, init bool) {
 
 		iterations := context.Int("iterations")
 		if iterations == 0 {
-			iterations = duplicacy.CONFIG_DEFAULT_ITERATIONS
+			iterations = core.CONFIG_DEFAULT_ITERATIONS
 		}
 
 		dataShards := 0
@@ -474,12 +475,12 @@ func configRepository(context *cli.Context, init bool) {
 			shardsRegex := regexp.MustCompile(`^([0-9]+):([0-9]+)$`)
 			matched := shardsRegex.FindStringSubmatch(shards)
 			if matched == nil {
-				duplicacy.LOG_ERROR("STORAGE_ERASURECODE", "Invalid erasure coding parameters: %s", shards)
+				util.LOG_ERROR("STORAGE_ERASURECODE", "Invalid erasure coding parameters: %s", shards)
 			} else {
 				dataShards, _ = strconv.Atoi(matched[1])
 				parityShards, _ = strconv.Atoi(matched[2])
 				if dataShards == 0 || dataShards > 256 || parityShards == 0 || parityShards > dataShards {
-					duplicacy.LOG_ERROR("STORAGE_ERASURECODE", "Invalid erasure coding parameters: %s", shards)
+					util.LOG_ERROR("STORAGE_ERASURECODE", "Invalid erasure coding parameters: %s", shards)
 				}
 			}
 		}
@@ -487,28 +488,28 @@ func configRepository(context *cli.Context, init bool) {
 		compressionLevel := 100
 		zstdLevel := context.String("zstd-level")
 		if zstdLevel != "" {
-			if level, found := duplicacy.ZSTD_COMPRESSION_LEVELS[zstdLevel]; found {
+			if level, found := core.ZSTD_COMPRESSION_LEVELS[zstdLevel]; found {
 				compressionLevel = level
 			} else {
-				duplicacy.LOG_ERROR("STORAGE_COMPRESSION", "Invalid zstd compression level: %s", zstdLevel)
+				util.LOG_ERROR("STORAGE_COMPRESSION", "Invalid zstd compression level: %s", zstdLevel)
 			}
 		} else if context.Bool("zstd") {
-			compressionLevel = duplicacy.ZSTD_COMPRESSION_LEVEL_DEFAULT
+			compressionLevel = core.ZSTD_COMPRESSION_LEVEL_DEFAULT
 		}
 
-		duplicacy.ConfigStorage(storage, iterations, compressionLevel, averageChunkSize, maximumChunkSize,
+		core.ConfigStorage(storage, iterations, compressionLevel, averageChunkSize, maximumChunkSize,
 			minimumChunkSize, storagePassword, otherConfig, bitCopy, context.String("key"), dataShards, parityShards)
 	}
 
-	duplicacy.Preferences = append(duplicacy.Preferences, preference)
+	util.Preferences = append(util.Preferences, preference)
 
-	duplicacy.SavePreferences()
+	util.SavePreferences()
 
 	if repositoryPath == "" {
 		repositoryPath = repository
 	}
 
-	duplicacy.LOG_INFO("REPOSITORY_INIT", "%s will be backed up to %s with id %s",
+	util.LOG_INFO("REPOSITORY_INIT", "%s will be backed up to %s with id %s",
 		repositoryPath, preference.StorageURL, preference.SnapshotID)
 }
 
@@ -555,7 +556,7 @@ func (triBool *TriBool) IsTrue() bool {
 func setPreference(context *cli.Context) {
 
 	setGlobalOptions(context)
-	defer duplicacy.CatchLogException()
+	defer util.CatchLogException()
 
 	if len(context.Args()) > 0 {
 		fmt.Fprintf(context.App.Writer, "The %s command takes no arguments.\n\n", context.Command.Name)
@@ -568,7 +569,7 @@ func setPreference(context *cli.Context) {
 	repository, oldPreference := getRepositoryPreference(context, storageName)
 
 	if oldPreference == nil {
-		duplicacy.LOG_ERROR("STORAGE_SET", "The storage '%s' has not been added to the repository %s",
+		util.LOG_ERROR("STORAGE_SET", "The storage '%s' has not been added to the repository %s",
 			storageName, repository)
 		return
 	}
@@ -630,25 +631,25 @@ func setPreference(context *cli.Context) {
 		}
 	}
 
-	if duplicacy.IsTracing() {
+	if util.IsTracing() {
 		description, _ := json.MarshalIndent(newPreference, "", "    ")
 		fmt.Printf("%s\n", description)
 	}
 
 	if newPreference.Equal(oldPreference) {
-		duplicacy.LOG_INFO("STORAGE_SET", "The options for storage %s have not been modified",
+		util.LOG_INFO("STORAGE_SET", "The options for storage %s have not been modified",
 			oldPreference.StorageURL)
 	} else {
 		*oldPreference = newPreference
-		duplicacy.SavePreferences()
-		duplicacy.LOG_INFO("STORAGE_SET", "New options for storage %s have been saved", oldPreference.StorageURL)
+		util.SavePreferences()
+		util.LOG_INFO("STORAGE_SET", "New options for storage %s have been saved", oldPreference.StorageURL)
 	}
 }
 
 func changePassword(context *cli.Context) {
 
 	setGlobalOptions(context)
-	defer duplicacy.CatchLogException()
+	defer util.CatchLogException()
 
 	if len(context.Args()) != 0 {
 		fmt.Fprintf(context.App.Writer, "The %s command requires no arguments.\n\n",
@@ -659,89 +660,89 @@ func changePassword(context *cli.Context) {
 
 	_, preference := getRepositoryPreference(context, "")
 
-	storage := duplicacy.CreateStorage(*preference, false, 1)
+	storage := backend.CreateStorage(*preference, false, 1)
 	if storage == nil {
 		return
 	}
 
 	password := ""
 	if preference.Encrypted {
-		password = duplicacy.GetPassword(*preference, "password",
+		password = util.GetPassword(*preference, "password",
 			fmt.Sprintf("Enter old password for storage %s:", preference.StorageURL),
 			false, true)
 	}
 
-	config, _, err := duplicacy.DownloadConfig(storage, password)
+	config, _, err := core.DownloadConfig(storage, password)
 	if err != nil {
-		duplicacy.LOG_ERROR("STORAGE_CONFIG", "Failed to download the configuration file from the storage: %v", err)
+		util.LOG_ERROR("STORAGE_CONFIG", "Failed to download the configuration file from the storage: %v", err)
 		return
 	}
 
 	if config == nil {
-		duplicacy.LOG_ERROR("STORAGE_NOT_CONFIGURED", "The storage has not been initialized")
+		util.LOG_ERROR("STORAGE_NOT_CONFIGURED", "The storage has not been initialized")
 		return
 	}
 
-	newPassword := duplicacy.GetPassword(*preference, "password", "Enter new storage password:", false, true)
-	repeatedPassword := duplicacy.GetPassword(*preference, "password", "Re-enter new storage password:", false, true)
+	newPassword := util.GetPassword(*preference, "password", "Enter new storage password:", false, true)
+	repeatedPassword := util.GetPassword(*preference, "password", "Re-enter new storage password:", false, true)
 	if repeatedPassword != newPassword {
-		duplicacy.LOG_ERROR("PASSWORD_CHANGE", "The new passwords do not match")
+		util.LOG_ERROR("PASSWORD_CHANGE", "The new passwords do not match")
 		return
 	}
 	if newPassword == password {
-		duplicacy.LOG_ERROR("PASSWORD_CHANGE", "The new password is the same as the old one")
+		util.LOG_ERROR("PASSWORD_CHANGE", "The new password is the same as the old one")
 		return
 	}
 
 	iterations := context.Int("iterations")
 	if iterations == 0 {
-		iterations = duplicacy.CONFIG_DEFAULT_ITERATIONS
+		iterations = core.CONFIG_DEFAULT_ITERATIONS
 	}
 
 	description, err := json.MarshalIndent(config, "", "    ")
 	if err != nil {
-		duplicacy.LOG_ERROR("CONFIG_MARSHAL", "Failed to marshal the config: %v", err)
+		util.LOG_ERROR("CONFIG_MARSHAL", "Failed to marshal the config: %v", err)
 		return
 	}
 
-	configPath := path.Join(duplicacy.GetDuplicacyPreferencePath(), "config")
+	configPath := path.Join(util.GetDuplicacyPreferencePath(), "config")
 	err = ioutil.WriteFile(configPath, description, 0600)
 	if err != nil {
-		duplicacy.LOG_ERROR("CONFIG_SAVE", "Failed to save the old config to %s: %v", configPath, err)
+		util.LOG_ERROR("CONFIG_SAVE", "Failed to save the old config to %s: %v", configPath, err)
 		return
 	}
-	duplicacy.LOG_INFO("CONFIG_SAVE", "The old config has been temporarily saved to %s", configPath)
+	util.LOG_INFO("CONFIG_SAVE", "The old config has been temporarily saved to %s", configPath)
 
 	removeLocalCopy := false
 	defer func() {
 		if removeLocalCopy {
 			err = os.Remove(configPath)
 			if err != nil {
-				duplicacy.LOG_WARN("CONFIG_CLEAN", "Failed to delete %s: %v", configPath, err)
+				util.LOG_WARN("CONFIG_CLEAN", "Failed to delete %s: %v", configPath, err)
 			} else {
-				duplicacy.LOG_INFO("CONFIG_CLEAN", "The local copy of the old config has been removed")
+				util.LOG_INFO("CONFIG_CLEAN", "The local copy of the old config has been removed")
 			}
 		}
 	}()
 
 	err = storage.DeleteFile(0, "config")
 	if err != nil {
-		duplicacy.LOG_ERROR("CONFIG_DELETE", "Failed to delete the old config from the storage: %v", err)
+		util.LOG_ERROR("CONFIG_DELETE", "Failed to delete the old config from the storage: %v", err)
 		return
 	}
 
-	duplicacy.UploadConfig(storage, config, newPassword, iterations)
+	core.UploadConfig(storage, config, newPassword, iterations)
 
-	duplicacy.SavePassword(*preference, "password", newPassword)
+	util.SavePassword(*preference, "password", newPassword)
 
-	duplicacy.LOG_INFO("STORAGE_SET", "The password for storage %s has been changed", preference.StorageURL)
+	util.LOG_INFO("STORAGE_SET", "The password for storage %s has been changed", preference.StorageURL)
 
 	removeLocalCopy = true
 }
 
 func backupRepository(context *cli.Context) {
 	setGlobalOptions(context)
-	defer duplicacy.CatchLogException()
+	defer util.CatchLogException()
 
 	if len(context.Args()) != 0 {
 		fmt.Fprintf(context.App.Writer, "The %s command requires no arguments.\n\n", context.Command.Name)
@@ -752,7 +753,7 @@ func backupRepository(context *cli.Context) {
 	repository, preference := getRepositoryPreference(context, "")
 
 	if preference.BackupProhibited {
-		duplicacy.LOG_ERROR("BACKUP_DISABLED", "Backup from this repository to %s was disabled by the preference",
+		util.LOG_ERROR("BACKUP_DISABLED", "Backup from this repository to %s was disabled by the preference",
 			preference.StorageURL)
 		return
 	}
@@ -764,15 +765,15 @@ func backupRepository(context *cli.Context) {
 		threads = 1
 	}
 
-	duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
-	storage := duplicacy.CreateStorage(*preference, false, threads)
+	util.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
+	storage := backend.CreateStorage(*preference, false, threads)
 	if storage == nil {
 		return
 	}
 
 	password := ""
 	if preference.Encrypted {
-		password = duplicacy.GetPassword(*preference, "password", "Enter storage password:", false, false)
+		password = util.GetPassword(*preference, "password", "Enter storage password:", false, false)
 	}
 
 	quickMode := true
@@ -789,21 +790,21 @@ func backupRepository(context *cli.Context) {
 	uploadRateLimit := context.Int("limit-rate")
 	enumOnly := context.Bool("enum-only")
 	storage.SetRateLimits(0, uploadRateLimit)
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.FiltersFile, preference.ExcludeByAttribute)
-	duplicacy.SavePassword(*preference, "password", password)
+	backupManager := core.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.FiltersFile, preference.ExcludeByAttribute)
+	util.SavePassword(*preference, "password", password)
 
 	backupManager.SetupSnapshotCache(preference.Name)
 	backupManager.SetDryRun(dryRun)
 
 	zstdLevel := context.String("zstd-level")
 	if zstdLevel != "" {
-		if level, found := duplicacy.ZSTD_COMPRESSION_LEVELS[zstdLevel]; found {
+		if level, found := core.ZSTD_COMPRESSION_LEVELS[zstdLevel]; found {
 			backupManager.SetCompressionLevel(level)
 		} else {
-			duplicacy.LOG_ERROR("STORAGE_COMPRESSION", "Invalid zstd compression level: %s", zstdLevel)
+			util.LOG_ERROR("STORAGE_COMPRESSION", "Invalid zstd compression level: %s", zstdLevel)
 		}
 	} else if context.Bool("zstd") {
-		backupManager.SetCompressionLevel(duplicacy.ZSTD_COMPRESSION_LEVEL_DEFAULT)
+		backupManager.SetCompressionLevel(core.ZSTD_COMPRESSION_LEVEL_DEFAULT)
 	}
 
 	metadataChunkSize := context.Int("metadata-chunk-size")
@@ -815,7 +816,7 @@ func backupRepository(context *cli.Context) {
 
 func restoreRepository(context *cli.Context) {
 	setGlobalOptions(context)
-	defer duplicacy.CatchLogException()
+	defer util.CatchLogException()
 
 	revision := context.Int("r")
 	if revision <= 0 {
@@ -827,7 +828,7 @@ func restoreRepository(context *cli.Context) {
 	repository, preference := getRepositoryPreference(context, "")
 
 	if preference.RestoreProhibited {
-		duplicacy.LOG_ERROR("RESTORE_DISABLED", "Restore from %s to this repository was disabled by the preference",
+		util.LOG_ERROR("RESTORE_DISABLED", "Restore from %s to this repository was disabled by the preference",
 			preference.StorageURL)
 		return
 	}
@@ -839,15 +840,15 @@ func restoreRepository(context *cli.Context) {
 		threads = 1
 	}
 
-	duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
-	storage := duplicacy.CreateStorage(*preference, false, threads)
+	util.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
+	storage := backend.CreateStorage(*preference, false, threads)
 	if storage == nil {
 		return
 	}
 
 	password := ""
 	if preference.Encrypted {
-		password = duplicacy.GetPassword(*preference, "password", "Enter storage password:", false, false)
+		password = util.GetPassword(*preference, "password", "Enter storage password:", false, false)
 	}
 
 	quickMode := !context.Bool("hash")
@@ -874,22 +875,22 @@ func restoreRepository(context *cli.Context) {
 		patterns = append(patterns, pattern)
 	}
 
-	patterns = duplicacy.ProcessFilterLines(patterns, make([]string, 0))
+	patterns = core.ProcessFilterLines(patterns, make([]string, 0))
 
-	duplicacy.LOG_DEBUG("REGEX_DEBUG", "There are %d compiled regular expressions stored", len(duplicacy.RegexMap))
+	util.LOG_DEBUG("REGEX_DEBUG", "There are %d compiled regular expressions stored", len(util.RegexMap))
 
-	duplicacy.LOG_INFO("SNAPSHOT_FILTER", "Loaded %d include/exclude pattern(s)", len(patterns))
+	util.LOG_INFO("SNAPSHOT_FILTER", "Loaded %d include/exclude pattern(s)", len(patterns))
 
 	storage.SetRateLimits(context.Int("limit-rate"), 0)
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.FiltersFile, preference.ExcludeByAttribute)
-	duplicacy.SavePassword(*preference, "password", password)
+	backupManager := core.CreateBackupManager(preference.SnapshotID, storage, repository, password, preference.NobackupFile, preference.FiltersFile, preference.ExcludeByAttribute)
+	util.SavePassword(*preference, "password", password)
 
 	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), preference, backupManager, false)
 
 	backupManager.SetupSnapshotCache(preference.Name)
 	failed := backupManager.Restore(repository, revision, true, quickMode, threads, overwrite, deleteMode, setOwner, showStatistics, patterns, persist)
 	if failed > 0 {
-		duplicacy.LOG_ERROR("RESTORE_FAIL", "%d file(s) were not restored correctly", failed)
+		util.LOG_ERROR("RESTORE_FAIL", "%d file(s) were not restored correctly", failed)
 		return
 	}
 
@@ -898,7 +899,7 @@ func restoreRepository(context *cli.Context) {
 
 func listSnapshots(context *cli.Context) {
 	setGlobalOptions(context)
-	defer duplicacy.CatchLogException()
+	defer util.CatchLogException()
 
 	if len(context.Args()) != 0 {
 		fmt.Fprintf(context.App.Writer, "The %s command requires no arguments.\n\n", context.Command.Name)
@@ -908,27 +909,27 @@ func listSnapshots(context *cli.Context) {
 
 	repository, preference := getRepositoryPreference(context, "")
 
-	duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
+	util.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
 
 	runScript(context, preference.Name, "pre")
 
 	resetPassword := context.Bool("reset-passwords")
-	storage := duplicacy.CreateStorage(*preference, resetPassword, 1)
+	storage := backend.CreateStorage(*preference, resetPassword, 1)
 	if storage == nil {
 		return
 	}
 
 	password := ""
 	if preference.Encrypted {
-		password = duplicacy.GetPassword(*preference, "password", "Enter storage password:",
+		password = util.GetPassword(*preference, "password", "Enter storage password:",
 			false, resetPassword)
 	}
 
 	tag := context.String("t")
 	revisions := getRevisions(context)
 
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", preference.ExcludeByAttribute)
-	duplicacy.SavePassword(*preference, "password", password)
+	backupManager := core.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", preference.ExcludeByAttribute)
+	util.SavePassword(*preference, "password", password)
 
 	id := preference.SnapshotID
 	if context.Bool("all") {
@@ -952,7 +953,7 @@ func listSnapshots(context *cli.Context) {
 func checkSnapshots(context *cli.Context) {
 
 	setGlobalOptions(context)
-	defer duplicacy.CatchLogException()
+	defer util.CatchLogException()
 
 	if len(context.Args()) != 0 {
 		fmt.Fprintf(context.App.Writer, "The %s command requires no arguments.\n\n", context.Command.Name)
@@ -962,7 +963,7 @@ func checkSnapshots(context *cli.Context) {
 
 	repository, preference := getRepositoryPreference(context, "")
 
-	duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
+	util.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
 
 	runScript(context, preference.Name, "pre")
 
@@ -971,21 +972,21 @@ func checkSnapshots(context *cli.Context) {
 		threads = 1
 	}
 
-	storage := duplicacy.CreateStorage(*preference, false, threads)
+	storage := backend.CreateStorage(*preference, false, threads)
 	if storage == nil {
 		return
 	}
 
 	password := ""
 	if preference.Encrypted {
-		password = duplicacy.GetPassword(*preference, "password", "Enter storage password:", false, false)
+		password = util.GetPassword(*preference, "password", "Enter storage password:", false, false)
 	}
 
 	tag := context.String("t")
 	revisions := getRevisions(context)
 
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false)
-	duplicacy.SavePassword(*preference, "password", password)
+	backupManager := core.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false)
+	util.SavePassword(*preference, "password", password)
 
 	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), preference, backupManager, false)
 
@@ -1013,7 +1014,7 @@ func checkSnapshots(context *cli.Context) {
 
 func printFile(context *cli.Context) {
 	setGlobalOptions(context)
-	defer duplicacy.CatchLogException()
+	defer util.CatchLogException()
 
 	if len(context.Args()) > 1 {
 		fmt.Fprintf(context.App.Writer, "The %s command requires at most 1 argument.\n\n", context.Command.Name)
@@ -1026,15 +1027,15 @@ func printFile(context *cli.Context) {
 	runScript(context, preference.Name, "pre")
 
 	// Do not print out storage for this command
-	//duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
-	storage := duplicacy.CreateStorage(*preference, false, 1)
+	//util.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
+	storage := backend.CreateStorage(*preference, false, 1)
 	if storage == nil {
 		return
 	}
 
 	password := ""
 	if preference.Encrypted {
-		password = duplicacy.GetPassword(*preference, "password", "Enter storage password:", false, false)
+		password = util.GetPassword(*preference, "password", "Enter storage password:", false, false)
 	}
 
 	revision := context.Int("r")
@@ -1044,9 +1045,8 @@ func printFile(context *cli.Context) {
 		snapshotID = context.String("id")
 	}
 
-
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false)
-	duplicacy.SavePassword(*preference, "password", password)
+	backupManager := core.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false)
+	util.SavePassword(*preference, "password", password)
 
 	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), preference, backupManager, false)
 
@@ -1063,7 +1063,7 @@ func printFile(context *cli.Context) {
 
 func diff(context *cli.Context) {
 	setGlobalOptions(context)
-	defer duplicacy.CatchLogException()
+	defer util.CatchLogException()
 
 	if len(context.Args()) > 1 {
 		fmt.Fprintf(context.App.Writer, "The %s command requires 0 or 1 argument.\n\n", context.Command.Name)
@@ -1075,15 +1075,15 @@ func diff(context *cli.Context) {
 
 	runScript(context, preference.Name, "pre")
 
-	duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
-	storage := duplicacy.CreateStorage(*preference, false, 1)
+	util.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
+	storage := backend.CreateStorage(*preference, false, 1)
 	if storage == nil {
 		return
 	}
 
 	password := ""
 	if preference.Encrypted {
-		password = duplicacy.GetPassword(*preference, "password", "Enter storage password:", false, false)
+		password = util.GetPassword(*preference, "password", "Enter storage password:", false, false)
 	}
 
 	revisions := context.IntSlice("r")
@@ -1103,8 +1103,8 @@ func diff(context *cli.Context) {
 	}
 
 	compareByHash := context.Bool("hash")
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false)
-	duplicacy.SavePassword(*preference, "password", password)
+	backupManager := core.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false)
+	util.SavePassword(*preference, "password", password)
 
 	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), preference, backupManager, false)
 
@@ -1116,7 +1116,7 @@ func diff(context *cli.Context) {
 
 func showHistory(context *cli.Context) {
 	setGlobalOptions(context)
-	defer duplicacy.CatchLogException()
+	defer util.CatchLogException()
 
 	if len(context.Args()) != 1 {
 		fmt.Fprintf(context.App.Writer, "The %s command requires 1 argument.\n\n", context.Command.Name)
@@ -1128,15 +1128,15 @@ func showHistory(context *cli.Context) {
 
 	runScript(context, preference.Name, "pre")
 
-	duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
-	storage := duplicacy.CreateStorage(*preference, false, 1)
+	util.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
+	storage := backend.CreateStorage(*preference, false, 1)
 	if storage == nil {
 		return
 	}
 
 	password := ""
 	if preference.Encrypted {
-		password = duplicacy.GetPassword(*preference, "password", "Enter storage password:", false, false)
+		password = util.GetPassword(*preference, "password", "Enter storage password:", false, false)
 	}
 
 	snapshotID := preference.SnapshotID
@@ -1148,8 +1148,8 @@ func showHistory(context *cli.Context) {
 
 	revisions := getRevisions(context)
 	showLocalHash := context.Bool("hash")
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false)
-	duplicacy.SavePassword(*preference, "password", password)
+	backupManager := core.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false)
+	util.SavePassword(*preference, "password", password)
 
 	backupManager.SetupSnapshotCache(preference.Name)
 	backupManager.SnapshotManager.ShowHistory(repository, snapshotID, revisions, path, showLocalHash)
@@ -1159,7 +1159,7 @@ func showHistory(context *cli.Context) {
 
 func pruneSnapshots(context *cli.Context) {
 	setGlobalOptions(context)
-	defer duplicacy.CatchLogException()
+	defer util.CatchLogException()
 
 	if len(context.Args()) != 0 {
 		fmt.Fprintf(context.App.Writer, "The %s command requires no arguments.\n\n", context.Command.Name)
@@ -1176,15 +1176,15 @@ func pruneSnapshots(context *cli.Context) {
 
 	runScript(context, preference.Name, "pre")
 
-	duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
-	storage := duplicacy.CreateStorage(*preference, false, threads)
+	util.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
+	storage := backend.CreateStorage(*preference, false, threads)
 	if storage == nil {
 		return
 	}
 
 	password := ""
 	if preference.Encrypted {
-		password = duplicacy.GetPassword(*preference, "password", "Enter storage password:", false, false)
+		password = util.GetPassword(*preference, "password", "Enter storage password:", false, false)
 	}
 
 	revisions := getRevisions(context)
@@ -1211,8 +1211,8 @@ func pruneSnapshots(context *cli.Context) {
 		os.Exit(ArgumentExitCode)
 	}
 
-	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false)
-	duplicacy.SavePassword(*preference, "password", password)
+	backupManager := core.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false)
+	util.SavePassword(*preference, "password", password)
 
 	backupManager.SetupSnapshotCache(preference.Name)
 	backupManager.SnapshotManager.PruneSnapshots(selfID, snapshotID, revisions, tags, retentions,
@@ -1223,7 +1223,7 @@ func pruneSnapshots(context *cli.Context) {
 
 func copySnapshots(context *cli.Context) {
 	setGlobalOptions(context)
-	defer duplicacy.CatchLogException()
+	defer util.CatchLogException()
 
 	if len(context.Args()) != 0 {
 		fmt.Fprintf(context.App.Writer, "The %s command requires no arguments.\n\n", context.Command.Name)
@@ -1245,54 +1245,54 @@ func copySnapshots(context *cli.Context) {
 
 	runScript(context, source.Name, "pre")
 
-	duplicacy.LOG_INFO("STORAGE_SET", "Source storage set to %s", source.StorageURL)
-	sourceStorage := duplicacy.CreateStorage(*source, false, downloadingThreads)
+	util.LOG_INFO("STORAGE_SET", "Source storage set to %s", source.StorageURL)
+	sourceStorage := backend.CreateStorage(*source, false, downloadingThreads)
 	if sourceStorage == nil {
 		return
 	}
 
 	sourcePassword := ""
 	if source.Encrypted {
-		sourcePassword = duplicacy.GetPassword(*source, "password", "Enter source storage password:", false, false)
+		sourcePassword = util.GetPassword(*source, "password", "Enter source storage password:", false, false)
 	}
 
-	sourceManager := duplicacy.CreateBackupManager(source.SnapshotID, sourceStorage, repository, sourcePassword, "", "", false)
+	sourceManager := core.CreateBackupManager(source.SnapshotID, sourceStorage, repository, sourcePassword, "", "", false)
 	sourceManager.SetupSnapshotCache(source.Name)
-	duplicacy.SavePassword(*source, "password", sourcePassword)
+	util.SavePassword(*source, "password", sourcePassword)
 
 	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), source, sourceManager, false)
 
 	_, destination := getRepositoryPreference(context, context.String("to"))
 
 	if destination.Name == source.Name {
-		duplicacy.LOG_ERROR("COPY_IDENTICAL", "The source storage and the destination storage are the same")
+		util.LOG_ERROR("COPY_IDENTICAL", "The source storage and the destination storage are the same")
 		return
 	}
 
 	if destination.BackupProhibited {
-		duplicacy.LOG_ERROR("COPY_DISABLED", "Copying snapshots to %s was disabled by the preference",
+		util.LOG_ERROR("COPY_DISABLED", "Copying snapshots to %s was disabled by the preference",
 			destination.StorageURL)
 		return
 	}
 
-	duplicacy.LOG_INFO("STORAGE_SET", "Destination storage set to %s", destination.StorageURL)
-	destinationStorage := duplicacy.CreateStorage(*destination, false, uploadingThreads)
+	util.LOG_INFO("STORAGE_SET", "Destination storage set to %s", destination.StorageURL)
+	destinationStorage := backend.CreateStorage(*destination, false, uploadingThreads)
 	if destinationStorage == nil {
 		return
 	}
 
 	destinationPassword := ""
 	if destination.Encrypted {
-		destinationPassword = duplicacy.GetPassword(*destination, "password",
+		destinationPassword = util.GetPassword(*destination, "password",
 			"Enter destination storage password:", false, false)
 	}
 
 	sourceStorage.SetRateLimits(context.Int("download-limit-rate"), 0)
 	destinationStorage.SetRateLimits(0, context.Int("upload-limit-rate"))
 
-	destinationManager := duplicacy.CreateBackupManager(destination.SnapshotID, destinationStorage, repository,
-		                                                  destinationPassword, "", "", false)
-	duplicacy.SavePassword(*destination, "password", destinationPassword)
+	destinationManager := core.CreateBackupManager(destination.SnapshotID, destinationStorage, repository,
+		destinationPassword, "", "", false)
+	util.SavePassword(*destination, "password", destinationPassword)
 	destinationManager.SetupSnapshotCache(destination.Name)
 
 	revisions := getRevisions(context)
@@ -1307,7 +1307,7 @@ func copySnapshots(context *cli.Context) {
 
 func infoStorage(context *cli.Context) {
 	setGlobalOptions(context)
-	defer duplicacy.CatchLogException()
+	defer util.CatchLogException()
 
 	if len(context.Args()) != 1 {
 		fmt.Fprintf(context.App.Writer, "The %s command requires a storage URL argument.\n\n", context.Command.Name)
@@ -1317,14 +1317,14 @@ func infoStorage(context *cli.Context) {
 
 	repository := context.String("repository")
 	if repository != "" {
-		preferencePath := path.Join(repository, duplicacy.DUPLICACY_DIRECTORY)
-		duplicacy.SetDuplicacyPreferencePath(preferencePath)
-		duplicacy.SetKeyringFile(path.Join(preferencePath, "keyring"))
+		preferencePath := path.Join(repository, util.DUPLICACY_DIRECTORY)
+		util.SetDuplicacyPreferencePath(preferencePath)
+		util.SetKeyringFile(path.Join(preferencePath, "keyring"))
 	}
 
 	resetPasswords := context.Bool("reset-passwords")
 	isEncrypted := context.Bool("e")
-	preference := duplicacy.Preference{
+	preference := util.Preference{
 		Name:              "default",
 		SnapshotID:        "default",
 		StorageURL:        context.Args()[0],
@@ -1345,31 +1345,31 @@ func infoStorage(context *cli.Context) {
 
 	password := ""
 	if isEncrypted {
-		password = duplicacy.GetPassword(preference, "password", "Enter the storage password:", false, resetPasswords)
+		password = util.GetPassword(preference, "password", "Enter the storage password:", false, resetPasswords)
 	}
 
-	storage := duplicacy.CreateStorage(preference, resetPasswords, 1)
-	config, isStorageEncrypted, err := duplicacy.DownloadConfig(storage, password)
+	storage := backend.CreateStorage(preference, resetPasswords, 1)
+	config, isStorageEncrypted, err := core.DownloadConfig(storage, password)
 
 	if isStorageEncrypted {
-		duplicacy.LOG_INFO("STORAGE_ENCRYPTED", "The storage is encrypted with a password")
+		util.LOG_INFO("STORAGE_ENCRYPTED", "The storage is encrypted with a password")
 	} else if err != nil {
-		duplicacy.LOG_ERROR("STORAGE_ERROR", "%v", err)
+		util.LOG_ERROR("STORAGE_ERROR", "%v", err)
 	} else if config == nil {
-		duplicacy.LOG_INFO("STORAGE_NOT_INITIALIZED", "The storage has not been initialized")
+		util.LOG_INFO("STORAGE_NOT_INITIALIZED", "The storage has not been initialized")
 	} else {
 		config.Print()
 	}
 
 	dirs, _, err := storage.ListFiles(0, "snapshots/")
 	if err != nil {
-		duplicacy.LOG_WARN("STORAGE_LIST", "Failed to list repository ids: %v", err)
+		util.LOG_WARN("STORAGE_LIST", "Failed to list repository ids: %v", err)
 		return
 	}
 
 	for _, dir := range dirs {
 		if len(dir) > 0 && dir[len(dir)-1] == '/' {
-			duplicacy.LOG_INFO("STORAGE_SNAPSHOT", "%s", dir[0:len(dir)-1])
+			util.LOG_INFO("STORAGE_SNAPSHOT", "%s", dir[0:len(dir)-1])
 		}
 	}
 
@@ -1377,7 +1377,7 @@ func infoStorage(context *cli.Context) {
 
 func benchmark(context *cli.Context) {
 	setGlobalOptions(context)
-	defer duplicacy.CatchLogException()
+	defer util.CatchLogException()
 
 	fileSize := context.Int("file-size")
 	if fileSize == 0 {
@@ -1411,17 +1411,17 @@ func benchmark(context *cli.Context) {
 
 	repository, preference := getRepositoryPreference(context, context.String("storage"))
 
-	duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
-	storage := duplicacy.CreateStorage(*preference, false, threads)
+	util.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
+	storage := backend.CreateStorage(*preference, false, threads)
 	if storage == nil {
 		return
 	}
-	duplicacy.Benchmark(repository, storage, int64(fileSize) * 1024 * 1024, chunkSize * 1024 * 1024, chunkCount, uploadThreads, downloadThreads)
+	core.Benchmark(repository, storage, int64(fileSize)*1024*1024, chunkSize*1024*1024, chunkCount, uploadThreads, downloadThreads)
 }
 
 func main() {
 
-	duplicacy.SetLoggingLevel(duplicacy.INFO)
+	util.SetLoggingLevel(util.INFO)
 
 	app := cli.NewApp()
 
@@ -1455,8 +1455,8 @@ func main() {
 					Argument: "<level>",
 				},
 				cli.BoolFlag{
-					Name:     "zstd",
-					Usage:    "short for -zstd default",
+					Name:  "zstd",
+					Usage: "short for -zstd default",
 				},
 				cli.IntFlag{
 					Name:     "iterations",
@@ -1531,8 +1531,8 @@ func main() {
 					Argument: "<level>",
 				},
 				cli.BoolFlag{
-					Name:     "zstd",
-					Usage:    "short for -zstd default",
+					Name:  "zstd",
+					Usage: "short for -zstd default",
 				},
 				cli.BoolFlag{
 					Name:  "vss",
@@ -1565,7 +1565,6 @@ func main() {
 					Usage:    "the maximum number of entries kept in memory (defaults to 1M)",
 					Argument: "<number>",
 				},
-
 			},
 			Usage:     "Save a snapshot of the repository to the storage",
 			ArgsUsage: " ",
@@ -1625,7 +1624,7 @@ func main() {
 				cli.BoolFlag{
 					Name:  "persist",
 					Usage: "continue processing despite chunk errors or existing files (without -overwrite), reporting any affected files",
-        },
+				},
 				cli.StringFlag{
 					Name:     "key-passphrase",
 					Usage:    "the passphrase to decrypt the RSA private key",
@@ -1983,8 +1982,8 @@ func main() {
 					Argument: "<level>",
 				},
 				cli.BoolFlag{
-					Name:     "zstd",
-					Usage:    "short for -zstd default",
+					Name:  "zstd",
+					Usage: "short for -zstd default",
 				},
 				cli.IntFlag{
 					Name:     "iterations",
@@ -2249,8 +2248,8 @@ func main() {
 			Usage: "add a comment to identify the process",
 		},
 		cli.StringSliceFlag{
-			Name:  "suppress, s",
-			Usage: "suppress logs with the specified id",
+			Name:     "suppress, s",
+			Usage:    "suppress logs with the specified id",
 			Argument: "<id>",
 		},
 		cli.BoolFlag{
@@ -2276,7 +2275,7 @@ func main() {
 	signal.Notify(c, os.Interrupt)
 	go func() {
 		for range c {
-			duplicacy.RunAtError()
+			util.RunAtError()
 			os.Exit(1)
 		}
 	}()
