@@ -906,8 +906,23 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 		for i := range extraFiles {
 			file := extraFiles[len(extraFiles)-1-i]
 			fullPath := joinPath(top, file)
-			os.Remove(fullPath)
-			LOG_INFO("RESTORE_DELETE", "Deleted %s", file)
+			// Grant read + write permission before deleting
+			// As for old version of go, os.Remove() fails with permission denied error
+			stat, err := os.Stat(fullPath)
+			fileMode := stat.Mode()&fileModeMask
+			if err == nil && fileMode&0600 != 0600 {
+				err = os.Chmod(fullPath, fileMode|0600)
+				if err != nil {
+					LOG_WARN("RESTORE_DELETE_CHMOD", "Failed to set the file permission of %s: %v", fullPath, err)
+					// Continue to try to open the file in read-write mode
+				}
+			}
+			err = os.Remove(fullPath)
+			if err != nil {
+				LOG_WARN("RESTORE_DELETE", "Failed to delete %s: %v", file, err)
+			} else {
+				LOG_INFO("RESTORE_DELETE", "Deleted %s", file)
+			}
 		}
 	}
 
