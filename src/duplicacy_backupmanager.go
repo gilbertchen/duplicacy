@@ -1371,6 +1371,17 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 		} else {
 			// Close and reopen in a different mode
 			existingFile.Close()
+			// Grant read + write permission for overwriting
+			// Permission will be fixed by RestoreMetadata
+			stat, err := os.Stat(fullPath)
+			fileMode := stat.Mode()&fileModeMask
+			if err == nil && fileMode&0600 != 0600 {
+				err = os.Chmod(fullPath, fileMode|0600)
+				if err != nil {
+					LOG_WARN("DOWNLOAD_CHMOD", "Failed to set the file permission of %s: %v", fullPath, err)
+					// Continue to try to open the file in read-write mode
+				}
+			}
 			existingFile, err = os.OpenFile(fullPath, os.O_RDWR, 0)
 			if err != nil {
 				LOG_ERROR("DOWNLOAD_OPEN", "Failed to open the file %s for in-place writing", fullPath)
