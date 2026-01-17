@@ -29,6 +29,7 @@ import (
 const (
 	secondsInDay = 86400
 	chunkDir     = "chunks/"
+	snapshotFossilSuffix = ".fsl"
 )
 
 // FossilCollection contains fossils and temporary files found during a snapshot deletions.
@@ -213,7 +214,19 @@ func (manager *SnapshotManager) DownloadSnapshot(snapshotID string, revision int
 	manager.storage.CreateDirectory(0, snapshotDir)
 	manager.snapshotCache.CreateDirectory(0, snapshotDir)
 
-	snapshotPath := fmt.Sprintf("snapshots/%s/%d", snapshotID, revision)
+	snapshotPath := makeSnapshotPath(snapshotID, revision)
+	return manager.downloadSnapshotFromPath(snapshotID, revision, snapshotPath)
+}
+
+func makeSnapshotPath(snapshotID string, revision int) string {
+	return fmt.Sprintf("snapshots/%s/%d", snapshotID, revision)
+}
+
+func makeSnapshotFossilPath(snapshotID string, revision int) string {
+	return makeSnapshotPath(snapshotID, revision) + snapshotFossilSuffix
+}
+
+func (manager *SnapshotManager) downloadSnapshotFromPath(snapshotID string, revision int, snapshotPath string) *Snapshot {
 
 	// We must check if the snapshot file exists in the storage, because the snapshot cache may store a copy of the
 	// file even if the snapshot has been deleted in the storage (possibly by a different client)
@@ -508,7 +521,37 @@ func (manager *SnapshotManager) ListSnapshotRevisions(snapshotID string) (revisi
 
 	for _, file := range files {
 		if len(file) > 0 && file[len(file)-1] != '/' {
+			if strings.HasSuffix(file, snapshotFossilSuffix) {
+				continue
+			}
 			revision, err := strconv.Atoi(file)
+			if err == nil {
+				revisions = append(revisions, revision)
+			}
+		}
+	}
+
+	sort.Ints(revisions)
+
+	return revisions, nil
+}
+
+// ListSnapshotFossilRevisions returns the list of fossilized revisions given a snapshot id.
+func (manager *SnapshotManager) ListSnapshotFossilRevisions(snapshotID string) (revisions []int, err error) {
+
+	LOG_TRACE("SNAPSHOT_LIST_FOSSILS", "Listing fossil revisions for snapshot %s", snapshotID)
+
+	snapshotDir := fmt.Sprintf("snapshots/%s/", snapshotID)
+
+	files, _, err := manager.storage.ListFiles(0, snapshotDir)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, file := range files {
+		if len(file) > 0 && file[len(file)-1] != '/' && strings.HasSuffix(file, snapshotFossilSuffix) {
+			revisionName := strings.TrimSuffix(file, snapshotFossilSuffix)
+			revision, err := strconv.Atoi(revisionName)
 			if err == nil {
 				revisions = append(revisions, revision)
 			}
@@ -620,6 +663,140 @@ func (manager *SnapshotManager) GetSnapshotChunks(snapshot *Snapshot, keepChunkH
 	}
 
 	return chunks
+}
+
+func (manager *SnapshotManager) getSnapshotChunksForDeletion(snapshot *Snapshot) (dataChunks []string, metaChunks []string) {
+
+	for _, chunkHash := range snapshot.FileSequence {
+		metaChunks = append(metaChunks, manager.config.GetChunkIDFromHash(chunkHash))
+	}
+
+	for _, chunkHash := range snapshot.ChunkSequence {
+		metaChunks = append(metaChunks, manager.config.GetChunkIDFromHash(chunkHash))
+	}
+
+	for _, chunkHash := range snapshot.LengthSequence {
+		metaChunks = append(metaChunks, manager.config.GetChunkIDFromHash(chunkHash))
+	}
+
+	if len(snapshot.ChunkHashes) == 0 {
+
+		description := manager.DownloadSequence(snapshot.ChunkSequence)
+		err := snapshot.LoadChunks(description)
+		if err != nil {
+			LOG_ERROR("SNAPSHOT_CHUNK", "Failed to load chunks for snapshot %s at revision %d: %v",
+				snapshot.ID, snapshot.Revision, err)
+			return nil, nil
+		}
+	}
+
+	for _, chunkHash := range snapshot.ChunkHashes {
+		dataChunks = append(dataChunks, manager.config.GetChunkIDFromHash(chunkHash))
+	}
+
+	snapshot.ClearChunks()
+
+	return dataChunks, metaChunks
+}
+
+func (manager *SnapshotManager) fossilizeSnapshot(snapshotID string, revision int, dryRun bool) error {
+
+	snapshotPath := makeSnapshotPath(snapshotID, revision)
+	fossilPath := makeSnapshotFossilPath(snapshotID, revision)
+
+	exist, _, _, err := manager.storage.GetFileInfo(0, snapshotPath)
+	if err != nil {
+		return err
+	}
+
+	if !exist {
+		fossilExist, _, _, err := manager.storage.GetFileInfo(0, fossilPath)
+		if err != nil {
+			return err
+		}
+		if fossilExist {
+			LOG_INFO("SNAPSHOT_FOSSIL", "Snapshot %s at revision %d is already fossilized", snapshotID, revision)
+			return nil
+		}
+		return fmt.Errorf("snapshot %s at revision %d does not exist", snapshotID, revision)
+	}
+
+	if dryRun {
+		LOG_INFO("SNAPSHOT_FOSSIL", "Snapshot %s at revision %d would be fossilized", snapshotID, revision)
+		return nil
+	}
+
+	fossilExist, _, _, err := manager.storage.GetFileInfo(0, fossilPath)
+	if err != nil {
+		return err
+	}
+
+	if fossilExist {
+		err = manager.storage.DeleteFile(0, snapshotPath)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = manager.storage.MoveFile(0, snapshotPath, fossilPath)
+		if err != nil {
+			return err
+		}
+	}
+
+	err = manager.snapshotCache.DeleteFile(0, snapshotPath)
+	if err != nil {
+		LOG_WARN("SNAPSHOT_DELETE", "The cached snapshot %s at revision %d could not be removed: %v",
+			snapshotID, revision, err)
+	}
+
+	LOG_INFO("SNAPSHOT_FOSSIL", "Snapshot %s at revision %d has been fossilized", snapshotID, revision)
+	return nil
+}
+
+func (manager *SnapshotManager) deleteSnapshotFossil(snapshotID string, revision int, dryRun bool) error {
+
+	fossilPath := makeSnapshotFossilPath(snapshotID, revision)
+	snapshotPath := makeSnapshotPath(snapshotID, revision)
+
+	exist, _, _, err := manager.storage.GetFileInfo(0, fossilPath)
+	if err != nil {
+		return err
+	}
+
+	if !exist {
+		exist, _, _, err = manager.storage.GetFileInfo(0, snapshotPath)
+		if err != nil {
+			return err
+		}
+		if !exist {
+			return nil
+		}
+		fossilPath = snapshotPath
+	}
+
+	if dryRun {
+		LOG_INFO("SNAPSHOT_DELETE", "Snapshot %s at revision %d would be removed", snapshotID, revision)
+		return nil
+	}
+
+	err = manager.storage.DeleteFile(0, fossilPath)
+	if err != nil {
+		return err
+	}
+
+	err = manager.snapshotCache.DeleteFile(0, snapshotPath)
+	if err != nil {
+		LOG_WARN("SNAPSHOT_DELETE", "The cached snapshot %s at revision %d could not be removed: %v",
+			snapshotID, revision, err)
+	}
+	err = manager.snapshotCache.DeleteFile(0, makeSnapshotFossilPath(snapshotID, revision))
+	if err != nil {
+		LOG_WARN("SNAPSHOT_DELETE", "The cached fossil snapshot %s at revision %d could not be removed: %v",
+			snapshotID, revision, err)
+	}
+
+	LOG_INFO("SNAPSHOT_DELETE", "The snapshot %s at revision %d has been removed", snapshotID, revision)
+	return nil
 }
 
 // GetSnapshotChunkHashes has an option to retrieve chunk hashes in addition to chunk ids.
@@ -1953,6 +2130,7 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 	}
 
 	allSnapshots := make(map[string][]*Snapshot)
+	activeRevisions := make(map[string]map[int]bool)
 
 	// We must find all snapshots for all ids even if only one snapshot is specified to be deleted,
 	// because we need to find out which chunks are not referenced.
@@ -1972,7 +2150,9 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 
 		sort.Ints(revisions)
 		var snapshots []*Snapshot
+		revisionMap := make(map[int]bool)
 		for _, revision := range revisions {
+			revisionMap[revision] = true
 			snapshot := manager.DownloadSnapshot(id, revision)
 			if snapshot != nil {
 				snapshots = append(snapshots, snapshot)
@@ -1981,6 +2161,38 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 
 		if len(snapshots) > 0 {
 			allSnapshots[id] = snapshots
+		}
+		activeRevisions[id] = revisionMap
+	}
+
+	var fossilSnapshots []*Snapshot
+	fossilSnapshotRevisions := make(map[string]map[int]bool)
+	for _, id := range snapshotIDs {
+		if len(snapshotID) > 0 && id != snapshotID {
+			continue
+		}
+		var fossilRevisions []int
+		fossilRevisions, err = manager.ListSnapshotFossilRevisions(id)
+		if err != nil {
+			LOG_ERROR("SNAPSHOT_LIST", "Failed to list fossil revisions for snapshot %s: %v", id, err)
+			return false
+		}
+		for _, revision := range fossilRevisions {
+			if _, found := activeRevisions[id][revision]; found {
+				LOG_WARN("SNAPSHOT_FOSSIL", "Snapshot %s at revision %d exists and is fossilized; ignoring fossil",
+					id, revision)
+				continue
+			}
+			snapshot := manager.downloadSnapshotFromPath(id, revision, makeSnapshotFossilPath(id, revision))
+			if snapshot == nil {
+				return false
+			}
+			snapshot.Flag = true
+			fossilSnapshots = append(fossilSnapshots, snapshot)
+			if _, found := fossilSnapshotRevisions[id]; !found {
+				fossilSnapshotRevisions[id] = make(map[int]bool)
+			}
+			fossilSnapshotRevisions[id][revision] = true
 		}
 	}
 
@@ -2119,6 +2331,23 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 				}
 			}
 
+			for snapshotID, revisionList := range collection.DeletedRevisions {
+				for _, revision := range revisionList {
+					if dryRun {
+						LOG_INFO("SNAPSHOT_DELETE", "Snapshot %s at revision %d would be removed", snapshotID, revision)
+						continue
+					}
+					err = manager.deleteSnapshotFossil(snapshotID, revision, dryRun)
+					if err != nil {
+						LOG_WARN("SNAPSHOT_DELETE", "Failed to delete the snapshot %s at revision %d: %v",
+							snapshotID, revision, err)
+					} else {
+						fmt.Fprintf(logFile, "Deleted snapshot %s at revision %d (collection %s)\n",
+							snapshotID, revision, collectionName)
+					}
+				}
+			}
+
 			if !dryRun {
 				err = manager.snapshotCache.DeleteFile(0, collectionFile)
 				if err != nil {
@@ -2230,6 +2459,8 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 		}
 	}
 
+	toBeDeleted += len(fossilSnapshots)
+
 	if toBeDeleted == 0 && !exhaustive {
 		LOG_INFO("SNAPSHOT_NONE", "No snapshot to delete")
 		return false
@@ -2237,11 +2468,38 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 
 	collection := CreateFossilCollection(allSnapshots)
 
+	var deletedSnapshots []*Snapshot
+	for _, snapshots := range allSnapshots {
+		for _, snapshot := range snapshots {
+			if snapshot.Flag {
+				deletedSnapshots = append(deletedSnapshots, snapshot)
+			}
+		}
+	}
+	for _, snapshot := range fossilSnapshots {
+		deletedSnapshots = append(deletedSnapshots, snapshot)
+	}
+
+	if !dryRun && !exclusive {
+		for _, snapshot := range deletedSnapshots {
+			if fossilSnapshotRevisions[snapshot.ID][snapshot.Revision] {
+				continue
+			}
+			err = manager.fossilizeSnapshot(snapshot.ID, snapshot.Revision, dryRun)
+			if err != nil {
+				LOG_ERROR("SNAPSHOT_FOSSIL", "Failed to fossilize the snapshot %s at revision %d: %v",
+					snapshot.ID, snapshot.Revision, err)
+				return false
+			}
+			fmt.Fprintf(logFile, "Fossilized snapshot %s at revision %d\n", snapshot.ID, snapshot.Revision)
+		}
+	}
+
 	var success bool
 	if exhaustive {
-		success = manager.pruneSnapshotsExhaustive(referencedFossils, allSnapshots, collection, logFile, dryRun, exclusive)
+		success = manager.pruneSnapshotsExhaustive(referencedFossils, allSnapshots, deletedSnapshots, collection, logFile, dryRun, exclusive)
 	} else {
-		success = manager.pruneSnapshotsNonExhaustive(allSnapshots, collection, logFile, dryRun, exclusive)
+		success = manager.pruneSnapshotsNonExhaustive(allSnapshots, deletedSnapshots, collection, logFile, dryRun, exclusive)
 	}
 	if !success {
 		return false
@@ -2253,12 +2511,8 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 	}
 
 	// Save the deleted revision in the fossil collection
-	for _, snapshots := range allSnapshots {
-		for _, snapshot := range snapshots {
-			if snapshot.Flag {
-				collection.DeletedRevisions[snapshot.ID] = append(collection.DeletedRevisions[snapshot.ID], snapshot.Revision)
-			}
-		}
+	for _, snapshot := range deletedSnapshots {
+		collection.DeletedRevisions[snapshot.ID] = append(collection.DeletedRevisions[snapshot.ID], snapshot.Revision)
 	}
 
 	// Save the fossil collection if it is not empty.
@@ -2286,31 +2540,17 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 	}
 
 	// Now delete the snapshot files.
-	for _, snapshots := range allSnapshots {
-		for _, snapshot := range snapshots {
-			if !snapshot.Flag || dryRun {
-				continue
-			}
-
-			snapshotPath := fmt.Sprintf("snapshots/%s/%d", snapshot.ID, snapshot.Revision)
-			err = manager.storage.DeleteFile(0, snapshotPath)
-			if err != nil {
-				LOG_ERROR("SNAPSHOT_DELETE", "Failed to delete the snapshot %s at revision %d: %v",
-					snapshot.ID, snapshot.Revision, err)
-				return false
-			}
-			LOG_INFO("SNAPSHOT_DELETE", "The snapshot %s at revision %d has been removed",
-				snapshot.ID, snapshot.Revision)
-			err = manager.snapshotCache.DeleteFile(0, snapshotPath)
-			if err != nil {
-				LOG_WARN("SNAPSHOT_DELETE", "The cached snapshot %s at revision %d could not be removed: %v",
-					snapshot.ID, snapshot.Revision, err)
-				fmt.Fprintf(logFile, "Cached snapshot %s at revision %d could not be removed: %v",
-					snapshot.ID, snapshot.Revision, err)
-			} else {
-				fmt.Fprintf(logFile, "Deleted cached snapshot %s at revision %d\n", snapshot.ID, snapshot.Revision)
-			}
+	for _, snapshot := range deletedSnapshots {
+		if dryRun {
+			continue
 		}
+		err = manager.deleteSnapshotFossil(snapshot.ID, snapshot.Revision, dryRun)
+		if err != nil {
+			LOG_ERROR("SNAPSHOT_DELETE", "Failed to delete the snapshot %s at revision %d: %v",
+				snapshot.ID, snapshot.Revision, err)
+			return false
+		}
+		fmt.Fprintf(logFile, "Deleted snapshot %s at revision %d\n", snapshot.ID, snapshot.Revision)
 	}
 
 	if collection.IsEmpty() && !dryRun && toBeDeleted != 0 && !exclusive {
@@ -2335,8 +2575,9 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 
 // pruneSnapshots in non-exhaustive mode, only chunks that exist in the
 // snapshots to be deleted but not other are identified as unreferenced chunks.
-func (manager *SnapshotManager) pruneSnapshotsNonExhaustive(allSnapshots map[string][]*Snapshot, collection *FossilCollection, logFile io.Writer, dryRun, exclusive bool) bool {
-	targetChunks := make(map[string]bool)
+func (manager *SnapshotManager) pruneSnapshotsNonExhaustive(allSnapshots map[string][]*Snapshot, deletedSnapshots []*Snapshot, collection *FossilCollection, logFile io.Writer, dryRun, exclusive bool) bool {
+	targetDataChunks := make(map[string]bool)
+	targetMetaChunks := make(map[string]bool)
 
 	// Now build all chunks referened by snapshot not deleted
 	for _, snapshots := range allSnapshots {
@@ -2350,19 +2591,19 @@ func (manager *SnapshotManager) pruneSnapshotsNonExhaustive(allSnapshots map[str
 				return false
 			}
 		}
+	}
 
-		for _, snapshot := range snapshots {
-			if !snapshot.Flag {
-				continue
-			}
+	for _, snapshot := range deletedSnapshots {
+		LOG_INFO("SNAPSHOT_DELETE", "Deleting snapshot %s at revision %d", snapshot.ID, snapshot.Revision)
+		dataChunks, metaChunks := manager.getSnapshotChunksForDeletion(snapshot)
 
-			LOG_INFO("SNAPSHOT_DELETE", "Deleting snapshot %s at revision %d", snapshot.ID, snapshot.Revision)
-			chunks := manager.GetSnapshotChunks(snapshot, false)
-
-			for _, chunk := range chunks {
-				// The initial value is 'false'.  When a referenced chunk is found it will change the value to 'true'.
-				targetChunks[chunk] = false
-			}
+		for _, chunk := range dataChunks {
+			// The initial value is 'false'.  When a referenced chunk is found it will change the value to 'true'.
+			targetDataChunks[chunk] = false
+		}
+		for _, chunk := range metaChunks {
+			// The initial value is 'false'.  When a referenced chunk is found it will change the value to 'true'.
+			targetMetaChunks[chunk] = false
 		}
 	}
 
@@ -2375,14 +2616,17 @@ func (manager *SnapshotManager) pruneSnapshotsNonExhaustive(allSnapshots map[str
 			chunks := manager.GetSnapshotChunks(snapshot, false)
 
 			for _, chunk := range chunks {
-				if _, found := targetChunks[chunk]; found {
-					targetChunks[chunk] = true
+				if _, found := targetDataChunks[chunk]; found {
+					targetDataChunks[chunk] = true
+				}
+				if _, found := targetMetaChunks[chunk]; found {
+					targetMetaChunks[chunk] = true
 				}
 			}
 		}
 	}
 
-	for chunk, value := range targetChunks {
+	for chunk, value := range targetDataChunks {
 		if value {
 			continue
 		}
@@ -2399,7 +2643,30 @@ func (manager *SnapshotManager) pruneSnapshotsNonExhaustive(allSnapshots map[str
 			fmt.Fprintf(logFile, "Marked fossil %s\n", chunk)
 		}
 
-		targetChunks[chunk] = true
+		targetDataChunks[chunk] = true
+	}
+
+	for chunk, value := range targetMetaChunks {
+		if _, found := targetDataChunks[chunk]; found {
+			continue
+		}
+		if value {
+			continue
+		}
+
+		if dryRun {
+			LOG_INFO("CHUNK_UNREFERENCED", "Found unreferenced chunk %s", chunk)
+			continue
+		}
+
+		manager.fossilizeChunk(chunk, "", exclusive)
+		if exclusive {
+			fmt.Fprintf(logFile, "Deleted chunk %s (exclusive mode)\n", chunk)
+		} else {
+			fmt.Fprintf(logFile, "Marked fossil %s\n", chunk)
+		}
+
+		targetMetaChunks[chunk] = true
 	}
 
 	return true
@@ -2407,9 +2674,18 @@ func (manager *SnapshotManager) pruneSnapshotsNonExhaustive(allSnapshots map[str
 
 // pruneSnapshotsExhaustive in exhaustive, we scan the entire chunk tree to
 // find dangling chunks and temporaries.
-func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[string]bool, allSnapshots map[string][]*Snapshot, collection *FossilCollection, logFile io.Writer, dryRun, exclusive bool) bool {
+func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[string]bool, allSnapshots map[string][]*Snapshot, deletedSnapshots []*Snapshot, collection *FossilCollection, logFile io.Writer, dryRun, exclusive bool) bool {
 	chunkRegex := regexp.MustCompile(`^[0-9a-f]+$`)
 	referencedChunks := make(map[string]bool)
+	metaChunksToDelete := make(map[string]bool)
+
+	for _, snapshot := range deletedSnapshots {
+		LOG_INFO("SNAPSHOT_DELETE", "Deleting snapshot %s at revision %d", snapshot.ID, snapshot.Revision)
+		_, metaChunks := manager.getSnapshotChunksForDeletion(snapshot)
+		for _, chunk := range metaChunks {
+			metaChunksToDelete[chunk] = true
+		}
+	}
 
 	// Now build all chunks referened by snapshot not deleted
 	for _, snapshots := range allSnapshots {
@@ -2425,7 +2701,6 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[s
 
 		for _, snapshot := range snapshots {
 			if snapshot.Flag {
-				LOG_INFO("SNAPSHOT_DELETE", "Deleting snapshot %s at revision %d", snapshot.ID, snapshot.Revision)
 				continue
 			}
 
@@ -2440,6 +2715,10 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[s
 
 	allFiles, _ := manager.ListAllFiles(manager.storage, chunkDir)
 	uniqueFiles := make(map[string]bool)
+	pendingMetaChunks := make([]struct {
+		chunk string
+		file  string
+	}, 0, 128)
 	for _, file := range allFiles {
 		if _, found := uniqueFiles[file]; found {
 			continue
@@ -2517,6 +2796,14 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[s
 				continue
 			}
 
+			if _, isMeta := metaChunksToDelete[chunk]; isMeta {
+				pendingMetaChunks = append(pendingMetaChunks, struct {
+					chunk string
+					file  string
+				}{chunk: chunk, file: file})
+				continue
+			}
+
 			manager.fossilizeChunk(chunk, chunkDir+file, exclusive)
 			if exclusive {
 				fmt.Fprintf(logFile, "Deleted chunk %s (exclusive mode)\n", chunk)
@@ -2538,6 +2825,20 @@ func (manager *SnapshotManager) pruneSnapshotsExhaustive(referencedFossils map[s
 		} else {
 			referencedChunks[chunk] = true
 			LOG_DEBUG("CHUNK_KEEP", "Chunk %s is referenced", chunk)
+		}
+	}
+
+	for _, pending := range pendingMetaChunks {
+		if dryRun {
+			LOG_INFO("CHUNK_UNREFERENCED", "Found unreferenced chunk %s", pending.chunk)
+			continue
+		}
+
+		manager.fossilizeChunk(pending.chunk, chunkDir+pending.file, exclusive)
+		if exclusive {
+			fmt.Fprintf(logFile, "Deleted chunk %s (exclusive mode)\n", pending.chunk)
+		} else {
+			fmt.Fprintf(logFile, "Marked fossil %s\n", pending.chunk)
 		}
 	}
 
