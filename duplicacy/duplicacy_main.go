@@ -950,6 +950,7 @@ func listSnapshots(context *cli.Context) {
 }
 
 func checkSnapshots(context *cli.Context) {
+
 	setGlobalOptions(context)
 	defer duplicacy.CatchLogException()
 
@@ -1450,7 +1451,7 @@ func main() {
 				},
 				cli.StringFlag{
 					Name:     "zstd-level",
-					Usage:    "set zstd compression level (fast, default, better, or best)",
+					Usage:    "set zstd compression level (fastest, default, better, or best)",
 					Argument: "<level>",
 				},
 				cli.BoolFlag{
@@ -1526,7 +1527,7 @@ func main() {
 				},
 				cli.StringFlag{
 					Name:     "zstd-level",
-					Usage:    "set zstd compression level (fast, default, better, or best)",
+					Usage:    "set zstd compression level (fastest, default, better, or best)",
 					Argument: "<level>",
 				},
 				cli.BoolFlag{
@@ -1978,7 +1979,7 @@ func main() {
 				},
 				cli.StringFlag{
 					Name:     "zstd-level",
-					Usage:    "set zstd compression level (fast, default, better, or best)",
+					Usage:    "set zstd compression level (fastest, default, better, or best)",
 					Argument: "<level>",
 				},
 				cli.BoolFlag{
@@ -2262,7 +2263,7 @@ func main() {
 	app.Name = "duplicacy"
 	app.HelpName = "duplicacy"
 	app.Usage = "A new generation cloud backup tool based on lock-free deduplication"
-	app.Version = "3.2.3" + " (" + GitCommit + ")"
+	app.Version = "3.2.5" + " (" + GitCommit + ")"
 
 	// Exit with code 2 if an invalid command is provided
 	app.CommandNotFound = func(context *cli.Context, command string) {

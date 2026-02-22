@@ -559,7 +559,7 @@ func loadIncompleteSnapshot(snapshotID string, cachePath string) *EntryList {
 // Delete the two incomplete files.
 func deleteIncompleteSnapshot(cachePath string) {
 
-	for _, file := range []string{"incomplete_snapshot", "incomplete_chunks"} {
+	for _, file := range []string{"incomplete_snapshot", "incomplete_chunks", "incomplete_files"} {
 		filePath := path.Join(cachePath, file)
 		if _, err := os.Stat(filePath); err == nil {
 			err = os.Remove(filePath)

@@ -204,7 +204,7 @@ func (storage *OneDriveStorage) GetFileInfo(threadIndex int, filePath string) (e
 
 // DownloadFile reads the file at 'filePath' into the chunk.
 func (storage *OneDriveStorage) DownloadFile(threadIndex int, filePath string, chunk *Chunk) (err error) {
-	readCloser, _, err := storage.client.DownloadFile(storage.storageDir + "/" + filePath)
+	readCloser, _, err := storage.client.DownloadFile(storage.storageDir + "/" + storage.convertFilePath(filePath))
 	if err != nil {
 		return err
 	}

@@ -1032,6 +1032,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 					LOG_WARN("SNAPSHOT_VERIFY", "Failed to save the verified chunks file: %v", err)
 				} else {
 					LOG_INFO("SNAPSHOT_VERIFY", "Added %d chunks to the list of verified chunks", len(verifiedChunks) - numberOfVerifiedChunks)
+					numberOfVerifiedChunks = len(verifiedChunks)
 				}
 			}
 		}
@@ -1063,6 +1064,7 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 	var totalDownloadedChunkSize int64
 	var totalDownloadedChunks int64
 	totalChunks := int64(len(chunkHashes))
+	lastSaveTime := time.Now().Unix()
 
 	chunkChannel := make(chan int, threads)
 	var wg sync.WaitGroup
@@ -1083,20 +1085,30 @@ func (manager *SnapshotManager) CheckSnapshots(snapshotID string, revisionsToChe
 				if chunk == nil {
 					continue
 				}
-				chunkID := manager.config.GetChunkIDFromHash(chunkHashes[chunkIndex])
-				verifiedChunksLock.Lock()
-				verifiedChunks[chunkID] = startTime.Unix()
-				verifiedChunksLock.Unlock()
 
-				downloadedChunkSize := atomic.AddInt64(&totalDownloadedChunkSize, int64(chunk.GetLength()))
-				downloadedChunks := atomic.AddInt64(&totalDownloadedChunks, 1)
+				if !chunk.isBroken {
+					chunkID := manager.config.GetChunkIDFromHash(chunkHashes[chunkIndex])
+					verifiedChunksLock.Lock()
+					now := time.Now().Unix()
+					verifiedChunks[chunkID] = now
+					if now > lastSaveTime + 5 * 60 {
+						lastSaveTime = now
+						verifiedChunksLock.Unlock()
+						saveVerifiedChunks()
+					} else {
+						verifiedChunksLock.Unlock()
+					}
 
-				elapsedTime := time.Now().Sub(startTime).Seconds()
-				speed := int64(float64(downloadedChunkSize) / elapsedTime)
-				remainingTime := int64(float64(totalChunks - downloadedChunks) / float64(downloadedChunks) * elapsedTime)
-				percentage := float64(downloadedChunks) / float64(totalChunks) * 100.0
-				LOG_INFO("VERIFY_PROGRESS", "Verified chunk %s (%d/%d), %sB/s %s %.1f%%",
-						chunkID, downloadedChunks, totalChunks, PrettySize(speed), PrettyTime(remainingTime), percentage)
+					downloadedChunkSize := atomic.AddInt64(&totalDownloadedChunkSize, int64(chunk.GetLength()))
+					downloadedChunks := atomic.AddInt64(&totalDownloadedChunks, 1)
+
+					elapsedTime := time.Now().Sub(startTime).Seconds()
+					speed := int64(float64(downloadedChunkSize) / elapsedTime)
+					remainingTime := int64(float64(totalChunks - downloadedChunks) / float64(downloadedChunks) * elapsedTime)
+					percentage := float64(downloadedChunks) / float64(totalChunks) * 100.0
+					LOG_INFO("VERIFY_PROGRESS", "Verified chunk %s (%d/%d), %sB/s %s %.1f%%",
+							chunkID, downloadedChunks, totalChunks, PrettySize(speed), PrettyTime(remainingTime), percentage)
+				}
 
 				manager.config.PutChunk(chunk)
 			}
@@ -1994,10 +2006,6 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 	// deletable.
 	for _, collectionName := range collections {
 
-		if collectOnly {
-			continue
-		}
-
 		matched := collectionRegex.FindStringSubmatch(collectionName)
 		if matched == nil {
 			continue
@@ -2006,6 +2014,10 @@ func (manager *SnapshotManager) PruneSnapshots(selfID string, snapshotID string,
 		collectionNumber, _ := strconv.Atoi(matched[1])
 		if collectionNumber > maxCollectionNumber {
 			maxCollectionNumber = collectionNumber
+		}
+
+		if collectOnly {
+			continue
 		}
 
 		collectionFile := path.Join(collectionDir, collectionName)

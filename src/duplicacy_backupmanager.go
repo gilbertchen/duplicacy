@@ -381,7 +381,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	}
 
 	var once sync.Once
-	if hashMode {
+	if hashMode && !manager.config.dryRun {
 		// In case an error occurs during a hash mode backup, save the incomplete snapshot
 		RunAtError = func() {
 			once.Do(func() {

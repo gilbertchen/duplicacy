@@ -456,7 +456,7 @@ func (client *OneDriveClient) MoveFile(path string, parent string) error {
 	url := client.APIURL + "/root:/" + path
 
 	parentReference := make(map[string]string)
-	parentReference["path"] = "/root:/" + parent
+	parentReference["path"] = "/drive/root:/" + parent
 
 	parameters := make(map[string]interface{})
 	parameters["parentReference"] = parentReference
