@@ -456,7 +456,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			SavePassword(preference, "ssh_password", password)
 		}
 		return sftpStorage
-	} else if matched[1] == "s3" || matched[1] == "s3c" || matched[1] == "minio" || matched[1] == "minios" {
+	} else if matched[1] == "s3" || matched[1] == "s3c" || matched[1] == "minio" || matched[1] == "minios" || matched[1] == "s3-anon" {
 
 		// urlRegex := regexp.MustCompile(`^(\w+)://([\w\-]+@)?([^/]+)(/(.+))?`)
 
@@ -479,10 +479,29 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			bucket = bucket[:firstSlash]
 		}
 
+		var err error
+
+		if matched[1] == "s3-anon" {
+			isMinioCompatible := false 
+			isSSLSupported := true 
+			accessKey := ""
+			secretKey := ""
+			token := ""
+			noSignRequest := true
+			storage, err = CreateS3Storage(region, endpoint, bucket, storageDir, accessKey, secretKey, threads, isSSLSupported, isMinioCompatible, token, noSignRequest)
+			if err != nil {
+				LOG_ERROR("STORAGE_CREATE", "Failed to load the S3 storage at %s: %v", storageURL, err)
+				return nil
+			}
+
+			return storage
+		}
+
 		accessKey := GetPassword(preference, "s3_id", "Enter S3 Access Key ID:", true, resetPassword)
 		secretKey := GetPassword(preference, "s3_secret", "Enter S3 Secret Access Key:", true, resetPassword)
+		token := GetPassword(preference, "s3_token", "Enter S3 Token (optional):", true, resetPassword)
 
-		var err error
+		noSignRequest := false 
 
 		if matched[1] == "s3c" {
 			storage, err = CreateS3CStorage(region, endpoint, bucket, storageDir, accessKey, secretKey, threads)
@@ -493,7 +512,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		} else {
 			isMinioCompatible := (matched[1] == "minio" || matched[1] == "minios")
 			isSSLSupported := (matched[1] == "s3" || matched[1] == "minios")
-			storage, err = CreateS3Storage(region, endpoint, bucket, storageDir, accessKey, secretKey, threads, isSSLSupported, isMinioCompatible)
+			storage, err = CreateS3Storage(region, endpoint, bucket, storageDir, accessKey, secretKey, threads, isSSLSupported, isMinioCompatible, token, noSignRequest)
 			if err != nil {
 				LOG_ERROR("STORAGE_CREATE", "Failed to load the S3 storage at %s: %v", storageURL, err)
 				return nil
@@ -501,6 +520,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		}
 		SavePassword(preference, "s3_id", accessKey)
 		SavePassword(preference, "s3_secret", secretKey)
+		SavePassword(preference, "s3_token", token)
 
 		return storage
 
