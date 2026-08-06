@@ -83,13 +83,13 @@ The following table compares the feature lists of all these backup tools:
 |:------------------:|:---------:|:---:|:-----------------:|:---------------:|:-----------------:|:-------------:|
 | Incremental Backup | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
 | Full Snapshot      | No        | Yes | Yes               | Yes             | Yes               | **Yes**       |
-| Compression        | Yes       | Yes | Yes               | Yes             | No                | **Yes**       |
+| Compression        | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
 | Deduplication      | Weak      | Yes | Weak              | Yes             | Yes               | **Yes**       |
 | Encryption         | Yes       | Yes | Yes               | Yes             | Yes               | **Yes**       |
-| Deletion           | No        | No  | Yes               | Yes             | No                | **Yes**       |
+| Deletion           | No        | No  | Yes               | Yes             | Yes               | **Yes**       |
 | Concurrent Access  | No        | No  | No                | Not recommended | Exclusive locking | **Lock-free** |
 | Cloud Support      | Extensive | No  | Extensive         | No              | Limited           | **Extensive** |
-| Snapshot Migration | No        | No  | No                | No              | No                | **Yes**       |
+| Snapshot Migration | No        | No  | No                | No              | Yes               | **Yes**       |
 
 ## License
 
