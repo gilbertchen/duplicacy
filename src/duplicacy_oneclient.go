@@ -102,7 +102,15 @@ func NewOneDriveClient(tokenFile string, isBusiness bool, client_id string, clie
 	return client, nil
 }
 
+func (client *OneDriveClient) call_noauth(url string, method string, input interface{}, contentType string) (io.ReadCloser, int64, error) {
+	return client.call_ext(url, method, input, contentType, false)
+}
+
 func (client *OneDriveClient) call(url string, method string, input interface{}, contentType string) (io.ReadCloser, int64, error) {
+	return client.call_ext(url, method, input, contentType, true)
+}
+
+func (client *OneDriveClient) call_ext(url string, method string, input interface{}, contentType string, addAuth bool) (io.ReadCloser, int64, error) {
 
 	var response *http.Response
 
@@ -141,7 +149,7 @@ func (client *OneDriveClient) call(url string, method string, input interface{},
 			request.Header.Set("Content-Range", fmt.Sprintf("bytes 0-%d/%d", reader.Length() - 1, reader.Length()))
 		}
 
-		if url != client.RefreshTokenURL {
+		if addAuth {
 			client.TokenLock.Lock()
 			request.Header.Set("Authorization", "Bearer "+client.Token.AccessToken)
 			client.TokenLock.Unlock()
@@ -239,7 +247,7 @@ func (client *OneDriveClient) RefreshToken(force bool) (err error) {
 	}
 
 	if (client.OAConfig == nil) {
-		readCloser, _, err := client.call(client.RefreshTokenURL, "POST", client.Token, "")
+		readCloser, _, err := client.call_noauth(client.RefreshTokenURL, "POST", client.Token, "")
 		if err != nil {
 			return fmt.Errorf("failed to refresh the access token: %v", err)
 		}
@@ -417,7 +425,7 @@ func (client *OneDriveClient) CreateUploadSession(path string) (uploadURL string
 
 func (client *OneDriveClient) UploadFileSession(uploadURL string, content []byte, rateLimit int) (err error) {
 
-	readCloser, _, err := client.call(uploadURL, "PUT", CreateRateLimitedReader(content, rateLimit), "")
+	readCloser, _, err := client.call_noauth(uploadURL, "PUT", CreateRateLimitedReader(content, rateLimit), "")
 	if err != nil {
 		return err
 	}
