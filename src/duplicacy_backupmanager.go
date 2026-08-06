@@ -396,6 +396,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	var numberOfNewFileChunks int64        // number of new file chunks
 	var totalUploadedFileChunkLength int64 // total length of uploaded file chunks
 	var totalUploadedFileChunkBytes int64  // how many actual bytes have been uploaded
+	var addDataErr string // error string from fileChunkMaker.AddData()
 
 	// This function is called when a chunk has been uploaded
 	uploadChunkCompletionFunc := func(chunk *Chunk, chunkIndex int, inCache bool, chunkSize int, uploadSize int) {
@@ -479,8 +480,11 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 			skippedFiles = append(skippedFiles, entry.Path)
 			continue
 		}
-		entry.Size, entry.Hash = fileChunkMaker.AddData(file, uploadChunkFunc)
-		if !showStatistics || IsTracing() || RunInBackground {
+
+		entry.Size, entry.Hash, addDataErr = fileChunkMaker.AddData(file, uploadChunkFunc)
+		if entry.Size <= 0 && addDataErr == "CLOUD_FILE_FAILURE" {
+			skippedFiles = append(skippedFiles, entry.Path)
+		} else if !showStatistics || IsTracing() || RunInBackground {
 			LOG_INFO("PACK_END", "Packed %s (%d)", entry.Path, entry.Size)
 		}
 		file.Close()
