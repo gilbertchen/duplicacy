@@ -124,6 +124,31 @@ func (manager *BackupManager) SetupSnapshotCache(storageName string) bool {
 	return true
 }
 
+// Ensure file is readable and writable before opening while restoring.
+func ensureFilePermission(fullPath string) error {
+	// Grant read + write permission before deleting
+	// As for old version of go, os.Remove() fails with permission denied error
+	stat, err := os.Stat(fullPath)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			// File does not exist, no need to set permission
+			return nil
+		}
+		// May in a file system that does not support file permission
+		LOG_DEBUG("RESTORE_CHMOD", "Failed to get the file permission of %s: %v", fullPath, err)
+		return err
+	}
+	fileMode := stat.Mode()&fileModeMask
+	if fileMode&0600 != 0600 {
+		err = os.Chmod(fullPath, fileMode|0600)
+		if err != nil {
+			LOG_WARN("RESTORE_CHMOD", "Failed to set the file permission of %s: %v", fullPath, err)
+			return err
+		}
+	}
+	return nil
+}
+
 // Backup creates a snapshot for the repository 'top'.  If 'quickMode' is true, only files with different sizes
 // or timestamps since last backup will be uploaded (however the snapshot is still a full snapshot that shares
 // unmodified files with last backup).  Otherwise (or if this is the first backup), the entire repository will
@@ -861,6 +886,11 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 
 		// Handle zero size files.
 		if file.Size == 0 {
+			// Permission error also comes from a zero-size read-only file
+			// Grant read + write permission before creating empty file
+			// ensureFilePermission will return a NonExist err when file is not
+			// exist, so we can safely call this whether the file exists or not
+			ensureFilePermission(fullPath)
 			newFile, err := os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, file.GetPermissions())
 			if err != nil {
 				LOG_ERROR("DOWNLOAD_OPEN", "Failed to create empty file: %v", err)
@@ -906,8 +936,16 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 		for i := range extraFiles {
 			file := extraFiles[len(extraFiles)-1-i]
 			fullPath := joinPath(top, file)
-			os.Remove(fullPath)
-			LOG_INFO("RESTORE_DELETE", "Deleted %s", file)
+			// Grant read + write permission before deleting
+			// As for old version of go, os.Remove() a read-only directory
+			// fails with permission denied error
+			ensureFilePermission(fullPath)
+			err = os.Remove(fullPath)
+			if err != nil {
+				LOG_WARN("RESTORE_DELETE", "Failed to delete %s: %v", file, err)
+			} else {
+				LOG_INFO("RESTORE_DELETE", "Deleted %s", file)
+			}
 		}
 	}
 
@@ -1371,6 +1409,10 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 		} else {
 			// Close and reopen in a different mode
 			existingFile.Close()
+			// Grant read + write permission for overwriting
+			// Permission will be fixed by RestoreMetadata
+			ensureFilePermission(fullPath)
+			// We ignore the error, still trying to open the file
 			existingFile, err = os.OpenFile(fullPath, os.O_RDWR, 0)
 			if err != nil {
 				LOG_ERROR("DOWNLOAD_OPEN", "Failed to open the file %s for in-place writing", fullPath)
