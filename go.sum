@@ -47,8 +47,6 @@ github.com/gilbertchen/highwayhash v0.0.0-20221109044721-eeab1f4799d8 h1:ijgl4Y+
 github.com/gilbertchen/highwayhash v0.0.0-20221109044721-eeab1f4799d8/go.mod h1:0lQcVva56+L1PuUFXLOsJ6arJQaU0baIH8q+IegeBhg=
 github.com/gilbertchen/keyring v0.0.0-20221004152639-1661cbebc508 h1:SqTyk5KkNXp7zTdTttIZSDcTrL5uau4K/2OpKvgBZVI=
 github.com/gilbertchen/keyring v0.0.0-20221004152639-1661cbebc508/go.mod h1:w/pisxUZezf2XzU9Ewjphcf6q1mZtOzKPHhJiuc8cag=
-github.com/gilbertchen/xattr v0.0.0-20160926155429-68e7a6806b01 h1:LqwS9qL6SrDkp0g0iwUkETrDdtB9gTKaIbSn9imUq5o=
-github.com/gilbertchen/xattr v0.0.0-20160926155429-68e7a6806b01/go.mod h1:TMlibuxKfkdtHyltooAw7+DHqRpaXs9nxaffk00Sh1Q=
 github.com/go-sql-driver/mysql v1.5.0/go.mod h1:DCzpHaOWr8IXmIStZouvnhqoel9Qv2LBy8hT2VhHyBg=
 github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 h1:tfuBGBXKqDEevZMzYi5KSi8KkcZtzBcTgAUUtapy0OI=
 github.com/goamz/goamz v0.0.0-20180131231218-8b901b531db8 h1:G1U0vew/vA/1/hBmf1XNeyIzJJbPFVv+kb+HPl6rj6c=

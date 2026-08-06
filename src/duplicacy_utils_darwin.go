@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-func excludedByAttribute(attirbutes map[string][]byte) bool {
-	value, ok := attirbutes["com.apple.metadata:com_apple_backup_excludeItem"]
+func excludedByAttribute(attributes map[string][]byte) bool {
+	value, ok := attributes["com.apple.metadata:com_apple_backup_excludeItem"]
 	return ok && strings.Contains(string(value), "com.apple.backupd")
 }
