@@ -6,20 +6,26 @@ package duplicacy
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path"
-	"runtime/debug"
+	"sort"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	crypto_rand "crypto/rand"
 	"math/rand"
+
+	azurestorage "github.com/gilbertchen/azure-sdk-for-go/storage"
 )
 
 var testStorageName = flag.String("storage", "", "the test storage to use")
@@ -316,18 +322,7 @@ func TestStorage(t *testing.T) {
 	setTestingT(t)
 	SetLoggingLevel(INFO)
 
-	defer func() {
-		if r := recover(); r != nil {
-			switch e := r.(type) {
-			case Exception:
-				t.Errorf("%s %s", e.LogID, e.Message)
-				debug.PrintStack()
-			default:
-				t.Errorf("%v", e)
-				debug.PrintStack()
-			}
-		}
-	}()
+	defer recoveringWithStack(t)
 
 	testDir := path.Join(os.TempDir(), "duplicacy_test", "storage_test")
 	os.RemoveAll(testDir)
@@ -582,18 +577,7 @@ func TestCleanStorage(t *testing.T) {
 	setTestingT(t)
 	SetLoggingLevel(INFO)
 
-	defer func() {
-		if r := recover(); r != nil {
-			switch e := r.(type) {
-			case Exception:
-				t.Errorf("%s %s", e.LogID, e.Message)
-				debug.PrintStack()
-			default:
-				t.Errorf("%v", e)
-				debug.PrintStack()
-			}
-		}
-	}()
+	defer recoveringWithStack(t)
 
 	testDir := path.Join(os.TempDir(), "duplicacy_test", "storage_test")
 	os.RemoveAll(testDir)
@@ -644,4 +628,291 @@ func TestCleanStorage(t *testing.T) {
 		}
 	}
 
+}
+
+// prefixNames returns the names in 'files' that start with 'prefix', the way the flat object stores list them: without
+// a delimiter every matching name is returned, and with one the names are broken at the delimiter and the folder
+// replaces the files it contains.  It is the behaviour that a bucket with a delimiter is expected to provide, so a
+// test can tell a subtree scan from a listing of the direct children.
+func prefixNames(files []string, prefix string, delimiter string) (names []string) {
+
+	sorted := append([]string{}, files...)
+	sort.Strings(sorted)
+
+	seen := make(map[string]bool)
+	for _, file := range sorted {
+		if !strings.HasPrefix(file, prefix) {
+			continue
+		}
+		name := file
+		if delimiter != "" {
+			rest := file[len(prefix):]
+			if index := strings.Index(rest, delimiter); index >= 0 {
+				name = prefix + rest[:index+len(delimiter)]
+			}
+		}
+		if !seen[name] {
+			seen[name] = true
+			names = append(names, name)
+		}
+	}
+
+	return names
+}
+
+// b2ListRequest records what a B2 listing asked the service for.
+type b2ListRequest struct {
+	prefix        string
+	delimiter     string
+	startFileName string
+}
+
+// b2TestServer is a B2 endpoint that implements the part of b2_list_file_names that B2Storage depends on, and records
+// what was asked of it.  The names it answers with follow the prefix/delimiter/startFileName rules of the real
+// service, so 'returned' shows whether the caller scanned the whole subtree or only the direct children.
+type b2TestServer struct {
+	*httptest.Server
+
+	files    []string
+	requests []b2ListRequest
+	returned []string
+}
+
+func newB2TestServer(files []string) *b2TestServer {
+
+	server := &b2TestServer{files: files}
+
+	server.Server = httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+
+		if request.URL.Path != "/b2api/v1/b2_list_file_names" {
+			http.Error(writer, "unexpected request "+request.URL.Path, http.StatusNotFound)
+			return
+		}
+
+		var input struct {
+			Prefix        string `json:"prefix"`
+			Delimiter     string `json:"delimiter"`
+			StartFileName string `json:"startFileName"`
+		}
+		if err := json.NewDecoder(request.Body).Decode(&input); err != nil {
+			http.Error(writer, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		// b2_list_file_names never returns a name before startFileName.
+		candidates := []string{}
+		for _, file := range server.files {
+			if file >= input.StartFileName {
+				candidates = append(candidates, file)
+			}
+		}
+
+		server.requests = append(server.requests, b2ListRequest{input.Prefix, input.Delimiter, input.StartFileName})
+		server.returned = prefixNames(candidates, input.Prefix, input.Delimiter)
+
+		type entry struct {
+			FileName string `json:"fileName"`
+			Action   string `json:"action"`
+		}
+		output := struct {
+			Files        []entry `json:"files"`
+			NextFileName string  `json:"nextFileName"`
+		}{}
+
+		for _, name := range server.returned {
+			action := "upload"
+			if strings.HasSuffix(name, "/") {
+				action = "folder"
+			}
+			output.Files = append(output.Files, entry{name, action})
+		}
+
+		if err := json.NewEncoder(writer).Encode(output); err != nil {
+			http.Error(writer, err.Error(), http.StatusInternalServerError)
+		}
+	}))
+
+	return server
+}
+
+// createStorage builds a B2Storage whose client talks to this test server.
+func (server *b2TestServer) createStorage() *B2Storage {
+
+	client := NewB2Client("test-account", "test-application-key", "", "", 1)
+	client.BucketID = "test-bucket"
+	client.BucketName = "test-bucket"
+	client.APIURL = server.URL
+	client.DownloadURL = server.URL
+	client.IsAuthorized = true
+	client.HTTPClient = server.Client()
+
+	storage := &B2Storage{client: client}
+	storage.DerivedStorage = storage
+	return storage
+}
+
+// Listing the snapshot ids must not walk every snapshot file of every id: B2 is a flat object store, so the prefix scan
+// with no delimiter returns every revision of every snapshot id and the ids are then deduplicated client-side.  With a
+// delimiter the service returns one folder per id instead, which is all that listing the ids needs.
+func TestB2ListSnapshotsListsOnlyDirectChildren(t *testing.T) {
+
+	setTestingT(t)
+
+	defer recovering(t)
+
+	server := newB2TestServer([]string{
+		"chunks/00/0000000000000000000000000000000000000000000000000000000000000000",
+		"snapshots/vm1@host1/1",
+		"snapshots/vm1@host1/2",
+		"snapshots/vm2@host2/1",
+	})
+	defer server.Close()
+
+	storage := server.createStorage()
+
+	files, _, err := storage.ListFiles(0, "snapshots")
+	if err != nil {
+		t.Errorf("Failed to list the snapshot ids: %v", err)
+		return
+	}
+
+	sort.Strings(files)
+	if len(files) != 2 || files[0] != "vm1@host1/" || files[1] != "vm2@host2/" {
+		t.Errorf("Listing the snapshot ids returned %v instead of the two snapshot ids", files)
+	}
+
+	if len(server.requests) != 1 {
+		t.Errorf("Listing the snapshot ids made %d requests instead of 1", len(server.requests))
+		return
+	}
+	request := server.requests[0]
+	if request.delimiter != "/" {
+		t.Errorf("Listing the snapshot ids should break the names at '/', got delimiter %q", request.delimiter)
+	}
+	if request.prefix != "snapshots/" {
+		t.Errorf("Listing the snapshot ids should be restricted to the snapshots directory, got prefix %q", request.prefix)
+	}
+	if len(server.returned) != 2 {
+		t.Errorf("Listing the snapshot ids should be answered with one name per id, got %d: %v",
+			len(server.returned), server.returned)
+	}
+
+	// The revisions of a single id are still listed normally.
+	files, _, err = storage.ListFiles(0, "snapshots/vm1@host1")
+	if err != nil {
+		t.Errorf("Failed to list the revisions of vm1@host1: %v", err)
+		return
+	}
+
+	sort.Strings(files)
+	if len(files) != 2 || files[0] != "1" || files[1] != "2" {
+		t.Errorf("Listing the revisions of vm1@host1 returned %v instead of revisions 1 and 2", files)
+	}
+}
+
+// azureListRequest records what an Azure listing asked the service for.
+type azureListRequest struct {
+	prefix    string
+	delimiter string
+}
+
+// azureTestTransport answers the Azure list blobs request with the same prefix/delimiter behaviour that the real
+// service provides, and records what was asked of it.
+type azureTestTransport struct {
+	files    []string
+	requests []azureListRequest
+	returned []string
+}
+
+func (transport *azureTestTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+
+	query := request.URL.Query()
+	transport.requests = append(transport.requests, azureListRequest{query.Get("prefix"), query.Get("delimiter")})
+	transport.returned = prefixNames(transport.files, query.Get("prefix"), query.Get("delimiter"))
+
+	body := `<?xml version="1.0" encoding="utf-8"?><EnumerationResults><NextMarker></NextMarker><Blobs>`
+	for _, name := range transport.returned {
+		if strings.HasSuffix(name, "/") {
+			body += "<BlobPrefix><Name>" + name + "</Name></BlobPrefix>"
+		} else {
+			body += "<Blob><Name>" + name + "</Name><Properties><Content-Length>7</Content-Length></Properties></Blob>"
+		}
+	}
+	body += "</Blobs></EnumerationResults>"
+
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Status:     "200 OK",
+		Header:     make(http.Header),
+		Body:       ioutil.NopCloser(strings.NewReader(body)),
+		Request:    request,
+	}, nil
+}
+
+// Azure behaves like B2 here: the snapshot directory used to be listed as a flat prefix, so every snapshot file of
+// every id was returned and the ids were deduplicated client-side.  The delimiter makes the service return the ids
+// themselves.
+func TestAzureListSnapshotsListsOnlyDirectChildren(t *testing.T) {
+
+	setTestingT(t)
+
+	defer recovering(t)
+
+	transport := &azureTestTransport{files: []string{
+		"snapshots/vm1@host1/1",
+		"snapshots/vm1@host1/2",
+		"snapshots/vm2@host2/1",
+	}}
+
+	key := base64.StdEncoding.EncodeToString([]byte("0123456789abcdef0123456789abcdef"))
+	client, err := azurestorage.NewClient("testaccount", key, "core.windows.net", azurestorage.DefaultAPIVersion, false)
+	if err != nil {
+		t.Errorf("Failed to create the azure client: %v", err)
+		return
+	}
+	client.HTTPClient = &http.Client{Transport: transport}
+
+	blobService := client.GetBlobService()
+	container := blobService.GetContainerReference("testcontainer")
+
+	storage := &AzureStorage{containers: []*azurestorage.Container{container}}
+
+	files, _, err := storage.ListFiles(0, "snapshots/")
+	if err != nil {
+		t.Errorf("Failed to list the snapshot ids: %v", err)
+		return
+	}
+
+	sort.Strings(files)
+	if len(files) != 2 || files[0] != "vm1@host1/" || files[1] != "vm2@host2/" {
+		t.Errorf("Listing the snapshot ids returned %v instead of the two snapshot ids", files)
+	}
+
+	if len(transport.requests) != 1 {
+		t.Errorf("Listing the snapshot ids made %d requests instead of 1", len(transport.requests))
+		return
+	}
+	request := transport.requests[0]
+	if request.delimiter != "/" {
+		t.Errorf("Listing the snapshot ids should break the names at '/', got delimiter %q", request.delimiter)
+	}
+	if request.prefix != "snapshots/" {
+		t.Errorf("Listing the snapshot ids should be restricted to the snapshots directory, got prefix %q", request.prefix)
+	}
+	if len(transport.returned) != 2 {
+		t.Errorf("Listing the snapshot ids should be answered with one name per id, got %d: %v",
+			len(transport.returned), transport.returned)
+	}
+
+	// The revisions of a single id are still listed normally.
+	files, _, err = storage.ListFiles(0, "snapshots/vm1@host1")
+	if err != nil {
+		t.Errorf("Failed to list the revisions of vm1@host1: %v", err)
+		return
+	}
+
+	sort.Strings(files)
+	if len(files) != 2 || files[0] != "1" || files[1] != "2" {
+		t.Errorf("Listing the revisions of vm1@host1 returned %v instead of revisions 1 and 2", files)
+	}
 }

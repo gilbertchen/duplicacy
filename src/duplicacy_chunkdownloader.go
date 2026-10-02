@@ -68,7 +68,6 @@ func (downloader *ChunkDownloader) AddFiles(snapshot *Snapshot, files []*Entry) 
 
 	downloader.taskList = nil
 	lastChunkIndex := -1
-	maximumChunks := 0
 	downloader.totalChunkSize = 0
 	for _, file := range files {
 		if file.Size == 0 {
@@ -91,9 +90,6 @@ func (downloader *ChunkDownloader) AddFiles(snapshot *Snapshot, files []*Entry) 
 		}
 		file.StartChunk = len(downloader.taskList) - (file.EndChunk - file.StartChunk) - 1
 		file.EndChunk = len(downloader.taskList) - 1
-		if file.EndChunk-file.StartChunk > maximumChunks {
-			maximumChunks = file.EndChunk - file.StartChunk
-		}
 	}
 	downloader.operator.totalChunkSize = downloader.totalChunkSize
 }
@@ -154,16 +150,6 @@ func (downloader *ChunkDownloader) Reclaim(chunkIndex int) {
 	downloader.lastChunkIndex = chunkIndex
 }
 
-// Return the chunk last downloaded and its hash
-func (downloader *ChunkDownloader) GetLastDownloadedChunk() (chunk *Chunk, chunkHash string) {
-	if downloader.lastChunkIndex >= len(downloader.taskList) {
-		return nil, ""
-	}
-
-	task := downloader.taskList[downloader.lastChunkIndex]
-	return task.chunk, task.chunkHash
-}
-
 // WaitForChunk waits until the specified chunk is ready
 func (downloader *ChunkDownloader) WaitForChunk(chunkIndex int) (chunk *Chunk) {
 
@@ -212,47 +198,4 @@ func (downloader *ChunkDownloader) WaitForChunk(chunkIndex int) (chunk *Chunk) {
 		downloader.numberOfDownloadingChunks--
 	}
 	return downloader.taskList[chunkIndex].chunk
-}
-
-// WaitForCompletion waits until all chunks have been downloaded
-func (downloader *ChunkDownloader) WaitForCompletion() {
-
-	// Tasks in completedTasks have not been counted by numberOfActiveChunks
-	downloader.numberOfActiveChunks -= len(downloader.completedTasks)
-
-	// find the completed task with the largest index; we'll start from the next index
-	for index := range downloader.completedTasks {
-		if downloader.lastChunkIndex < index {
-			downloader.lastChunkIndex = index
-		}
-	}
-
-	// Looping until there isn't a download task in progress
-	for downloader.numberOfActiveChunks > 0 || downloader.lastChunkIndex + 1 < len(downloader.taskList) {
-
-		// Wait for a completion event first
-		if downloader.numberOfActiveChunks > 0 {
-			completion := <-downloader.completionChannel
-			downloader.operator.config.PutChunk(completion.chunk)
-			downloader.numberOfActiveChunks--
-			downloader.numberOfDownloadedChunks++
-			downloader.numberOfDownloadingChunks--
-		}
-
-		// Pass the tasks one by one to the download queue
-		if downloader.lastChunkIndex + 1 < len(downloader.taskList) {
-			task := &downloader.taskList[downloader.lastChunkIndex + 1]
-			if task.isDownloading {
-				downloader.lastChunkIndex++
-				continue
-			}
-			downloader.operator.DownloadAsync(task.chunkHash, task.chunkIndex, false, func (chunk *Chunk, chunkIndex int) {
-				downloader.completionChannel <- ChunkDownloadCompletion { chunk: chunk, chunkIndex: chunkIndex }
-			})
-			task.isDownloading = true
-			downloader.numberOfDownloadingChunks++
-			downloader.numberOfActiveChunks++
-			downloader.lastChunkIndex++
-		}
-	}
 }

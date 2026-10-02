@@ -913,7 +913,15 @@ func listSnapshots(context *cli.Context) {
 	runScript(context, preference.Name, "pre")
 
 	resetPassword := context.Bool("reset-passwords")
-	storage := duplicacy.CreateStorage(*preference, resetPassword, 1)
+
+	threads := context.Int("threads")
+	if threads < 1 {
+		threads = 1
+	}
+
+	// The storage must know how many concurrent downloads to expect: some backends keep one client or one nested
+	// directory per thread, indexed by the thread number the download is attributed to.
+	storage := duplicacy.CreateStorage(*preference, resetPassword, threads)
 	if storage == nil {
 		return
 	}
@@ -944,7 +952,7 @@ func listSnapshots(context *cli.Context) {
 	loadRSAPrivateKey(context.String("key"), "", preference, backupManager, resetPassword)
 
 	backupManager.SetupSnapshotCache(preference.Name)
-	backupManager.SnapshotManager.ListSnapshots(id, revisions, tag, showFiles, showChunks)
+	backupManager.SnapshotManager.ListSnapshots(id, revisions, tag, showFiles, showChunks, threads)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1103,13 +1111,22 @@ func diff(context *cli.Context) {
 	}
 
 	compareByHash := context.Bool("hash")
+	// The line diff of a file is quadratic, so a large pair of files is compared by hash instead; 0 disables the limit.
+	// An explicit 0 or anything that AtoSize cannot parse means "no limit", to keep the flag from failing the command.
+	maxDiffBytes := int64(0)
+	maxDiffSize := strings.TrimSpace(context.String("max-diff-size"))
+	if maxDiffSize != "" && maxDiffSize != "0" {
+		if size := int64(duplicacy.AtoSize(maxDiffSize)); size > 0 {
+			maxDiffBytes = size
+		}
+	}
 	backupManager := duplicacy.CreateBackupManager(preference.SnapshotID, storage, repository, password, "", "", false)
 	duplicacy.SavePassword(*preference, "password", password)
 
 	loadRSAPrivateKey(context.String("key"), context.String("key-passphrase"), preference, backupManager, false)
 
 	backupManager.SetupSnapshotCache(preference.Name)
-	backupManager.SnapshotManager.Diff(repository, snapshotID, revisions, path, compareByHash, preference.NobackupFile, preference.FiltersFile, preference.ExcludeByAttribute)
+	backupManager.SnapshotManager.Diff(repository, snapshotID, revisions, path, compareByHash, preference.NobackupFile, preference.FiltersFile, preference.ExcludeByAttribute, maxDiffBytes)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1129,7 +1146,11 @@ func showHistory(context *cli.Context) {
 	runScript(context, preference.Name, "pre")
 
 	duplicacy.LOG_INFO("STORAGE_SET", "Storage set to %s", preference.StorageURL)
-	storage := duplicacy.CreateStorage(*preference, false, 1)
+	threads := context.Int("threads")
+	if threads < 1 {
+		threads = 1
+	}
+	storage := duplicacy.CreateStorage(*preference, false, threads)
 	if storage == nil {
 		return
 	}
@@ -1152,7 +1173,7 @@ func showHistory(context *cli.Context) {
 	duplicacy.SavePassword(*preference, "password", password)
 
 	backupManager.SetupSnapshotCache(preference.Name)
-	backupManager.SnapshotManager.ShowHistory(repository, snapshotID, revisions, path, showLocalHash)
+	backupManager.SnapshotManager.ShowHistory(repository, snapshotID, revisions, path, showLocalHash, threads)
 
 	runScript(context, preference.Name, "post")
 }
@@ -1681,6 +1702,11 @@ func main() {
 					Usage:    "the RSA private key to decrypt file chunks",
 					Argument: "<private key>",
 				},
+				cli.IntFlag{
+					Name:  "threads",
+					Value: 1,
+					Usage: "number of snapshot files to download concurrently",
+				},
 			},
 			Usage:     "List snapshots",
 			ArgsUsage: " ",
@@ -1818,6 +1844,12 @@ func main() {
 					Usage: "compute the hashes of on-disk files",
 				},
 				cli.StringFlag{
+					Name:     "max-diff-size",
+					Value:    "256m",
+					Usage:    "compare revisions by hash instead of by lines when the line diff would use more than this much memory (0 for no limit)",
+					Argument: "<size>",
+				},
+				cli.StringFlag{
 					Name:     "storage",
 					Usage:    "retrieve files from the specified storage",
 					Argument: "<storage name>",
@@ -1859,6 +1891,11 @@ func main() {
 					Name:     "storage",
 					Usage:    "retrieve files from the specified storage",
 					Argument: "<storage name>",
+				},
+				cli.IntFlag{
+					Name:  "threads",
+					Value: 1,
+					Usage: "number of revisions to read concurrently",
 				},
 			},
 			Usage:     "Show the history of a file",

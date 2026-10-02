@@ -80,6 +80,10 @@ type Chunk struct {
 	                // encryption, where a metadata chunk is not encrypted by RSA
 	
 	isBroken bool // Indicates the chunk did not download correctly. This is only used for -persist (allowFailures) mode
+
+	isRawData bool // Indicates that the buffer holds the chunk exactly as it is stored in a storage (compressed,
+	// encrypted and possibly erasure coded) rather than its plaintext.  Set when a chunk is copied to a storage
+	// that stores it identically, so that the stored bytes can be uploaded without being decoded and encoded again.
 }
 
 // Magic word to identify a duplicacy format encrypted file, plus a version number.
@@ -159,6 +163,7 @@ func (chunk *Chunk) Reset(hashNeeded bool) {
 	chunk.size = 0
 	chunk.isMetadata = false
 	chunk.isBroken = false
+	chunk.isRawData = false
 }
 
 // Write implements the Writer interface.
@@ -188,6 +193,31 @@ func (chunk *Chunk) GetHash() string {
 	}
 
 	return string(chunk.hash)
+}
+
+// WriteRawData stores the bytes of a chunk exactly as they are held by a storage, so that they can be uploaded to a
+// storage that holds the chunk identically without being decoded and encoded again.  This is the only constructor for
+// a chunk in that form, and the raw flag it sets is what tells the uploader not to encode the chunk again.  'hash' is
+// the hash the chunk is stored under, which is required because it can no longer be computed from the buffer.  A
+// checksum is computed over the bytes, like for a chunk being read in normally, so that VerifyChecksum can still
+// detect in-memory corruption before the chunk is uploaded.
+func (chunk *Chunk) WriteRawData(data []byte, hash string) {
+	chunk.Reset(false)
+	if chunk.buffer != nil {
+		chunk.checksum = newChunkChecksum()
+	}
+	chunk.Write(data)
+	chunk.SetStoredHash(hash)
+	chunk.isRawData = true
+}
+
+// SetStoredHash records the hash a chunk that holds stored bytes was stored under, from which the id is derived the
+// same way Encrypt would have derived it.  It is the identity half of WriteRawData, and is used by the downloader so
+// that a chunk read without decryption still has the hash and id it is stored under.  It does not mark the chunk as
+// raw: only the caller that turns the bytes into the chunk to upload knows that it will be uploaded as they are.
+func (chunk *Chunk) SetStoredHash(hash string) {
+	chunk.hash = []byte(hash)
+	chunk.id = chunk.config.GetChunkIDFromHash(hash)
 }
 
 // GetID returns the chunk id.

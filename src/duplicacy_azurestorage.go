@@ -74,6 +74,14 @@ func (azureStorage *AzureStorage) ListFiles(threadIndex int, dir string) (files 
 		Delimiter: "",
 	}
 
+	// Listing 'snapshots/' only has to see the direct children (the snapshot ids), not every snapshot file of every
+	// id.  With a delimiter the service folds each subdirectory into one BlobPrefix entry and stops descending into
+	// it, instead of returning every blob of every id.
+	isSnapshotDir := dir == "snapshots/"
+	if isSnapshotDir {
+		parameters.Delimiter = "/"
+	}
+
 	subDirs := make(map[string]bool)
 
 	for {
@@ -83,10 +91,9 @@ func (azureStorage *AzureStorage) ListFiles(threadIndex int, dir string) (files 
 			return nil, nil, err
 		}
 
-		if dir == "snapshots/" {
-			for _, blob := range results.Blobs {
-				name := strings.Split(blob.Name[dirLength:], "/")[0]
-				subDirs[name+"/"] = true
+		if isSnapshotDir {
+			for _, prefix := range results.BlobPrefixes {
+				subDirs[prefix[dirLength:]] = true
 			}
 		} else {
 			for _, blob := range results.Blobs {
@@ -102,7 +109,7 @@ func (azureStorage *AzureStorage) ListFiles(threadIndex int, dir string) (files 
 		parameters.Marker = results.NextMarker
 	}
 
-	if dir == "snapshots/" {
+	if isSnapshotDir {
 
 		for subDir := range subDirs {
 			files = append(files, subDir)

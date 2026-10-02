@@ -520,7 +520,7 @@ func (storage *GCDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 			return nil, nil, err
 		}
 		if pathID == "" {
-			return nil, nil, fmt.Errorf("Path '%s' does not exist", dir)
+			return emptyListing()
 		}
 
 		entries, err := storage.listFiles(threadIndex, pathID, true, false)

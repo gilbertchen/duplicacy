@@ -5,6 +5,7 @@
 package duplicacy
 
 import (
+	"bytes"
 	crypto_rand "crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -12,10 +13,11 @@ import (
 	"math/rand"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
+	"sync"
 	"testing"
 	"time"
-
-	"runtime/debug"
 )
 
 func createRandomFile(path string, maxSize int) {
@@ -181,18 +183,7 @@ func TestBackupManager(t *testing.T) {
 	setTestingT(t)
 	SetLoggingLevel(INFO)
 
-	defer func() {
-		if r := recover(); r != nil {
-			switch e := r.(type) {
-			case Exception:
-				t.Errorf("%s %s", e.LogID, e.Message)
-				debug.PrintStack()
-			default:
-				t.Errorf("%v", e)
-				debug.PrintStack()
-			}
-		}
-	}()
+	defer recoveringWithStack(t)
 
 	testDir := path.Join(os.TempDir(), "duplicacy_test")
 	os.RemoveAll(testDir)
@@ -354,7 +345,7 @@ func TestBackupManager(t *testing.T) {
 		}
 	}
 
-	numberOfSnapshots := backupManager.SnapshotManager.ListSnapshots( /*snapshotID*/ "host1" /*revisionsToList*/, nil /*tag*/, "" /*showFiles*/, false /*showChunks*/, false)
+	numberOfSnapshots := backupManager.SnapshotManager.ListSnapshots( /*snapshotID*/ "host1" /*revisionsToList*/, nil /*tag*/, "" /*showFiles*/, false /*showChunks*/, false, 1)
 	if numberOfSnapshots != 3 {
 		t.Errorf("Expected 3 snapshots but got %d", numberOfSnapshots)
 	}
@@ -363,7 +354,7 @@ func TestBackupManager(t *testing.T) {
 	    /*showTabular*/ false, /*checkFiles*/ false, /*checkChunks*/ false, /*searchFossils*/ false, /*resurrect*/ false, /*rewiret*/ false, 1,  /*allowFailures*/false)
 	backupManager.SnapshotManager.PruneSnapshots("host1", "host1" /*revisions*/, []int{1} /*tags*/, nil /*retentions*/, nil,
 		/*exhaustive*/ false /*exclusive=*/, false /*ignoredIDs*/, nil /*dryRun*/, false /*deleteOnly*/, false /*collectOnly*/, false, 1)
-	numberOfSnapshots = backupManager.SnapshotManager.ListSnapshots( /*snapshotID*/ "host1" /*revisionsToList*/, nil /*tag*/, "" /*showFiles*/, false /*showChunks*/, false)
+	numberOfSnapshots = backupManager.SnapshotManager.ListSnapshots( /*snapshotID*/ "host1" /*revisionsToList*/, nil /*tag*/, "" /*showFiles*/, false /*showChunks*/, false, 1)
 	if numberOfSnapshots != 2 {
 		t.Errorf("Expected 2 snapshots but got %d", numberOfSnapshots)
 	}
@@ -372,7 +363,7 @@ func TestBackupManager(t *testing.T) {
 	backupManager.Backup(testDir+"/repository1" /*quickMode=*/, false, threads, "fourth", false, false, 0, false, 1024, 1024)
 	backupManager.SnapshotManager.PruneSnapshots("host1", "host1" /*revisions*/, nil /*tags*/, nil /*retentions*/, nil,
 		/*exhaustive*/ false /*exclusive=*/, true /*ignoredIDs*/, nil /*dryRun*/, false /*deleteOnly*/, false /*collectOnly*/, false, 1)
-	numberOfSnapshots = backupManager.SnapshotManager.ListSnapshots( /*snapshotID*/ "host1" /*revisionsToList*/, nil /*tag*/, "" /*showFiles*/, false /*showChunks*/, false)
+	numberOfSnapshots = backupManager.SnapshotManager.ListSnapshots( /*snapshotID*/ "host1" /*revisionsToList*/, nil /*tag*/, "" /*showFiles*/, false /*showChunks*/, false, 1)
 	if numberOfSnapshots != 3 {
 		t.Errorf("Expected 3 snapshots but got %d", numberOfSnapshots)
 	}
@@ -384,37 +375,8 @@ func TestBackupManager(t *testing.T) {
 	  fmt.Printf("%s", buf)*/
 }
 
-// Create file with random file with certain seed
-func createRandomFileSeeded(path string, maxSize int, seed int64) {
-	rand.Seed(seed)
-	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
-	if err != nil {
-		LOG_ERROR("RANDOM_FILE", "Can't open %s for writing: %v", path, err)
-		return
-	}
-
-	defer file.Close()
-
-	size := maxSize/2 + rand.Int()%(maxSize/2)
-
-	buffer := make([]byte, 32*1024)
-	for size > 0 {
-		bytes := size
-		if bytes > cap(buffer) {
-			bytes = cap(buffer)
-		}
-		rand.Read(buffer[:bytes])
-		bytes, err = file.Write(buffer[:bytes])
-		if err != nil {
-			LOG_ERROR("RANDOM_FILE", "Failed to write to %s: %v", path, err)
-			return
-		}
-		size -= bytes
-	}
-}
-
 func corruptFile(path string, start int, length int, seed int64) {
-	rand.Seed(seed)
+	rng := rand.New(rand.NewSource(seed))
 
 	file, err := os.OpenFile(path, os.O_WRONLY, 0644)
 	if err != nil {
@@ -435,7 +397,7 @@ func corruptFile(path string, start int, length int, seed int64) {
 	}
 
 	buffer := make([]byte, length)
-	rand.Read(buffer)
+	rng.Read(buffer)
 
 	_, err = file.Write(buffer)
 	if err != nil {
@@ -451,18 +413,7 @@ func TestPersistRestore(t *testing.T) {
 	setTestingT(t)
 	SetLoggingLevel(INFO)
 
-	defer func() {
-		if r := recover(); r != nil {
-			switch e := r.(type) {
-			case Exception:
-				t.Errorf("%s %s", e.LogID, e.Message)
-				debug.PrintStack()
-			default:
-				t.Errorf("%v", e)
-				debug.PrintStack()
-			}
-		}
-	}()
+	defer recoveringWithStack(t)
 
 	testDir := path.Join(os.TempDir(), "duplicacy_test")
 	os.RemoveAll(testDir)
@@ -731,4 +682,459 @@ func TestPersistRestore(t *testing.T) {
 		checkAllUncorrupted("/repository3")
 	}
 
+}
+
+// The chunk cache holds a copy of metadata chunks that remain in the storage, so writing it does not need to flush
+// to disk: a torn entry fails the id check on the next read and is re-fetched from the storage.  The snapshot files,
+// which are read back without verification, must keep fsyncing.  What must not change is that the cache is still
+// written and still read back, since it is what stops a metadata chunk being fetched again.
+func TestSnapshotCacheSkipsSync(t *testing.T) {
+
+	setTestingT(t)
+
+	testDir := path.Join(os.TempDir(), "duplicacy_test", "snapshot_cache_test")
+	os.RemoveAll(testDir)
+	os.MkdirAll(testDir, 0700)
+	defer os.RemoveAll(testDir)
+
+	threads := 1
+	repository := path.Join(testDir, "repository")
+	os.MkdirAll(path.Join(repository, ".duplicacy"), 0700)
+	createRandomFile(path.Join(repository, "file1"), 300000)
+
+	storageDir := path.Join(testDir, "storage")
+	innerStorage, err := loadStorage(storageDir, threads)
+	if err != nil {
+		t.Errorf("Failed to create the storage: %v", err)
+		return
+	}
+	if !ConfigStorage(innerStorage, 16384, DEFAULT_COMPRESSION_LEVEL, 64*1024, 256*1024, 16*1024, "", nil, false, "", 0, 0) {
+		t.Errorf("Failed to configure the storage")
+		return
+	}
+
+	// A storage that needs a cache is the one whose cache is written and read back; a plain local storage never
+	// caches, so the cache would stay empty and the test would prove nothing.
+	fileStorage, ok := innerStorage.(*FileStorage)
+	if !ok {
+		t.Skipf("This test requires a file storage, got %T", innerStorage)
+		return
+	}
+	fileStorage.isCacheNeeded = true
+
+	SetDuplicacyPreferencePath(path.Join(repository, ".duplicacy"))
+	manager := CreateBackupManager("host1", innerStorage, repository, "", "", "", false)
+	if !manager.SetupSnapshotCache("default") {
+		t.Errorf("Failed to set up the snapshot cache")
+		return
+	}
+
+	cache := manager.snapshotCache
+
+	if !manager.Backup(repository, true, threads, "first", false, false, 0, false, 1024, 1024) {
+		t.Errorf("Failed to back the repository up")
+		return
+	}
+
+	// Writing the cache must still leave the cached files in place and readable.
+	cachedSnapshots, _ := manager.SnapshotManager.ListAllFiles(cache, "snapshots/")
+	if len(cachedSnapshots) == 0 {
+		t.Errorf("The snapshot file was not written to the cache")
+		return
+	}
+
+	chunk := CreateChunk(manager.config, true)
+	for _, cachedSnapshot := range cachedSnapshots {
+		if strings.HasSuffix(cachedSnapshot, "/") {
+			continue
+		}
+		chunk.Reset(false)
+		if err := cache.DownloadFile(0, path.Join("snapshots", cachedSnapshot), chunk); err != nil {
+			t.Errorf("Failed to read the cached snapshot file %s back: %v", cachedSnapshot, err)
+			return
+		}
+		if _, err := CreateSnapshotFromDescription(chunk.GetBytes()); err != nil {
+			t.Errorf("The cached snapshot file %s is not a valid snapshot: %v", cachedSnapshot, err)
+			return
+		}
+	}
+}
+
+// A cache entry written without fsync may be lost or left torn by a crash.  The chunk cache tolerates this because
+// the reader verifies what it finds: it re-derives the chunk id and falls back to the storage on a mismatch.  This
+// test pins that behaviour down, since it is what makes skipping the fsync safe, and it also checks that the entry
+// is not merely bypassed but rebuilt, so that later revisions of a snapshot still get a cache hit.
+func TestCorruptCachedChunkIsRefetched(t *testing.T) {
+
+	setTestingT(t)
+
+	testDir := path.Join(os.TempDir(), "duplicacy_test", "corrupt_cache_test")
+	os.RemoveAll(testDir)
+	os.MkdirAll(testDir, 0700)
+	defer os.RemoveAll(testDir)
+
+	threads := 1
+	repository := path.Join(testDir, "repository")
+	os.MkdirAll(path.Join(repository, ".duplicacy"), 0700)
+	createRandomFile(path.Join(repository, "file1"), 300000)
+
+	innerStorage, err := loadStorage(path.Join(testDir, "storage"), threads)
+	if err != nil {
+		t.Errorf("Failed to create the storage: %v", err)
+		return
+	}
+	if !ConfigStorage(innerStorage, 16384, DEFAULT_COMPRESSION_LEVEL, 64*1024, 256*1024, 16*1024, "", nil, false, "", 0, 0) {
+		t.Errorf("Failed to configure the storage")
+		return
+	}
+	fileStorage, ok := innerStorage.(*FileStorage)
+	if !ok {
+		t.Skipf("This test requires a file storage, got %T", innerStorage)
+		return
+	}
+	fileStorage.isCacheNeeded = true
+
+	SetDuplicacyPreferencePath(path.Join(repository, ".duplicacy"))
+	manager := CreateBackupManager("host1", innerStorage, repository, "", "", "", false)
+	if !manager.SetupSnapshotCache("default") {
+		t.Errorf("Failed to set up the snapshot cache")
+		return
+	}
+
+	if !manager.Backup(repository, true, threads, "first", false, false, 0, false, 1024, 1024) {
+		t.Errorf("Failed to back the repository up")
+		return
+	}
+
+	cache := manager.snapshotCache
+	chunkOperator := CreateChunkOperator(manager.config, innerStorage, cache, false, false, threads, false)
+	defer chunkOperator.Stop()
+
+	// Upload a metadata chunk with a known hash and download it, so that the cache holds a copy of it.
+	content := []byte("a metadata chunk for the cache to hold")
+	chunkHash := uploadTestMetadataChunk(manager.SnapshotManager, content)
+	if chunkHash == "" {
+		t.Errorf("Failed to upload a metadata chunk")
+		return
+	}
+	chunkID := manager.config.GetChunkIDFromHash(chunkHash)
+
+	if downloaded := chunkOperator.Download(chunkHash, 0, true); downloaded == nil || downloaded.GetID() != chunkID {
+		t.Errorf("Failed to download the metadata chunk %s", chunkID)
+		return
+	}
+
+	cachedPath, exist, _, err := cache.FindChunk(0, chunkID, false)
+	if err != nil || !exist {
+		t.Errorf("The metadata chunk %s was not written to the cache (exist=%t, err=%v)", chunkID, exist, err)
+		return
+	}
+
+	// Truncate the cached copy to simulate a write torn by a crash.
+	if err := os.Truncate(path.Join(cache.storageDir, cachedPath), 10); err != nil {
+		t.Errorf("Failed to truncate the cached chunk %s: %v", cachedPath, err)
+		return
+	}
+
+	// The torn entry must be rejected and the chunk served from the storage instead; without the verification in
+	// DownloadChunk this would return the truncated bytes.
+	refetched := chunkOperator.Download(chunkHash, 0, true)
+	if refetched == nil {
+		t.Errorf("A torn cache entry for the chunk %s was not recovered from the storage", chunkID)
+		return
+	}
+	if refetched.GetID() != chunkID {
+		t.Errorf("The recovered chunk has id %s instead of %s", refetched.GetID(), chunkID)
+	}
+	if !bytes.Equal(refetched.GetBytes(), content) {
+		t.Errorf("The recovered chunk does not hold the original content")
+	}
+
+	// The entry must also be repaired, not merely bypassed, so that the next revision still gets a cache hit rather
+	// than fetching the chunk from the storage again.
+	repaired := CreateChunk(manager.config, true)
+	if err := cache.DownloadFile(0, cachedPath, repaired); err != nil {
+		t.Errorf("Failed to read the cached chunk %s back: %v", cachedPath, err)
+		return
+	}
+	if !bytes.Equal(repaired.GetBytes(), content) {
+		t.Errorf("The cached chunk %s was not rewritten with the correct content", cachedPath)
+	}
+
+	// A crash can also leave the entry missing rather than torn, which is the state a write interrupted before the
+	// rename produces; that must be recovered and re-cached just the same.
+	if err := os.Remove(path.Join(cache.storageDir, cachedPath)); err != nil {
+		t.Errorf("Failed to remove the cached chunk %s: %v", cachedPath, err)
+		return
+	}
+	if recovered := chunkOperator.Download(chunkHash, 0, true); recovered == nil || !bytes.Equal(recovered.GetBytes(), content) {
+		t.Errorf("The chunk %s was not recovered after its cache entry was removed", chunkID)
+		return
+	}
+	if _, exist, _, err := cache.FindChunk(0, chunkID, false); err != nil || !exist {
+		t.Errorf("The cache entry for the chunk %s was not rebuilt after it was removed (exist=%t, err=%v)",
+			chunkID, exist, err)
+	}
+}
+
+// The in-place restore never creates the temporary file, so the deferred cleanup that removes it is skipped when this
+// call did not make one.  What must not change is that a non-in-place restore, which does create it, still removes it
+// after a failure: the run is stopped by a missing chunk, and the file left under .duplicacy/temporary must be gone.
+func TestRestoreCleansUpAfterAFailure(t *testing.T) {
+
+	setTestingT(t)
+	SetLoggingLevel(INFO)
+
+	defer recoveringWithStack(t)
+
+	testDir := path.Join(os.TempDir(), "duplicacy_test", "temporary_file_test")
+	os.RemoveAll(testDir)
+	os.MkdirAll(testDir, 0700)
+	defer os.RemoveAll(testDir)
+
+	os.Mkdir(testDir+"/repository1", 0700)
+	os.Mkdir(testDir+"/repository1/.duplicacy", 0700)
+	os.Mkdir(testDir+"/repository2", 0700)
+	os.Mkdir(testDir+"/repository2/.duplicacy", 0700)
+
+	createRandomFileSeeded(testDir+"/repository1/file1", 500000, 1)
+
+	threads := 1
+
+	storage, err := loadStorage(testDir+"/storage", threads)
+	if err != nil {
+		t.Errorf("Failed to create storage: %v", err)
+		return
+	}
+	cleanStorage(storage)
+	// A fixed 64 KB maximum chunk size keeps the data chunks at a known size, well above the metadata chunks that
+	// hold the sequences for a single file, so the largest chunk in chunks/ is the one holding the file's content.
+	if !ConfigStorage(storage, 16384, 100, 64*1024, 64*1024, 64*1024, "", nil, false, "", 0, 0) {
+		t.Errorf("Failed to initialize the storage")
+		return
+	}
+
+	SetDuplicacyPreferencePath(testDir + "/repository1/.duplicacy")
+	backupManager := CreateBackupManager("host1", storage, testDir, "", "", "", false)
+	backupManager.SetupSnapshotCache("default")
+	backupManager.Backup(testDir+"/repository1", true, threads, "first", false, false, 0, false, 1024, 1024)
+
+	// Removing the data chunk stops the restore with a per-file failure once the temporary file has been created,
+	// which is the path that must still clean it up.  Only chunks/ is walked: the config and the snapshot file live
+	// elsewhere in the storage, and removing one of those would fail the restore before it downloaded anything.
+	dataChunk := ""
+	dataChunkSize := int64(0)
+	filepath.Walk(testDir+"/storage/chunks", func(p string, info os.FileInfo, err error) error {
+		if err == nil && info.Mode().IsRegular() && info.Size() > dataChunkSize {
+			dataChunk, dataChunkSize = p, info.Size()
+		}
+		return nil
+	})
+	if dataChunk == "" {
+		t.Errorf("The backup produced no chunk to remove")
+		return
+	}
+	if err := os.Remove(dataChunk); err != nil {
+		t.Errorf("Failed to remove the data chunk %s: %v", dataChunk, err)
+		return
+	}
+
+	SetDuplicacyPreferencePath(testDir + "/repository2/.duplicacy")
+	temporaryPath := testDir + "/repository2/.duplicacy/temporary"
+	failedFiles := backupManager.Restore(testDir+"/repository2", 1 /*revision*/, false /*inPlace*/, false /*quickMode*/,
+		threads, true /*overwrite*/, false /*deleteMode*/, false /*setOwner=*/, false /*showStatistics*/, nil, true)
+	assertRestoreFailures(t, failedFiles, 1)
+
+	if _, err := os.Stat(temporaryPath); !os.IsNotExist(err) {
+		t.Errorf("The temporary file was left behind after a failed non-in-place restore: %v", err)
+	}
+}
+
+// The in-place restore skips the final truncate for a file this call created, since the write loop has already left it
+// the right length.  What must not change is the case the truncate is for: a target that was already there and is
+// longer than the snapshot's copy, which only the truncate shortens.  The file is grown past the snapshot's size and
+// restored in place over it, so a guard that skipped the truncate would leave the extra bytes behind.
+func TestInPlaceRestoreStillTruncatesALongerTarget(t *testing.T) {
+
+	setTestingT(t)
+	SetLoggingLevel(INFO)
+
+	defer recoveringWithStack(t)
+
+	testDir := path.Join(os.TempDir(), "duplicacy_test", "inplace_truncate_test")
+	os.RemoveAll(testDir)
+	os.MkdirAll(testDir, 0700)
+	defer os.RemoveAll(testDir)
+
+	os.Mkdir(testDir+"/repository1", 0700)
+	os.Mkdir(testDir+"/repository1/.duplicacy", 0700)
+	os.Mkdir(testDir+"/repository2", 0700)
+	os.Mkdir(testDir+"/repository2/.duplicacy", 0700)
+
+	threads := 1
+	fileSize := 500000
+	createRandomFileSeeded(testDir+"/repository1/file1", fileSize, 1)
+
+	storage, err := loadStorage(testDir+"/storage", threads)
+	if err != nil {
+		t.Errorf("Failed to create storage: %v", err)
+		return
+	}
+	cleanStorage(storage)
+	if !ConfigStorage(storage, 16384, 100, 64*1024, 64*1024, 64*1024, "", nil, false, "", 0, 0) {
+		t.Errorf("Failed to initialize the storage")
+		return
+	}
+
+	SetDuplicacyPreferencePath(testDir + "/repository1/.duplicacy")
+	backupManager := CreateBackupManager("host1", storage, testDir, "", "", "", false)
+	backupManager.SetupSnapshotCache("default")
+	backupManager.Backup(testDir+"/repository1", true, threads, "first", false, false, 0, false, 1024, 1024)
+
+	snapshotSize := fileSize / 2
+	original, err := os.ReadFile(testDir + "/repository1/file1")
+	if err != nil {
+		t.Errorf("Failed to read the backed-up file: %v", err)
+		return
+	}
+	// The target is longer than the copy the snapshot holds, which is the only shape that needs the truncate.  A
+	// smaller target would be grown by the write loop and would leave the truncate untested either way.
+	createRandomFileSeeded(testDir+"/repository2/file1", snapshotSize*3, 2)
+	if info, err := os.Stat(testDir + "/repository2/file1"); err != nil || info.Size() <= int64(len(original)) {
+		t.Errorf("The target was not made longer than the snapshot's copy (%v)", err)
+		return
+	}
+
+	SetDuplicacyPreferencePath(testDir + "/repository2/.duplicacy")
+	// The preference path is under the repository, so the forced in-place mode the CLI uses is what this passes
+	// explicitly; a non-in-place restore renames a temporary file over the target and never truncates.
+	failedFiles := backupManager.Restore(testDir+"/repository2", 1 /*inPlace=*/, true /*quickMode=*/, false, threads /*overwrite=*/, true,
+		/*deleteMode=*/ false /*setowner=*/, false /*showStatistics=*/, false /*patterns=*/, nil /*allowFailures=*/, false)
+	assertRestoreFailures(t, failedFiles, 0)
+
+	restored, err := os.ReadFile(testDir + "/repository2/file1")
+	if err != nil {
+		t.Errorf("Failed to read the restored file: %v", err)
+		return
+	}
+	if !bytes.Equal(restored, original) {
+		t.Errorf("The restored file is %d bytes and does not match the %d bytes of the snapshot's copy",
+			len(restored), len(original))
+	}
+}
+
+// threadRecordingStorage records the thread count of the snapshot manager's chunk operator as each chunk is read
+// through it, which is how TestBackupExpandsSequencesUnderThreads tells which operator the expansion ran on.  It
+// assumes the manager it was given is the one issuing the reads, so it is used within a single test.
+type threadRecordingStorage struct {
+	*FileStorage
+
+	manager *BackupManager
+
+	lock    sync.Mutex
+	threads map[int]bool
+}
+
+func (storage *threadRecordingStorage) DownloadFile(threadIndex int, filePath string, chunk *Chunk) error {
+
+	if strings.HasPrefix(filePath, "chunks/") {
+		operator := storage.manager.SnapshotManager.chunkOperator
+		if operator == nil {
+			storage.lock.Lock()
+			storage.threads[0] = true
+			storage.lock.Unlock()
+		} else {
+			storage.lock.Lock()
+			storage.threads[operator.threads] = true
+			storage.lock.Unlock()
+		}
+	}
+
+	return storage.FileStorage.DownloadFile(threadIndex, filePath, chunk)
+}
+
+func (storage *threadRecordingStorage) operatorThreadCounts() map[int]bool {
+	storage.lock.Lock()
+	defer storage.lock.Unlock()
+
+	counts := make(map[int]bool)
+	for threads := range storage.threads {
+		counts[threads] = true
+	}
+	return counts
+}
+
+// A backup of an existing revision expands the previous revision's chunk and length sequences, and those go through
+// the snapshot manager's own operator.  DownloadSequence creates that operator itself, but with a hard-coded single
+// thread, so unless the caller has created it first the expansion runs one metadata chunk at a time however many
+// -threads were given.  Backup now creates it first, the way check, prune and restore do, and stops it on the way
+// out; this pins both halves.
+func TestBackupExpandsSequencesUnderThreads(t *testing.T) {
+
+	setTestingT(t)
+
+	defer recovering(t)
+
+	testDir := path.Join(os.TempDir(), "duplicacy_test", "backup_threads_test")
+	os.RemoveAll(testDir)
+	os.MkdirAll(testDir, 0700)
+	defer os.RemoveAll(testDir)
+
+	repository := path.Join(testDir, "repository")
+	os.MkdirAll(path.Join(repository, ".duplicacy"), 0700)
+	createRandomFileSeeded(path.Join(repository, "file1"), 300000, 5)
+
+	innerStorage, err := loadStorage(path.Join(testDir, "storage"), 1)
+	if err != nil {
+		t.Errorf("Failed to create the storage: %v", err)
+		return
+	}
+	fileStorage, ok := innerStorage.(*FileStorage)
+	if !ok {
+		t.Skipf("This test requires a file storage, got %T", innerStorage)
+		return
+	}
+	if !ConfigStorage(innerStorage, 16384, DEFAULT_COMPRESSION_LEVEL, 64*1024, 256*1024, 16*1024, "", nil, false, "", 0, 0) {
+		t.Errorf("Failed to configure the storage")
+		return
+	}
+
+	SetDuplicacyPreferencePath(path.Join(repository, ".duplicacy"))
+	manager := CreateBackupManager("host1", innerStorage, repository, "", "", "", false)
+	manager.SetupSnapshotCache("default")
+
+	// The first backup has no previous revision, so there is nothing to expand and no operator should be created.
+	if !manager.Backup(repository, true, 1, "first", false, false, 0, false, 1024, 1024) {
+		t.Errorf("Failed to back the repository up")
+		return
+	}
+	if manager.SnapshotManager.chunkOperator != nil {
+		t.Errorf("A first backup left the snapshot manager's chunk operator behind")
+	}
+
+	// Every later backup expands the previous revision's sequences, so this is the run whose operator is observed.
+	if err := os.WriteFile(path.Join(repository, "file2"), []byte("second"), 0644); err != nil {
+		t.Errorf("Failed to add a file for the second backup: %v", err)
+		return
+	}
+
+	recording := &threadRecordingStorage{FileStorage: fileStorage, manager: manager, threads: make(map[int]bool)}
+	manager.SnapshotManager.storage = recording
+	manager.storage = recording
+
+	if !manager.Backup(repository, true, 8, "second", false, false, 0, false, 1024, 1024) {
+		t.Errorf("Failed to back the repository up a second time")
+		return
+	}
+
+	// The expansion must have run on an operator created with the user's thread count, not on the one-thread
+	// operator DownloadSequence would have built for itself.
+	if counts := recording.operatorThreadCounts(); len(counts) != 1 || !counts[8] {
+		t.Errorf("Expected the sequences to be expanded on an eight-thread operator, saw %v", counts)
+	}
+
+	// And it must have been stopped on the way out, or the next command would inherit its thread count.
+	if manager.SnapshotManager.chunkOperator != nil {
+		t.Errorf("Backup left the snapshot manager's chunk operator running")
+	}
 }

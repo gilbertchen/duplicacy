@@ -8,7 +8,14 @@ import (
 	"strings"
 )
 
+// attributeExcludeName is the extended attribute that Time Machine and other macOS backup tools use to mark a file as
+// excluded from backups.
+const attributeExcludeName = "com.apple.metadata:com_apple_backup_excludeItem"
+
+// attributeExcludeValue is the value the attribute must contain for the file to be considered excluded.
+const attributeExcludeValue = "com.apple.backupd"
+
 func excludedByAttribute(attirbutes map[string][]byte) bool {
-	value, ok := attirbutes["com.apple.metadata:com_apple_backup_excludeItem"]
-	return ok && strings.Contains(string(value), "com.apple.backupd")
+	value, ok := attirbutes[attributeExcludeName]
+	return ok && strings.Contains(string(value), attributeExcludeValue)
 }

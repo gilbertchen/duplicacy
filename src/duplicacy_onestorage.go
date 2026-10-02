@@ -101,6 +101,9 @@ func (storage *OneDriveStorage) ListFiles(threadIndex int, dir string) ([]string
 	} else if strings.HasPrefix(dir, "snapshots/") || strings.HasPrefix(dir, "benchmark") {
 		entries, err := storage.client.ListEntries(storage.storageDir + "/" + dir)
 		if err != nil {
+			if e, ok := err.(OneDriveError); ok && e.Status == 404 {
+				return emptyListing()
+			}
 			return nil, nil, err
 		}
 

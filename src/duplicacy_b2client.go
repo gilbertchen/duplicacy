@@ -394,7 +394,12 @@ type B2ListFileNamesOutput struct {
 	NextFileId   string
 }
 
-func (client *B2Client) ListFileNames(threadIndex int, startFileName string, singleFile bool, includeVersions bool) (files []*B2Entry, err error) {
+// ListFileNames lists the names that the b2_list_file_names call returns, starting at 'startFileName'.  When
+// 'singleFile' is true only that exact file is looked up.  When 'delimiter' is not empty the names are broken at that
+// character and the folders directly under 'startFileName' are returned in place of the files they contain, so that
+// the whole subtree is not listed.
+func (client *B2Client) ListFileNames(threadIndex int, startFileName string, singleFile bool, includeVersions bool,
+	delimiter string) (files []*B2Entry, err error) {
 
 	maxFileCount := 1000
 	if singleFile {
@@ -410,11 +415,21 @@ func (client *B2Client) ListFileNames(threadIndex int, startFileName string, sin
 		maxFileCount = 10
 	}
 
+	// With a delimiter the folder names are returned rather than the files they contain, so the prefix has to cover
+	// the folder being listed and only its direct children come back.
+	prefix := client.StorageDir
+	if delimiter != "" {
+		prefix = client.StorageDir + strings.TrimSuffix(startFileName, "/") + "/"
+	}
+
 	input := make(map[string]interface{})
 	input["bucketId"] = client.BucketID
 	input["startFileName"] = client.StorageDir + startFileName
 	input["maxFileCount"] = maxFileCount
-	input["prefix"] = client.StorageDir
+	input["prefix"] = prefix
+	if delimiter != "" {
+		input["delimiter"] = delimiter
+	}
 
 	for {
 		apiURL := client.getAPIURL() + "/b2api/v1/b2_list_file_names"
@@ -593,7 +608,7 @@ func (client *B2Client) DownloadFile(threadIndex int, filePath string) (io.ReadC
 
 	// We're trying to download a fossil file.  We need to find the file ID of the last 'upload' of the file.
 	filePath = strings.TrimSuffix(filePath, ".fsl")
-	entries, err := client.ListFileNames(threadIndex, filePath, true, true)
+	entries, err := client.ListFileNames(threadIndex, filePath, true, true, "")
 	fileId := ""
 	for _, entry := range entries {
 		if entry.FileName == filePath && entry.Action == "upload" && entry.Size > 0 {

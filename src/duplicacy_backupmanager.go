@@ -173,6 +173,13 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 
 	// A revision number of 0 means this is the initial backup
 	if remoteSnapshot.Revision > 0 {
+		// The sequences are expanded through the snapshot manager's own operator, which is created here with the
+		// user's -threads so that their metadata chunks are fetched concurrently; check, prune and restore create it
+		// the same way.  It is stopped when Backup returns, so that the operator the packing loop uses below with the
+		// same count is a separate one and the two do not have to agree on anything but the thread count.
+		manager.SnapshotManager.CreateChunkOperator(false, false, threads, false)
+		defer manager.SnapshotManager.stopChunkOperator()
+
 		manager.SnapshotManager.DownloadSnapshotSequences(remoteSnapshot)
 		// Add all chunks in the last snapshot to the cache
 		for _, chunkID := range manager.SnapshotManager.GetSnapshotChunks(remoteSnapshot, true) {
@@ -200,7 +207,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 				continue
 			}
 
-			chunk = strings.Replace(chunk, "/", "", -1)
+			chunk = chunkIDFromListedPath(chunk)
 			chunkCache[chunk] = true
 		}
 
@@ -396,6 +403,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	var numberOfNewFileChunks int64        // number of new file chunks
 	var totalUploadedFileChunkLength int64 // total length of uploaded file chunks
 	var totalUploadedFileChunkBytes int64  // how many actual bytes have been uploaded
+	var addDataErr string                  // cloudFileFailure when AddData skipped the file, empty otherwise
 
 	// This function is called when a chunk has been uploaded
 	uploadChunkCompletionFunc := func(chunk *Chunk, chunkIndex int, inCache bool, chunkSize int, uploadSize int) {
@@ -479,8 +487,13 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 			skippedFiles = append(skippedFiles, entry.Path)
 			continue
 		}
-		entry.Size, entry.Hash = fileChunkMaker.AddData(file, uploadChunkFunc)
-		if !showStatistics || IsTracing() || RunInBackground {
+
+		// AddData reports the OneDrive denial with the sentinel and a negative size, and the sentinel is the whole
+		// condition: the file is skipped rather than uploaded with the part of it that could be read.
+		entry.Size, entry.Hash, addDataErr = fileChunkMaker.AddData(file, uploadChunkFunc)
+		if addDataErr == cloudFileFailure {
+			skippedFiles = append(skippedFiles, entry.Path)
+		} else if !showStatistics || IsTracing() || RunInBackground {
 			LOG_INFO("PACK_END", "Packed %s (%d)", entry.Path, entry.Size)
 		}
 		file.Close()
@@ -689,6 +702,11 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 	} ()
 
 	remoteSnapshot := manager.SnapshotManager.DownloadSnapshot(manager.snapshotID, revision)
+	// The sequences are expanded through the snapshot manager's own operator, which is created here with the user's
+	// -threads so that their metadata chunks are fetched concurrently; check and prune create it the same way.  The
+	// file chunks below use the operator created above, which already has that count.
+	manager.SnapshotManager.CreateChunkOperator(false, false, threads, allowFailures)
+	defer manager.SnapshotManager.stopChunkOperator()
 	manager.SnapshotManager.DownloadSnapshotSequences(remoteSnapshot)
 	go func() {
 		// List remote files
@@ -830,11 +848,16 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 
 	startDownloadingTime := time.Now().Unix()
 
+	// The parent of a file is the same directory for every file under it, so the ones this pass has already created
+	// are remembered and the MkdirAll -- which stats the directory before doing nothing -- is not called again for
+	// them.  The map is bounded by the number of directories in the snapshot.
+	createdParents := make(map[string]bool)
+
 	// Now download files one by one
 	for _, file := range fileEntries {
 
 		fullPath := joinPath(top, file.Path)
-		stat, _ := os.Stat(fullPath)
+		stat, statErr := os.Stat(fullPath)
 		if stat != nil {
 			if quickMode {
 				if file.IsSameAsFileInfo(stat) {
@@ -853,9 +876,13 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 			}
 		} else {
 			parent, _ := SplitDir(fullPath)
-			err = os.MkdirAll(parent, 0744)
-			if err != nil {
-				LOG_ERROR("DOWNLOAD_MKDIR", "Failed to create directory: %v", err)
+			if !createdParents[parent] {
+				err = os.MkdirAll(parent, 0744)
+				if err != nil {
+					LOG_ERROR("DOWNLOAD_MKDIR", "Failed to create directory: %v", err)
+				} else {
+					createdParents[parent] = true
+				}
 			}
 		}
 
@@ -879,7 +906,7 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 		}
 
 		downloaded, err := manager.RestoreFile(chunkDownloader, chunkMaker, file, top, inPlace, overwrite, showStatistics,
-			totalFileSize, downloadedFileSize, startDownloadingTime, allowFailures)
+			totalFileSize, downloadedFileSize, startDownloadingTime, allowFailures, os.IsNotExist(statErr))
 		if err != nil {
 			// RestoreFile returned an error; if allowFailures is false RestoerFile would error out and not return so here
 			// we just need to show a warning
@@ -1133,7 +1160,7 @@ func (manager *BackupManager) UploadSnapshot(chunkOperator *ChunkOperator, top s
 		return int64(0), 0, int64(0), int64(0)
 	}
 
-	path := fmt.Sprintf("snapshots/%s/%d", manager.snapshotID, snapshot.Revision)
+	path := snapshotPath(manager.snapshotID, snapshot.Revision)
 	if !manager.config.dryRun {
 		manager.SnapshotManager.UploadFile(path, path, description)
 	}
@@ -1147,12 +1174,21 @@ func (manager *BackupManager) UploadSnapshot(chunkOperator *ChunkOperator, top s
 //         false, nil:   Skipped file; 
 //         false, error: Failure to restore file (only if allowFailures == true)
 func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chunkMaker *ChunkMaker, entry *Entry, top string, inPlace bool, overwrite bool,
-	showStatistics bool, totalFileSize int64, downloadedFileSize int64, startTime int64, allowFailures bool) (bool, error) {
+	showStatistics bool, totalFileSize int64, downloadedFileSize int64, startTime int64, allowFailures bool, knownAbsent bool) (bool, error) {
 
 	LOG_TRACE("DOWNLOAD_START", "Downloading %s", entry.Path)
 
 	var existingFile, newFile *os.File
 	var err error
+
+	// Set when the temporary file below is created and cleared once it has been renamed onto the target, so that the
+	// deferred cleanup only asks about a file this call made
+	temporaryFileCreated := false
+
+	// Set when the in-place branch creates the target, so that the truncate at the end of the write loop can be
+	// skipped for it: the loop writes exactly the bytes the snapshot holds, so the file is already the right length.
+	// A target that was already there may be longer, which is the case the truncate is for.
+	fileCreated := false
 
 	preferencePath := GetDuplicacyPreferencePath()
 	temporaryPath := path.Join(preferencePath, "temporary")
@@ -1166,7 +1202,7 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 			newFile.Close()
 		}
 
-		if temporaryPath != fullPath {
+		if temporaryPath != fullPath && temporaryFileCreated {
 			os.Remove(temporaryPath)
 		}
 	}()
@@ -1183,44 +1219,55 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 	// If the file is newly created (needed by sparse file optimization)
 	isNewFile := false
 
-	existingFile, err = os.Open(fullPath)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// macOS has no sparse file support
-			if inPlace && entry.Size > 100*1024*1024 && runtime.GOOS != "darwin" {
-				// Create an empty sparse file
-				existingFile, err = os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
-				if err != nil {
-					LOG_ERROR("DOWNLOAD_CREATE", "Failed to create the file %s for in-place writing: %v", fullPath, err)
-					return false, nil
-				}
-
-				n := int64(1)
-				// There is a go bug on Windows (https://github.com/golang/go/issues/21681) that causes Seek to fail
-				// if the lower 32 bit of the offset argument is 0xffffffff.  Therefore we need to avoid that value by increasing n.
-				if uint32(entry.Size) == 0 && (entry.Size>>32) > 0 {
-					n = int64(2)
-				}
-				_, err = existingFile.Seek(entry.Size-n, 0)
-				if err != nil {
-					LOG_ERROR("DOWNLOAD_CREATE", "Failed to resize the initial file %s for in-place writing: %v", fullPath, err)
-					return false, nil
-				}
-				_, err = existingFile.Write([]byte("\x00\x00")[:n])
-				if err != nil {
-					LOG_ERROR("DOWNLOAD_CREATE", "Failed to initialize the sparse file %s for in-place writing: %v", fullPath, err)
-					return false, nil
-				}
-				existingFile.Close()
-				existingFile, err = os.Open(fullPath)
-				if err != nil {
-					LOG_ERROR("DOWNLOAD_OPEN", "Can't reopen the initial file just created: %v", err)
-					return false, nil
-				}
-				isNewFile = true
+	// 'knownAbsent' says the caller's stat has already established that the file is not there, so the probe below is
+	// skipped.  The sparse-file branch tests 'targetAbsent' rather than the skipped probe's error, because a skipped
+	// probe cannot report the absence itself, and without that the hole of a large in-place target is written in full.
+	targetAbsent := knownAbsent
+	if !knownAbsent {
+		existingFile, err = os.Open(fullPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				targetAbsent = true
+			} else {
+				LOG_TRACE("DOWNLOAD_OPEN", "Can't open the existing file: %v", err)
 			}
-		} else {
-			LOG_TRACE("DOWNLOAD_OPEN", "Can't open the existing file: %v", err)
+		}
+	}
+
+	if targetAbsent {
+		// macOS has no sparse file support
+		if inPlace && entry.Size > 100*1024*1024 && runtime.GOOS != "darwin" {
+			// Create an empty sparse file
+			existingFile, err = os.OpenFile(fullPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)
+			if err != nil {
+				LOG_ERROR("DOWNLOAD_CREATE", "Failed to create the file %s for in-place writing: %v", fullPath, err)
+				return false, nil
+			}
+			fileCreated = true
+
+			n := int64(1)
+			// There is a go bug on Windows (https://github.com/golang/go/issues/21681) that causes Seek to fail
+			// if the low 32 bits of the offset are 0xffffffff; increase n to avoid it.
+			if uint32(entry.Size) == 0 && (entry.Size>>32) > 0 {
+				n = int64(2)
+			}
+			_, err = existingFile.Seek(entry.Size-n, 0)
+			if err != nil {
+				LOG_ERROR("DOWNLOAD_CREATE", "Failed to resize the initial file %s for in-place writing: %v", fullPath, err)
+				return false, nil
+			}
+			_, err = existingFile.Write([]byte("\x00\x00")[:n])
+			if err != nil {
+				LOG_ERROR("DOWNLOAD_CREATE", "Failed to initialize the sparse file %s for in-place writing: %v", fullPath, err)
+				return false, nil
+			}
+			existingFile.Close()
+			existingFile, err = os.Open(fullPath)
+			if err != nil {
+				LOG_ERROR("DOWNLOAD_OPEN", "Can't reopen the initial file just created: %v", err)
+				return false, nil
+			}
+			isNewFile = true
 		}
 	}
 
@@ -1368,6 +1415,7 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 			if err != nil {
 				LOG_ERROR("DOWNLOAD_CREATE", "Failed to create the file %s for in-place writing", fullPath)
 			}
+			fileCreated = true
 		} else {
 			// Close and reopen in a different mode
 			existingFile.Close()
@@ -1437,10 +1485,14 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 			offset += int64(end - start)
 		}
 
-		// Must truncate the file if the new size is smaller
-		if err = existingFile.Truncate(offset); err != nil {
-			LOG_ERROR("DOWNLOAD_TRUNCATE", "Failed to truncate the file at %d: %v", offset, err)
-			return false, nil
+		// Must truncate the file if the new size is smaller.  A file this call created is already exactly the size
+		// the write loop produced, so the truncate only asserts it; it is the pre-existing target, which may be
+		// longer than the snapshot's copy, that needs it.
+		if !fileCreated {
+			if err = existingFile.Truncate(offset); err != nil {
+				LOG_ERROR("DOWNLOAD_TRUNCATE", "Failed to truncate the file at %d: %v", offset, err)
+				return false, nil
+			}
 		}
 
 		// Verify the download by hash
@@ -1459,6 +1511,7 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 			LOG_ERROR("DOWNLOAD_OPEN", "Failed to open file for writing: %v", err)
 			return false, nil
 		}
+		temporaryFileCreated = true
 
 		hasher := manager.config.NewFileHasher()
 
@@ -1546,6 +1599,7 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 			LOG_ERROR("DOWNLOAD_RENAME", "Failed to rename the file %s to %s: %v", temporaryPath, fullPath, err)
 			return false, nil
 		}
+		temporaryFileCreated = false
 	}
 
 	if !showStatistics {
@@ -1613,6 +1667,31 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 			return false
 		}
 
+		// Copying the whole snapshot id enumerates the destination's revisions with one listing, which is the same
+		// directory the existence checks used to probe one path at a time, so it costs a single listing instead of a
+		// look-up per revision -- a Stat round trip on SFTP, a GetFileInfo on GCD, a newfstatat locally.
+		//
+		// A copy restricted with -r names the revisions to consider, so there is nothing to enumerate: only those
+		// revisions are looked at, and each is checked against the destination individually.  Listing instead would
+		// read every revision the destination holds, which on an id with many revisions costs far more than the few
+		// look-ups the named revisions need.  This is the same choice the snapshot commands make between a revision
+		// that was listed and one the user named (see ListSnapshots).
+		listDestination := len(revisionsToBeCopied) == 0
+
+		otherRevisionMap := make(map[int]bool)
+		if listDestination {
+			destinationRevisions, err := otherManager.SnapshotManager.ListSnapshotRevisions(id)
+			if err != nil {
+				LOG_ERROR("SNAPSHOT_LIST", "Failed to list all revisions for snapshot %s at the destination storage: %v",
+					id, err)
+				return false
+			}
+
+			for _, revision := range destinationRevisions {
+				otherRevisionMap[revision] = true
+			}
+		}
+
 		for _, revision := range revisions {
 			if len(revisionsToBeCopied) > 0 {
 				if _, found := revisionMap[id][revision]; found {
@@ -1625,12 +1704,14 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 				revisionMap[id][revision] = true
 			}
 
-			snapshotPath := fmt.Sprintf("snapshots/%s/%d", id, revision)
-			exist, _, _, err := otherManager.storage.GetFileInfo(0, snapshotPath)
-			if err != nil {
-				LOG_ERROR("SNAPSHOT_INFO", "Failed to check if there is a snapshot %s at revision %d: %v",
-					id, revision, err)
-				return false
+			exist := otherRevisionMap[revision]
+			if !listDestination {
+				exist, _, _, err = otherManager.storage.GetFileInfo(0, snapshotPath(id, revision))
+				if err != nil {
+					LOG_ERROR("SNAPSHOT_INFO", "Failed to check if there is a snapshot %s at revision %d: %v",
+						id, revision, err)
+					return false
+				}
 			}
 
 			if exist {
@@ -1640,7 +1721,8 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 				continue
 			}
 
-			snapshot := manager.SnapshotManager.DownloadSnapshot(id, revision)
+			// The revision was returned by ListSnapshotRevisions, so it is known to exist in the source storage.
+			snapshot := manager.SnapshotManager.downloadSnapshot(id, revision, true, manager.SnapshotManager.fileChunk, 0)
 			snapshots = append(snapshots, snapshot)
 		}
 
@@ -1665,16 +1747,10 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 
 		LOG_TRACE("SNAPSHOT_COPY", "Copying snapshot %s at revision %d", snapshot.ID, snapshot.Revision)
 
-		for _, chunkHash := range snapshot.FileSequence {
-			chunks[chunkHash] = true  // The chunk is a snapshot chunk
-		}
-
-		for _, chunkHash := range snapshot.ChunkSequence {
-			chunks[chunkHash] = true  // The chunk is a snapshot chunk
-		}
-
-		for _, chunkHash := range snapshot.LengthSequence {
-			chunks[chunkHash] = true  // The chunk is a snapshot chunk
+		for _, sequence := range snapshot.MetadataSequences() {
+			for _, chunkHash := range sequence {
+				chunks[chunkHash] = true  // The chunk is a snapshot chunk
+			}
 		}
 
 		description := manager.SnapshotManager.DownloadSequence(snapshot.ChunkSequence)
@@ -1694,40 +1770,107 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 		snapshot.ChunkHashes = nil
 	}
 
-	otherChunkFiles, otherChunkSizes := otherManager.SnapshotManager.ListAllFiles(otherManager.storage, "chunks/")
+	// The listing says which of the chunks the snapshots reference are already there, but it walks the whole chunk
+	// tree, so its cost grows with the destination while the per-chunk lookups grow with the copy.  Exactly one of the
+	// two runs, because each is what spares the other.
+	listChunks := otherManager.storage.IsFastListing()
 
-	for i, otherChunkID := range otherChunkFiles {
-		otherChunkID = strings.Replace(otherChunkID, "/", "", -1)
-		if len(otherChunkID) != 64 {
-			continue
+	if !listChunks {
+		entries, _, err := otherManager.storage.ListFiles(0, "chunks/")
+		if err != nil {
+			LOG_ERROR("SNAPSHOT_COPY", "Failed to list the chunks directory of the destination storage: %v", err)
+			return false
 		}
-		if otherChunkSizes[i] == 0 {
-			LOG_DEBUG("SNAPSHOT_COPY", "Chunk %s has length = 0", otherChunkID)
-			continue
+
+		chunkDirs := 0
+		for _, entry := range entries {
+			if strings.HasSuffix(entry, "/") {
+				chunkDirs++
+			}
 		}
-		otherChunks[otherChunkID] = false
+
+		// Exact for the single-level nesting of a modern storage; the older multi-level layout counts only the top
+		// level, which undercounts and so can only leave the listing in place.
+		listChunks = chunkDirs < len(chunks)
+
+		LOG_DEBUG("SNAPSHOT_COPY", "The destination has %d chunk directories for %d chunks; listing: %v",
+			chunkDirs, len(chunks), listChunks)
 	}
-
-	LOG_DEBUG("SNAPSHOT_COPY", "Found %d chunks on destination storage", len(otherChunks))
 
 	var chunksToCopy []string
 
-	for chunkHash := range chunks {
-		otherChunkID := otherManager.config.GetChunkIDFromHash(chunkHash)
-		if _, found := otherChunks[otherChunkID]; !found {
-			chunksToCopy = append(chunksToCopy, chunkHash)
+	if listChunks {
+
+		otherChunkFiles, otherChunkSizes := otherManager.SnapshotManager.ListAllFiles(otherManager.storage, "chunks/")
+
+		for i, otherChunkID := range otherChunkFiles {
+			otherChunkID = chunkIDFromListedPath(otherChunkID)
+			if len(otherChunkID) != 64 {
+				continue
+			}
+			if otherChunkSizes[i] == 0 {
+				LOG_DEBUG("SNAPSHOT_COPY", "Chunk %s has length = 0", otherChunkID)
+				continue
+			}
+			otherChunks[otherChunkID] = false
 		}
+
+		LOG_DEBUG("SNAPSHOT_COPY", "Found %d chunks on destination storage", len(otherChunks))
+
+		for chunkHash := range chunks {
+			otherChunkID := otherManager.config.GetChunkIDFromHash(chunkHash)
+			if _, found := otherChunks[otherChunkID]; !found {
+				chunksToCopy = append(chunksToCopy, chunkHash)
+			}
+		}
+
+		LOG_INFO("SNAPSHOT_COPY", "Chunks to copy: %d, to skip: %d, total: %d",
+			len(chunksToCopy), len(chunks)-len(chunksToCopy), len(chunks))
+
+	} else {
+
+		// Look each chunk up here rather than in the uploader, so that a chunk the destination already holds costs
+		// one lookup instead of a lookup plus a download of bytes that are already there.  A zero-length file counts
+		// as absent, as the listing treats it.
+		for chunkHash := range chunks {
+
+			chunkID := otherManager.config.GetChunkIDFromHash(chunkHash)
+
+			_, exist, size, err := otherManager.storage.FindChunk(0, chunkID, false)
+			if err != nil {
+				LOG_ERROR("SNAPSHOT_COPY", "Failed to find the chunk %s at the destination storage: %v", chunkID, err)
+				return false
+			}
+
+			if !exist || size == 0 {
+				chunksToCopy = append(chunksToCopy, chunkHash)
+			}
+		}
+
+		LOG_INFO("SNAPSHOT_COPY", "Chunks to copy: %d, to skip: %d, total: %d; the destination storage was not listed",
+			len(chunksToCopy), len(chunks)-len(chunksToCopy), len(chunks))
 	}
 
-	LOG_INFO("SNAPSHOT_COPY", "Chunks to copy: %d, to skip: %d, total: %d", len(chunksToCopy), len(chunks) - len(chunksToCopy), len(chunks))
+	// When the two storages store a chunk in exactly the same bytes, the chunk can be copied as it is instead of
+	// being decrypted and encoded again.  This is the case for an unencrypted pair, and for an encrypted pair whose
+	// keys and parameters were copied over -- an unencrypted pair always shares them, an encrypted one only with
+	// 'add -copy -bit-identical'.  Erasure coding and a different compression level both change the stored bytes,
+	// and RSA encryption uses a fresh random key per chunk, so those cases keep the decode/encode path.
+	bitIdentical := manager.config.IsBitIdenticalWith(otherManager.config)
+	if bitIdentical {
+		LOG_DEBUG("SNAPSHOT_COPY", "The two storages store chunks identically; the chunks will be copied without re-encoding")
+	}
 
 	chunkDownloader := CreateChunkOperator(manager.config, manager.storage, nil, false, false, downloadingThreads, false)
+	chunkDownloader.rawData = bitIdentical
 
 	var uploadedBytes int64
 	startTime := time.Now()
 
 	copiedChunks := 0
 	chunkUploader := CreateChunkOperator(otherManager.config, otherManager.storage, nil, false, false, uploadingThreads, false)
+	// Every chunk in 'chunksToCopy' is known to be absent, so the uploader doesn't have to check.
+	chunkUploader.skipChunkCheck = true
 	chunkUploader.UploadCompletionFunc =  func(chunk *Chunk, chunkIndex int, skipped bool, chunkSize int, uploadSize int) {
 		action := "Skipped"
 		if !skipped {
@@ -1753,9 +1896,15 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 
 		chunkDownloader.DownloadAsync(chunkHash, i, chunks[chunkHash], func(chunk *Chunk, chunkIndex int) {
 			newChunk := otherManager.config.GetChunk()
-			newChunk.Reset(true)
-			newChunk.Write(chunk.GetBytes())
-			newChunk.isMetadata = chunks[chunk.GetHash()]
+			if bitIdentical {
+				// The downloaded bytes are already in the form the destination stores them, so the chunk is uploaded
+				// as it is, under the hash it was downloaded from rather than the one recomputed from the bytes.
+				newChunk.WriteRawData(chunk.GetBytes(), chunkHash)
+			} else {
+				newChunk.Reset(true)
+				newChunk.Write(chunk.GetBytes())
+			}
+			newChunk.isMetadata = chunks[chunkHash]
 			chunkUploader.Upload(newChunk, chunkIndex, newChunk.isMetadata)
 			manager.config.PutChunk(chunk)
 		})
@@ -1772,9 +1921,8 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 		if revisionMap[snapshot.ID][snapshot.Revision] == false {
 			continue
 		}
-		otherManager.storage.CreateDirectory(0, fmt.Sprintf("snapshots/%s", snapshot.ID))
 		description, _ := snapshot.MarshalJSON()
-		path := fmt.Sprintf("snapshots/%s/%d", snapshot.ID, snapshot.Revision)
+		path := snapshotPath(snapshot.ID, snapshot.Revision)
 		otherManager.SnapshotManager.UploadFile(path, path, description)
 		LOG_INFO("SNAPSHOT_COPY", "Copied snapshot %s at revision %d", snapshot.ID, snapshot.Revision)
 	}

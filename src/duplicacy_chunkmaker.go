@@ -9,7 +9,19 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"io"
+	"runtime"
+	"strings"
 )
+
+// cloudFileFailure is the reason AddData reports when a read failed on a OneDrive cloud-only file.  It comes with a
+// negative size, which is what makes the caller skip the file instead of failing the backup.
+const cloudFileFailure = "CLOUD_FILE_FAILURE"
+
+// isCloudFileError reports whether err is the Windows error raised when a OneDrive cloud-only file isn't available
+// locally; it can surface from os.OpenFile or from the first read, depending on when the file is hydrated.
+func isCloudFileError(err error) bool {
+	return runtime.GOOS == "windows" && strings.HasSuffix(err.Error(), " Access to the cloud file is denied.")
+}
 
 // ChunkMaker breaks data into chunks using buzhash.  To save memory, the chunk maker only use a circular buffer
 // whose size is double the minimum chunk size.
@@ -135,7 +147,7 @@ func (maker *ChunkMaker) startNewChunk() (chunk *Chunk) {
 	return
 }
 
-func (maker *ChunkMaker) AddData(reader io.Reader, sendChunk func(*Chunk)) (int64, string) {
+func (maker *ChunkMaker) AddData(reader io.Reader, sendChunk func(*Chunk)) (int64, string, string) {
 
 	isEOF := false
 	fileSize := int64(0)
@@ -161,7 +173,7 @@ func (maker *ChunkMaker) AddData(reader io.Reader, sendChunk func(*Chunk)) (int6
 	if maker.minimumChunkSize == maker.maximumChunkSize {
 
 		if reader == nil {
-			return 0, ""
+			return 0, "", ""
 		}
 
 		for {
@@ -172,8 +184,9 @@ func (maker *ChunkMaker) AddData(reader io.Reader, sendChunk func(*Chunk)) (int6
 
 				if err != nil {
 					if err != io.EOF {
-						LOG_ERROR("CHUNK_MAKER", "Failed to read %d bytes: %s", count, err.Error())
-						return 0, ""
+						isWarning := isCloudFileError(err)
+						LOG_WERROR(isWarning, "CHUNK_MAKER", "Failed to read %d bytes: %s", count, err.Error())
+						return -1, "", cloudFileFailure
 					} else {
 						isEOF = true
 					}
@@ -189,7 +202,7 @@ func (maker *ChunkMaker) AddData(reader io.Reader, sendChunk func(*Chunk)) (int6
 			}
 
 			if isEOF {
-				return fileSize, hex.EncodeToString(fileHasher.Sum(nil))
+				return fileSize, hex.EncodeToString(fileHasher.Sum(nil)), ""
 			}
 		}
 
@@ -209,8 +222,9 @@ func (maker *ChunkMaker) AddData(reader io.Reader, sendChunk func(*Chunk)) (int6
 			count, err = reader.Read(maker.buffer[start : start+count])
 
 			if err != nil && err != io.EOF {
-				LOG_ERROR("CHUNK_MAKER", "Failed to read %d bytes: %s", count, err.Error())
-				return 0, ""
+				isWarning := isCloudFileError(err)
+				LOG_WERROR(isWarning, "CHUNK_MAKER", "Failed to read %d bytes: %s", count, err.Error())
+				return -1, "", cloudFileFailure // LOG_ERROR panics, so only a cloud-file warning reaches this
 			}
 
 			maker.bufferSize += count
@@ -231,9 +245,9 @@ func (maker *ChunkMaker) AddData(reader io.Reader, sendChunk func(*Chunk)) (int6
 				if maker.chunk.GetLength() > 0 {
 					sendChunk(maker.chunk)
 				}
-				return 0, ""
+				return 0, "", ""
 			} else if isEOF {
-				return fileSize, hex.EncodeToString(fileHasher.Sum(nil))
+				return fileSize, hex.EncodeToString(fileHasher.Sum(nil)), ""
 			} else {
 				continue
 			}
@@ -295,12 +309,12 @@ func (maker *ChunkMaker) AddData(reader io.Reader, sendChunk func(*Chunk)) (int6
 				fill(maker.minimumChunkSize)
 				sendChunk(maker.chunk)
 				maker.startNewChunk()
-				return 0, ""
+				return 0, "", ""
 			}
 		}
 
 		if isEOF {
-			return fileSize, hex.EncodeToString(fileHasher.Sum(nil))
+			return fileSize, hex.EncodeToString(fileHasher.Sum(nil)), ""
 		}
 	}
 }

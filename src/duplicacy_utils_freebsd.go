@@ -4,10 +4,14 @@
 
 package duplicacy
 
-import (
-)
+// attributeExcludeName is the extended attribute that marks a file as excluded.  FreeBSD stores extended attributes
+// in the user namespace without a prefix, so the name is used as is.
+const attributeExcludeName = "duplicacy_exclude"
+
+// attributeExcludeValue is not checked on FreeBSD, where the mere presence of the attribute excludes the file.
+const attributeExcludeValue = "1"
 
 func excludedByAttribute(attirbutes map[string][]byte) bool {
-	_, ok := attirbutes["duplicacy_exclude"]
+	_, ok := attirbutes[attributeExcludeName]
 	return ok
 }

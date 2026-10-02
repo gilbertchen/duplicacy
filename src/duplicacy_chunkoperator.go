@@ -45,7 +45,10 @@ type ChunkOperator struct {
 	taskQueue chan ChunkTask     // Operating goroutines are waiting on this channel for input
 	stopChannel chan bool        // Used to stop all the goroutines
 
-	numberOfActiveTasks int64    // The number of chunks that are being operated on
+	completionLock *sync.Mutex   // Guards the three fields below
+	numberOfActiveTasks int64    // The number of chunks that are being operated on, queued or running
+	stopped bool                 // Set by the first Stop, so that a second one does nothing
+	idleCond *sync.Cond          // Signalled when the last active task finishes, and by Stop
 
 	fossils []string             // For fossilize operation, the paths of the fossils are stored in this slice
 	collectionLock *sync.Mutex   // The lock for accessing 'fossils'
@@ -60,6 +63,16 @@ type ChunkOperator struct {
 	rewriteChunks bool           // Whether to rewrite corrupted chunks when erasure coding is enabled
 
 	UploadCompletionFunc func(chunk *Chunk, chunkIndex int, inCache bool, chunkSize int, uploadSize int)
+
+	// Set when every chunk given to the uploader is known to be absent from the storage, so that it doesn't have to
+	// ask the storage before uploading.  'copy' sets this after filtering out the chunks the destination holds;
+	// 'backup' leaves it unset because its check is what skips a chunk another client has uploaded.
+	skipChunkCheck bool
+
+	// Set when this operator reads the stored form of the chunks instead of their plaintext, because the storage they
+	// are copied to stores them identically.  'copy' sets this when the two storages share their encryption,
+	// compression and erasure-coding parameters, so that the chunks don't have to be decoded and encoded again.
+	rawData bool
 }
 
 // CreateChunkOperator creates a new ChunkOperator.
@@ -77,10 +90,13 @@ func CreateChunkOperator(config *Config, storage Storage, snapshotCache *FileSto
 		stopChannel: make(chan bool),
 
 		collectionLock: &sync.Mutex{},
+		completionLock: &sync.Mutex{},
 		startTime: time.Now().Unix(),
 		allowFailures: allowFailures,
 		rewriteChunks: rewriteChunks,
 	}
+
+	operator.idleCond = sync.NewCond(operator.completionLock)
 
 	// Start the operator goroutines
 	for i := 0; i < operator.threads; i++ {
@@ -100,27 +116,35 @@ func CreateChunkOperator(config *Config, storage Storage, snapshotCache *FileSto
 	return operator
 }
 
+// Stop waits for the outstanding tasks and then stops the worker goroutines.  It only takes effect the first time it
+// is called, so that the callers that stop the operator from a deferred function can also stop it explicitly.
 func (operator *ChunkOperator) Stop() {
-	if atomic.LoadInt64(&operator.numberOfActiveTasks) < 0 {
+
+	operator.WaitForCompletion()
+
+	operator.completionLock.Lock()
+	if operator.stopped {
+		operator.completionLock.Unlock()
 		return
 	}
+	operator.stopped = true
+	operator.completionLock.Unlock()
 
-	for atomic.LoadInt64(&operator.numberOfActiveTasks) > 0 {
-		time.Sleep(100 * time.Millisecond)
-	}
 	for i := 0; i < operator.threads; i++ {
 		operator.stopChannel <- false
 	}
-
-	// Assign -1 to numberOfActiveTasks so Stop() can be called multiple times
-	atomic.AddInt64(&operator.numberOfActiveTasks, int64(-1))
 }
 
+// WaitForCompletion waits until every task that has been added has finished.  The wait is woken by the task that
+// finishes last rather than by a timer, so it costs nothing on a fast storage; a task that is still being queued
+// counts as outstanding, which is why AddTask increments the counter before handing the task to the workers.
 func (operator *ChunkOperator) WaitForCompletion() {
 
-	for atomic.LoadInt64(&operator.numberOfActiveTasks) > 0 {
-		time.Sleep(100 * time.Millisecond)
+	operator.completionLock.Lock()
+	for operator.numberOfActiveTasks > 0 {
+		operator.idleCond.Wait()
 	}
+	operator.completionLock.Unlock()
 }
 
 func (operator *ChunkOperator) AddTask(operation int, chunkID string, chunkHash string, filePath string, chunkIndex int, chunk *Chunk, isMetadata bool, completionFunc func(*Chunk, int))  {
@@ -136,8 +160,13 @@ func (operator *ChunkOperator) AddTask(operation int, chunkID string, chunkHash 
 		completionFunc: completionFunc,
 	}
 
+	// Counted before the task is handed over, so that a caller waiting for completion can not observe the operator as
+	// idle while this task is on its way to the workers.
+	operator.completionLock.Lock()
+	operator.numberOfActiveTasks++
+	operator.completionLock.Unlock()
+
 	operator.taskQueue <- task
-	atomic.AddInt64(&operator.numberOfActiveTasks, int64(1))
 
 	return
 }
@@ -177,7 +206,12 @@ func (operator *ChunkOperator) Resurrect(chunkID string, filePath string) {
 
 func (operator *ChunkOperator) Run(threadIndex int, task ChunkTask) {
 	defer func() {
-		atomic.AddInt64(&operator.numberOfActiveTasks, int64(-1))
+		operator.completionLock.Lock()
+		operator.numberOfActiveTasks--
+		if operator.numberOfActiveTasks == 0 {
+			operator.idleCond.Broadcast()
+		}
+		operator.completionLock.Unlock()
 	}()
 
 	if task.operation == ChunkOperationDownload {
@@ -294,7 +328,7 @@ func (operator *ChunkOperator) DownloadChunk(threadIndex int, task ChunkTask) {
 		}
 	} ()
 
-	if task.isMetadata && operator.snapshotCache != nil {
+	if task.isMetadata && operator.snapshotCache != nil && operator.storage.IsCacheNeeded() {
 
 		var exist bool
 		var err error
@@ -417,6 +451,15 @@ func (operator *ChunkOperator) DownloadChunk(threadIndex int, task ChunkTask) {
 			}
 		}
 
+		// When the destination storage stores the chunk identically, the downloaded bytes are exactly what must be
+		// uploaded, so they are passed on as they are instead of being decrypted and encrypted again.  Only the hash
+		// and id they were stored under are recorded, since they can't be recomputed: the raw flag is left to the
+		// caller, which is the one that turns the bytes into the chunk to upload.
+		if operator.rawData {
+			chunk.SetStoredHash(task.chunkHash)
+			break
+		}
+
 		rewriteNeeded := false
 		err, rewriteNeeded = chunk.Decrypt(operator.config.ChunkKey, task.chunkHash)
 		if err != nil {
@@ -481,9 +524,12 @@ func (operator *ChunkOperator) DownloadChunk(threadIndex int, task ChunkTask) {
 		break
 	}
 
-	if chunk.isMetadata && len(cachedPath) > 0 {
-		// Save a copy to the local snapshot cache
-		err := operator.snapshotCache.UploadFile(threadIndex, cachedPath, chunk.GetBytes())
+	if chunk.isMetadata && !chunk.isRawData && len(cachedPath) > 0 {
+		// Save a copy to the local snapshot cache.  Skipping fsync is safe for the chunk cache and only for it: the
+		// entry is read back through the id check at the top of this function, so a write torn by a crash is rejected
+		// and the chunk is fetched from the storage instead.  This write happens once per metadata chunk, and
+		// fsyncing it is the bulk of the cost of populating the cache.
+		err := operator.snapshotCache.UploadFileNoSync(threadIndex, cachedPath, chunk.GetBytes())
 		if err != nil {
 			LOG_WARN("DOWNLOAD_CACHE", "Failed to add the chunk %s to the snapshot cache: %v", chunkID, err)
 		}
@@ -522,42 +568,64 @@ func (operator *ChunkOperator) UploadChunk(threadIndex int, task ChunkTask) bool
 	chunkID := task.chunkID
 	chunkSize := chunk.GetLength()
 
-	// The data in the buffer is checked against the chunk id by Encrypt() below
+	// The data in the buffer is checked against the chunk id by Encrypt() below, unless the chunk already holds the
+	// stored form and is uploaded as it is.
 
-	if task.isMetadata && operator.snapshotCache != nil && operator.storage.IsCacheNeeded() {
-		// Save a copy to the local snapshot.
+	if task.isMetadata && !chunk.isRawData && operator.snapshotCache != nil && operator.storage.IsCacheNeeded() {
+		// Save a copy to the local snapshot.  As in DownloadChunk, the chunk cache is safe to write without fsync
+		// because a torn entry fails the id check on the next read and is re-fetched from the storage.
 		chunkPath, exist, _, err := operator.snapshotCache.FindChunk(threadIndex, chunkID, false)
 		if err != nil {
 			LOG_WARN("UPLOAD_CACHE", "Failed to find the cache path for the chunk %s: %v", chunkID, err)
 		} else if exist {
 			LOG_DEBUG("CHUNK_CACHE", "Chunk %s already exists in the snapshot cache", chunkID)
-		} else if err = operator.snapshotCache.UploadFile(threadIndex, chunkPath, chunk.GetBytes()); err != nil {
+		} else if err = operator.snapshotCache.UploadFileNoSync(threadIndex, chunkPath, chunk.GetBytes()); err != nil {
 			LOG_WARN("UPLOAD_CACHE", "Failed to save the chunk %s to the snapshot cache: %v", chunkID, err)
 		} else {
 			LOG_DEBUG("CHUNK_CACHE", "Chunk %s has been saved to the snapshot cache", chunkID)
 		}
 	}
 
-	// This returns the path the chunk file should be at.
-	chunkPath, exist, _, err := operator.storage.FindChunk(threadIndex, chunkID, false)
-	if err != nil {
-		LOG_ERROR("UPLOAD_CHUNK", "Failed to find the path for the chunk %s: %v", chunkID, err)
-		return false
+	// When set, the caller has established that the chunk is absent and the path is derived locally.  Otherwise
+	// FindChunk returns the path and reports whether the chunk is already there, which is how a chunk uploaded by
+	// another client is skipped.
+	chunkPath := ""
+	exist := false
+	var err error
+
+	if operator.skipChunkCheck {
+		chunkPath, err = operator.storage.ChunkPath(chunkID)
+		if err != nil {
+			LOG_ERROR("UPLOAD_CHUNK", "Failed to derive the path for the chunk %s: %v", chunkID, err)
+			return false
+		}
+	} else {
+		chunkPath, exist, _, err = operator.storage.FindChunk(threadIndex, chunkID, false)
+		if err != nil {
+			LOG_ERROR("UPLOAD_CHUNK", "Failed to find the path for the chunk %s: %v", chunkID, err)
+			return false
+		}
+
+		if exist {
+			// Chunk deduplication by name in effect here.
+			LOG_DEBUG("CHUNK_DUPLICATE", "Chunk %s already exists", chunkID)
+
+			operator.UploadCompletionFunc(chunk, task.chunkIndex, false, chunkSize, 0)
+			return false
+		}
 	}
 
-	if exist {
-		// Chunk deduplication by name in effect here.
-		LOG_DEBUG("CHUNK_DUPLICATE", "Chunk %s already exists", chunkID)
-
-		operator.UploadCompletionFunc(chunk, task.chunkIndex, false, chunkSize, 0)
-		return false
-	}
-
-	// Encrypt the chunk only after we know that it must be uploaded.
-	err = chunk.Encrypt(operator.config.ChunkKey, chunk.GetHash(), task.isMetadata)
-	if err != nil {
-		LOG_ERROR("UPLOAD_CHUNK", "Failed to encrypt the chunk %s: %v", chunkID, err)
-		return false
+	// Encrypt the chunk only after we know that it must be uploaded.  A chunk that already holds the stored form is
+	// uploaded as it is; it was produced by copying the same chunk from a storage that stores it identically.
+	if !chunk.isRawData {
+		err = chunk.Encrypt(operator.config.ChunkKey, chunk.GetHash(), task.isMetadata)
+		if err != nil {
+			LOG_ERROR("UPLOAD_CHUNK", "Failed to encrypt the chunk %s: %v", chunkID, err)
+			return false
+		}
+	} else {
+		// Encrypt would have performed this check; it still applies because the buffer is what is about to be stored
+		chunk.VerifyChecksum()
 	}
 
 	if !operator.config.dryRun {

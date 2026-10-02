@@ -132,6 +132,13 @@ func SplitDir(fullPath string) (dir string, file string) {
 	return fullPath[:i+1], fullPath[i+1:]
 }
 
+// attributeExcludeName is empty on Windows, where ReadAttributes never populates any attribute and the exclusion by
+// attribute is therefore not supported.
+const attributeExcludeName = ""
+
+// attributeExcludeValue is not used on Windows.
+const attributeExcludeValue = ""
+
 func excludedByAttribute(attirbutes map[string][]byte) bool {
 	return false
 }
