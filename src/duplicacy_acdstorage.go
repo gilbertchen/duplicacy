@@ -95,10 +95,47 @@ func (storage *ACDStorage) deletePathID(path string) {
 // ACD doesn't support file renaming. Instead, it only allows one file to be moved from one directory to another.
 // By adding a layer of path conversion we're pretending that we can rename between 'chunks/id' and 'chunks/id.fsl'
 func (storage *ACDStorage) convertFilePath(filePath string) string {
-	if strings.HasPrefix(filePath, "chunks/") && strings.HasSuffix(filePath, ".fsl") {
-		return "fossils/" + filePath[len("chunks/"):len(filePath)-len(".fsl")]
+	if strings.HasSuffix(filePath, ".fsl") {
+		if strings.HasPrefix(filePath, chunkDir) {
+			return fossilDirName + "/" + filePath[len(chunkDir):len(filePath)-len(".fsl")]
+		}
+		if strings.HasPrefix(filePath, metadataDir) {
+			return metadataFossilDirName + "/" + filePath[len(metadataDir):len(filePath)-len(".fsl")]
+		}
 	}
 	return filePath
+}
+
+// SetNestingLevels creates the metadata directories and adds them to the id cache if metadata chunks are
+// stored separately.
+func (storage *ACDStorage) SetNestingLevels(config *Config) {
+	storage.StorageBase.SetNestingLevels(config)
+
+	if !storage.separateMetadata {
+		return
+	}
+
+	rootID := storage.getPathID("")
+	for _, dir := range []string{metadataDirName, metadataFossilDirName} {
+		dirID, isDir, _, err := storage.client.ListByName(rootID, dir)
+		if err != nil {
+			LOG_WARN("STORAGE_NESTING", "Failed to look up the directory %s: %v", dir, err)
+			return
+		}
+		if dirID == "" {
+			// CreateDirectory adds the new directory to the id cache
+			err = storage.CreateDirectory(0, dir)
+			if err != nil {
+				LOG_WARN("STORAGE_NESTING", "Failed to create the directory %s: %v", dir, err)
+				return
+			}
+			continue
+		} else if !isDir {
+			LOG_ERROR("STORAGE_NESTING", "%s is not a directory", dir)
+			return
+		}
+		storage.savePathID(dir, dirID)
+	}
 }
 
 // getIDFromPath returns the id of the given path.  If 'createDirectories' is true, create the given path and all its
@@ -228,7 +265,12 @@ func (storage *ACDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 	} else {
 		files := []string{}
 		sizes := []int64{}
-		parents := []string{"chunks", "fossils"}
+		chunkParent, fossilParent := chunkDirName, fossilDirName
+		if IsMetadataDirectory(dir) {
+			chunkParent, fossilParent = metadataDirName, metadataFossilDirName
+		}
+
+		parents := []string{chunkParent, fossilParent}
 		for i := 0; i < len(parents); i++ {
 			parent := parents[i]
 			pathID, ok := storage.findPathID(parent)
@@ -242,12 +284,12 @@ func (storage *ACDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 			for _, entry := range entries {
 				if entry.Kind != "FOLDER" {
 					name := entry.Name
-					if strings.HasPrefix(parent, "fossils") {
+					if strings.HasPrefix(parent, fossilParent) {
 						name = parent + "/" + name + ".fsl"
-						name = name[len("fossils/"):]
+						name = name[len(fossilParent)+1:]
 					} else {
 						name = parent + "/" + name
-						name = name[len("chunks/"):]
+						name = name[len(chunkParent)+1:]
 					}
 					files = append(files, name)
 					sizes = append(sizes, entry.Size)

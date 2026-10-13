@@ -250,6 +250,15 @@ func TestBackupManager(t *testing.T) {
 		}
 	}
 
+	if *testSeparateMetadata {
+		// The 'nesting' file must exist before the storage is loaded by CreateBackupManager below
+		err = storage.UploadFile(0, "nesting", []byte(`{"read-levels":[1],"write-level":1,"separate-metadata":true}`))
+		if err != nil {
+			t.Errorf("Failed to upload the nesting file: %v", err)
+			return
+		}
+	}
+
 	time.Sleep(time.Duration(delay) * time.Second)
 
 	SetDuplicacyPreferencePath(testDir + "/repository1/.duplicacy")

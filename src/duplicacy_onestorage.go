@@ -72,10 +72,26 @@ func CreateOneDriveStorage(tokenFile string, isBusiness bool, storagePath string
 }
 
 func (storage *OneDriveStorage) convertFilePath(filePath string) string {
-	if strings.HasPrefix(filePath, "chunks/") && strings.HasSuffix(filePath, ".fsl") {
-		return "fossils/" + filePath[len("chunks/"):len(filePath)-len(".fsl")]
+	if strings.HasSuffix(filePath, ".fsl") {
+		if strings.HasPrefix(filePath, chunkDir) {
+			return fossilDirName + "/" + filePath[len(chunkDir):len(filePath)-len(".fsl")]
+		}
+		if strings.HasPrefix(filePath, metadataDir) {
+			return metadataFossilDirName + "/" + filePath[len(metadataDir):len(filePath)-len(".fsl")]
+		}
 	}
 	return filePath
+}
+
+// SetNestingLevels creates the directory holding metadata fossils if metadata chunks are stored separately.
+func (storage *OneDriveStorage) SetNestingLevels(config *Config) {
+	storage.StorageBase.SetNestingLevels(config)
+	if storage.separateMetadata {
+		err := storage.CreateDirectory(0, metadataFossilDirName)
+		if err != nil {
+			LOG_WARN("STORAGE_NESTING", "Failed to create the directory %s: %v", metadataFossilDirName, err)
+		}
+	}
 }
 
 // ListFiles return the list of files and subdirectories under 'dir' (non-recursively)
@@ -115,7 +131,12 @@ func (storage *OneDriveStorage) ListFiles(threadIndex int, dir string) ([]string
 	} else {
 		files := []string{}
 		sizes := []int64{}
-		parents := []string{"chunks", "fossils"}
+		chunkParent, fossilParent := chunkDirName, fossilDirName
+		if IsMetadataDirectory(dir) {
+			chunkParent, fossilParent = metadataDirName, metadataFossilDirName
+		}
+
+		parents := []string{chunkParent, fossilParent}
 		for i := 0; i < len(parents); i++ {
 			parent := parents[i]
 			entries, err := storage.client.ListEntries(storage.storageDir + "/" + parent)
@@ -126,12 +147,12 @@ func (storage *OneDriveStorage) ListFiles(threadIndex int, dir string) ([]string
 			for _, entry := range entries {
 				if len(entry.Folder) == 0 {
 					name := entry.Name
-					if strings.HasPrefix(parent, "fossils") {
+					if strings.HasPrefix(parent, fossilParent) {
 						name = parent + "/" + name + ".fsl"
-						name = name[len("fossils/"):]
+						name = name[len(fossilParent)+1:]
 					} else {
 						name = parent + "/" + name
-						name = name[len("chunks/"):]
+						name = name[len(chunkParent)+1:]
 					}
 					files = append(files, name)
 					sizes = append(sizes, entry.Size)

@@ -46,7 +46,7 @@ func (storage *B2Storage) ListFiles(threadIndex int, dir string) (files []string
 	length := len(dir) + 1
 
 	includeVersions := false
-	if dir == "chunks" {
+	if IsChunkDirectory(dir) {
 		includeVersions = true
 	}
 
@@ -68,7 +68,7 @@ func (storage *B2Storage) ListFiles(threadIndex int, dir string) (files []string
 		for subDir := range subDirs {
 			files = append(files, subDir)
 		}
-	} else if dir == "chunks" {
+	} else if IsChunkDirectory(dir) {
 		lastFile := ""
 		for _, entry := range entries {
 			if entry.FileName == lastFile {

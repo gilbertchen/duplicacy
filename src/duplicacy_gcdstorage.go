@@ -141,10 +141,26 @@ func (storage *GCDStorage) shouldRetry(threadIndex int, err error) (bool, error)
 // GCD doesn't support file renaming. Instead, it only allows one file to be moved from one directory to another.
 // By adding a layer of path conversion we're pretending that we can rename between 'chunks/id' and 'chunks/id.fsl'
 func (storage *GCDStorage) convertFilePath(filePath string) string {
-	if strings.HasPrefix(filePath, "chunks/") && strings.HasSuffix(filePath, ".fsl") {
-		return "fossils/" + filePath[len("chunks/"):len(filePath)-len(".fsl")]
+	if strings.HasSuffix(filePath, ".fsl") {
+		if strings.HasPrefix(filePath, chunkDir) {
+			return fossilDirName + "/" + filePath[len(chunkDir):len(filePath)-len(".fsl")]
+		}
+		if strings.HasPrefix(filePath, metadataDir) {
+			return metadataFossilDirName + "/" + filePath[len(metadataDir):len(filePath)-len(".fsl")]
+		}
 	}
 	return filePath
+}
+
+// SetNestingLevels creates the directory holding metadata fossils if metadata chunks are stored separately.
+func (storage *GCDStorage) SetNestingLevels(config *Config) {
+	storage.StorageBase.SetNestingLevels(config)
+	if storage.separateMetadata {
+		err := storage.CreateDirectory(0, metadataFossilDirName)
+		if err != nil {
+			LOG_WARN("STORAGE_NESTING", "Failed to create the directory %s: %v", metadataFossilDirName, err)
+		}
+	}
 }
 
 func (storage *GCDStorage) getPathID(path string) string {
@@ -543,7 +559,12 @@ func (storage *GCDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 		directoryChannel := make(chan string)
 		activeWorkers := 0
 
-		parents := []string{"chunks", "fossils"}
+		chunkParent, fossilParent := chunkDirName, fossilDirName
+		if IsMetadataDirectory(dir) {
+			chunkParent, fossilParent = metadataDirName, metadataFossilDirName
+		}
+
+		parents := []string{chunkParent, fossilParent}
 		for len(parents) > 0 || activeWorkers > 0 {
 
 			if len(parents) > 0 && activeWorkers < storage.numberOfThreads {
@@ -568,12 +589,12 @@ func (storage *GCDStorage) ListFiles(threadIndex int, dir string) ([]string, []i
 					for _, entry := range entries {
 						if entry.MimeType != GCDDirectoryMimeType {
 							name := entry.Name
-							if strings.HasPrefix(parent, "fossils") {
+							if strings.HasPrefix(parent, fossilParent) {
 								name = parent + "/" + name + ".fsl"
-								name = name[len("fossils/"):]
+								name = name[len(fossilParent)+1:]
 							} else {
 								name = parent + "/" + name
-								name = name[len("chunks/"):]
+								name = name[len(chunkParent)+1:]
 							}
 							files = append(files, name)
 							sizes = append(sizes, entry.Size)

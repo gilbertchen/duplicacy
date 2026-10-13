@@ -80,7 +80,7 @@ func (storage *S3CStorage) ListFiles(threadIndex int, dir string) (files []strin
 			files = append(files, subDir[dirLength:])
 		}
 		return files, nil, nil
-	} else if dir == "chunks/" {
+	} else if IsChunkDirectory(dir) {
 		marker := ""
 		for {
 			results, err := storage.buckets[threadIndex].List(storage.storageDir+dir, "", marker, 1000)

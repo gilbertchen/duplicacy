@@ -29,7 +29,8 @@ type ChunkTask struct {
 	chunkIndex int    // The chunk index
 	filePath   string // The path of the chunk file; it may be empty
 
-	isMetadata bool
+	isMetadata bool // The chunk is a metadata chunk rather than a file chunk
+	skipCache  bool // Bypass the snapshot cache, i.e., read the chunk from the storage itself
 	chunk      *Chunk
 
 	completionFunc func(chunk *Chunk, chunkIndex int)
@@ -123,7 +124,7 @@ func (operator *ChunkOperator) WaitForCompletion() {
 	}
 }
 
-func (operator *ChunkOperator) AddTask(operation int, chunkID string, chunkHash string, filePath string, chunkIndex int, chunk *Chunk, isMetadata bool, completionFunc func(*Chunk, int))  {
+func (operator *ChunkOperator) AddTask(operation int, chunkID string, chunkHash string, filePath string, chunkIndex int, chunk *Chunk, isMetadata bool, skipCache bool, completionFunc func(*Chunk, int))  {
 
 	task := ChunkTask {
 		operation:  operation,
@@ -133,6 +134,7 @@ func (operator *ChunkOperator) AddTask(operation int, chunkID string, chunkHash 
 		filePath:   filePath,
 		chunk:      chunk,
 		isMetadata: isMetadata,
+		skipCache:  skipCache,
 		completionFunc: completionFunc,
 	}
 
@@ -143,36 +145,52 @@ func (operator *ChunkOperator) AddTask(operation int, chunkID string, chunkHash 
 }
 
 func (operator *ChunkOperator) Download(chunkHash string, chunkIndex int, isMetadata bool) *Chunk {
+	return operator.download(chunkHash, chunkIndex, isMetadata, false)
+}
+
+// DownloadFromStorage downloads a chunk from the storage, bypassing the snapshot cache.  This is needed when
+// the copy of the chunk in the storage is to be verified.
+func (operator *ChunkOperator) DownloadFromStorage(chunkHash string, chunkIndex int, isMetadata bool) *Chunk {
+	return operator.download(chunkHash, chunkIndex, isMetadata, true)
+}
+
+func (operator *ChunkOperator) download(chunkHash string, chunkIndex int, isMetadata bool, skipCache bool) *Chunk {
 	chunkID := operator.config.GetChunkIDFromHash(chunkHash)
 	completionChannel := make(chan *Chunk)
 	completionFunc := func(chunk *Chunk, chunkIndex int) {
 		completionChannel <- chunk
 	}
-	operator.AddTask(ChunkOperationDownload, chunkID, chunkHash, "", chunkIndex, nil, isMetadata, completionFunc)
+	operator.AddTask(ChunkOperationDownload, chunkID, chunkHash, "", chunkIndex, nil, isMetadata, skipCache, completionFunc)
 	return <- completionChannel
 }
 
 func (operator *ChunkOperator) DownloadAsync(chunkHash string, chunkIndex int, isMetadata bool, completionFunc func(*Chunk, int)) {
 	chunkID := operator.config.GetChunkIDFromHash(chunkHash)
-	operator.AddTask(ChunkOperationDownload, chunkID, chunkHash, "", chunkIndex, nil, isMetadata, completionFunc)
+	operator.AddTask(ChunkOperationDownload, chunkID, chunkHash, "", chunkIndex, nil, isMetadata, false, completionFunc)
 }
 
 func (operator *ChunkOperator) Upload(chunk *Chunk, chunkIndex int, isMetadata bool) {
 	chunkHash := chunk.GetHash()
 	chunkID := operator.config.GetChunkIDFromHash(chunkHash)
-	operator.AddTask(ChunkOperationUpload, chunkID, chunkHash, "", chunkIndex, chunk, isMetadata, nil)
+	operator.AddTask(ChunkOperationUpload, chunkID, chunkHash, "", chunkIndex, chunk, isMetadata, false, nil)
 }
 
-func (operator *ChunkOperator) Delete(chunkID string, filePath string) {
-	operator.AddTask(ChunkOperationDelete, chunkID, "", filePath, 0, nil, false, nil)
+// Delete deletes the chunk file at 'filePath'.  If 'filePath' is empty the chunk will be located by its id,
+// under the metadata directory if 'isMetadata' is true.
+func (operator *ChunkOperator) Delete(chunkID string, filePath string, isMetadata bool) {
+	operator.AddTask(ChunkOperationDelete, chunkID, "", filePath, 0, nil, isMetadata, false, nil)
 }
 
-func (operator *ChunkOperator) Fossilize(chunkID string, filePath string) {
-	operator.AddTask(ChunkOperationFossilize, chunkID, "", filePath, 0, nil, false, nil)
+// Fossilize turns the chunk file at 'filePath' into a fossil.  If 'filePath' is empty the chunk will be
+// located by its id, under the metadata directory if 'isMetadata' is true.
+func (operator *ChunkOperator) Fossilize(chunkID string, filePath string, isMetadata bool) {
+	operator.AddTask(ChunkOperationFossilize, chunkID, "", filePath, 0, nil, isMetadata, false, nil)
 }
 
+// Resurrect turns the fossil at 'filePath' back into a chunk.  The chunk is restored to the directory the
+// fossil resides in.
 func (operator *ChunkOperator) Resurrect(chunkID string, filePath string) {
-	operator.AddTask(ChunkOperationResurrect, chunkID, "", filePath, 0, nil, false, nil)
+	operator.AddTask(ChunkOperationResurrect, chunkID, "", filePath, 0, nil, IsMetadataChunkPath(filePath), false, nil)
 }
 
 func (operator *ChunkOperator) Run(threadIndex int, task ChunkTask) {
@@ -191,7 +209,7 @@ func (operator *ChunkOperator) Run(threadIndex int, task ChunkTask) {
 	// task.filePath may be empty.  If so, find the chunk first.
 	if task.operation == ChunkOperationDelete || task.operation == ChunkOperationFossilize {
 		if task.filePath == "" {
-			filePath, exist, _, err := operator.storage.FindChunk(threadIndex, task.chunkID, false)
+			filePath, exist, _, err := operator.storage.FindChunk(threadIndex, task.chunkID, false, task.isMetadata)
 			if err != nil {
 				LOG_ERROR("CHUNK_FIND", "Failed to locate the path for the chunk %s: %v", task.chunkID, err)
 				return
@@ -201,7 +219,7 @@ func (operator *ChunkOperator) Run(threadIndex int, task ChunkTask) {
 					return
 				}
 
-				fossilPath, exist, _, _ := operator.storage.FindChunk(threadIndex, task.chunkID, true)
+				fossilPath, exist, _, _ := operator.storage.FindChunk(threadIndex, task.chunkID, true, task.isMetadata)
 				if exist {
 					LOG_WARN("CHUNK_FOSSILIZE", "Chunk %s is already a fossil", task.chunkID)
 					operator.collectionLock.Lock()
@@ -217,7 +235,7 @@ func (operator *ChunkOperator) Run(threadIndex int, task ChunkTask) {
 	}
 
 	if task.operation == ChunkOperationFind {
-		_, exist, _, err := operator.storage.FindChunk(threadIndex, task.chunkID, false)
+		_, exist, _, err := operator.storage.FindChunk(threadIndex, task.chunkID, false, task.isMetadata)
 		if err != nil {
 			LOG_ERROR("CHUNK_FIND", "Failed to locate the path for the chunk %s: %v", task.chunkID, err)
 		} else if !exist {
@@ -242,7 +260,7 @@ func (operator *ChunkOperator) Run(threadIndex int, task ChunkTask) {
 
 		err := operator.storage.MoveFile(threadIndex, task.filePath, fossilPath)
 		if err != nil {
-			if _, exist, _, _ := operator.storage.FindChunk(threadIndex, task.chunkID, true); exist {
+			if _, exist, _, _ := operator.storage.FindChunk(threadIndex, task.chunkID, true, task.isMetadata); exist {
 				err := operator.storage.DeleteFile(threadIndex, task.filePath)
 				if err == nil {
 					LOG_TRACE("CHUNK_DELETE", "Deleted chunk file %s as the fossil already exists", task.chunkID)
@@ -260,7 +278,7 @@ func (operator *ChunkOperator) Run(threadIndex int, task ChunkTask) {
 			operator.collectionLock.Unlock()
 		}
 	} else if task.operation == ChunkOperationResurrect {
-		chunkPath, exist, _, err := operator.storage.FindChunk(threadIndex, task.chunkID, false)
+		chunkPath, exist, _, err := operator.storage.FindChunk(threadIndex, task.chunkID, false, task.isMetadata)
 		if err != nil {
 			LOG_ERROR("CHUNK_FIND", "Failed to locate the path for the chunk %s: %v", task.chunkID, err)
 		}
@@ -294,7 +312,7 @@ func (operator *ChunkOperator) DownloadChunk(threadIndex int, task ChunkTask) {
 		}
 	} ()
 
-	if task.isMetadata && operator.snapshotCache != nil {
+	if task.isMetadata && operator.snapshotCache != nil && !task.skipCache {
 
 		var exist bool
 		var err error
@@ -302,7 +320,7 @@ func (operator *ChunkOperator) DownloadChunk(threadIndex int, task ChunkTask) {
 		// Reset the chunk with a hasher -- we're reading from the cache where chunk are not encrypted or compressed
 		chunk.Reset(true)
 
-		cachedPath, exist, _, err = operator.snapshotCache.FindChunk(threadIndex, chunkID, false)
+		cachedPath, exist, _, err = operator.snapshotCache.FindChunk(threadIndex, chunkID, false, task.isMetadata)
 		if err != nil {
 			LOG_WARN("DOWNLOAD_CACHE", "Failed to find the cache path for the chunk %s: %v", chunkID, err)
 		} else if exist {
@@ -351,7 +369,7 @@ func (operator *ChunkOperator) DownloadChunk(threadIndex int, task ChunkTask) {
 		var err error
 
 		// Find the chunk by ID first.
-		chunkPath, exist, _, err = operator.storage.FindChunk(threadIndex, chunkID, false)
+		chunkPath, exist, _, err = operator.storage.FindChunk(threadIndex, chunkID, false, task.isMetadata)
 		if err != nil {
 			completeFailedChunk()
 			LOG_WERROR(operator.allowFailures, "DOWNLOAD_CHUNK", "Failed to find the chunk %s: %v", chunkID, err)
@@ -362,7 +380,7 @@ func (operator *ChunkOperator) DownloadChunk(threadIndex int, task ChunkTask) {
 			filePath = chunkPath
 		} else {
 			// No chunk is found.  Have to find it in the fossil pool again.
-			fossilPath, exist, _, err = operator.storage.FindChunk(threadIndex, chunkID, true)
+			fossilPath, exist, _, err = operator.storage.FindChunk(threadIndex, chunkID, true, task.isMetadata)
 			if err != nil {
 				completeFailedChunk()
 				LOG_WERROR(operator.allowFailures, "DOWNLOAD_CHUNK", "Failed to find the chunk %s: %v", chunkID, err)
@@ -526,7 +544,7 @@ func (operator *ChunkOperator) UploadChunk(threadIndex int, task ChunkTask) bool
 
 	if task.isMetadata && operator.snapshotCache != nil && operator.storage.IsCacheNeeded() {
 		// Save a copy to the local snapshot.
-		chunkPath, exist, _, err := operator.snapshotCache.FindChunk(threadIndex, chunkID, false)
+		chunkPath, exist, _, err := operator.snapshotCache.FindChunk(threadIndex, chunkID, false, task.isMetadata)
 		if err != nil {
 			LOG_WARN("UPLOAD_CACHE", "Failed to find the cache path for the chunk %s: %v", chunkID, err)
 		} else if exist {
@@ -539,7 +557,7 @@ func (operator *ChunkOperator) UploadChunk(threadIndex int, task ChunkTask) bool
 	}
 
 	// This returns the path the chunk file should be at.
-	chunkPath, exist, _, err := operator.storage.FindChunk(threadIndex, chunkID, false)
+	chunkPath, exist, _, err := operator.storage.FindChunk(threadIndex, chunkID, false, task.isMetadata)
 	if err != nil {
 		LOG_ERROR("UPLOAD_CHUNK", "Failed to find the path for the chunk %s: %v", chunkID, err)
 		return false

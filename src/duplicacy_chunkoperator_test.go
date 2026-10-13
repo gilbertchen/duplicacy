@@ -108,7 +108,7 @@ func TestChunkOperator(t *testing.T) {
 	chunkOperator.Stop()
 
 	for _, file := range listChunks(storage) {
-		err = storage.DeleteFile(0, "chunks/"+file)
+		err = storage.DeleteFile(0, file)
 		if err != nil {
 			t.Errorf("Failed to delete the file %s: %v", file, err)
 			return

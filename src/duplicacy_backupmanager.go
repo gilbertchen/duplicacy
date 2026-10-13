@@ -189,7 +189,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 	// put them in the cache.
 	if (manager.storage.IsFastListing() && remoteSnapshot.Revision == 0) {
 		LOG_INFO("BACKUP_LIST", "Listing all chunks")
-		allChunks, _ := manager.SnapshotManager.ListAllFiles(manager.storage, "chunks/")
+		allChunks, _ := manager.SnapshotManager.ListAllFiles(manager.storage, chunkDir)
 
 		for _, chunk := range allChunks {
 			if len(chunk) == 0 || chunk[len(chunk)-1] == '/' {
@@ -1652,8 +1652,8 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 	}
 
 	// These two maps store hashes of chunks in the source and destination storages, respectively.  Note that
-	// the value of 'chunks' is used to indicate if the chunk is a snapshot chunk, while the value of 'otherChunks'
-	// is not used.
+	// the value of 'chunks' is used to indicate if the chunk is a snapshot chunk, while 'otherChunks' is keyed
+	// by the chunk directory followed by the chunk id and its value is not used.
 	chunks := make(map[string]bool)
 	otherChunks := make(map[string]bool)
 
@@ -1694,27 +1694,31 @@ func (manager *BackupManager) CopySnapshots(otherManager *BackupManager, snapsho
 		snapshot.ChunkHashes = nil
 	}
 
-	otherChunkFiles, otherChunkSizes := otherManager.SnapshotManager.ListAllFiles(otherManager.storage, "chunks/")
+	for _, dir := range otherManager.storage.GetChunkDirectories() {
+		otherChunkFiles, otherChunkSizes := otherManager.SnapshotManager.ListAllFiles(otherManager.storage, dir)
 
-	for i, otherChunkID := range otherChunkFiles {
-		otherChunkID = strings.Replace(otherChunkID, "/", "", -1)
-		if len(otherChunkID) != 64 {
-			continue
+		for i, otherChunkID := range otherChunkFiles {
+			otherChunkID = strings.Replace(otherChunkID, "/", "", -1)
+			if len(otherChunkID) != 64 {
+				continue
+			}
+			if otherChunkSizes[i] == 0 {
+				LOG_DEBUG("SNAPSHOT_COPY", "Chunk %s has length = 0", otherChunkID)
+				continue
+			}
+			// A chunk already stored as a file chunk at the destination can't be reused as a metadata chunk (and
+			// vice versa) when metadata chunks are stored separately, so the directory is part of the key
+			otherChunks[dir+otherChunkID] = false
 		}
-		if otherChunkSizes[i] == 0 {
-			LOG_DEBUG("SNAPSHOT_COPY", "Chunk %s has length = 0", otherChunkID)
-			continue
-		}
-		otherChunks[otherChunkID] = false
 	}
 
 	LOG_DEBUG("SNAPSHOT_COPY", "Found %d chunks on destination storage", len(otherChunks))
 
 	var chunksToCopy []string
 
-	for chunkHash := range chunks {
+	for chunkHash, isMetadata := range chunks {
 		otherChunkID := otherManager.config.GetChunkIDFromHash(chunkHash)
-		if _, found := otherChunks[otherChunkID]; !found {
+		if _, found := otherChunks[otherManager.storage.GetChunkDirectory(isMetadata)+otherChunkID]; !found {
 			chunksToCopy = append(chunksToCopy, chunkHash)
 		}
 	}

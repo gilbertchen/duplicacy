@@ -39,8 +39,16 @@ type Storage interface {
 	GetFileInfo(threadIndex int, filePath string) (exist bool, isDir bool, size int64, err error)
 
 	// FindChunk finds the chunk with the specified id.  If 'isFossil' is true, it will search for chunk files with
-	// the suffix '.fsl'.
-	FindChunk(threadIndex int, chunkID string, isFossil bool) (filePath string, exist bool, size int64, err error)
+	// the suffix '.fsl'.  'isMetadata' indicates whether the chunk is a metadata chunk, which determines the
+	// top-level directory to search when metadata chunks are stored separately.
+	FindChunk(threadIndex int, chunkID string, isFossil bool, isMetadata bool) (filePath string, exist bool, size int64, err error)
+
+	// GetChunkDirectory returns the top-level directory where a chunk of the given kind is stored.
+	GetChunkDirectory(isMetadata bool) string
+
+	// GetChunkDirectories returns the top-level directories where chunks are stored.  This is normally just
+	// 'chunks/', plus 'metadata/' if metadata chunks are stored separately.
+	GetChunkDirectories() []string
 
 	// DownloadFile reads the file at 'filePath' into the chunk.
 	DownloadFile(threadIndex int, filePath string, chunk *Chunk) (err error)
@@ -71,6 +79,46 @@ type Storage interface {
 	SetRateLimits(downloadRateLimit int, uploadRateLimit int)
 }
 
+// These are the top-level directories where chunks are stored.  Normally every chunk goes under 'chunks', but
+// if the 'nesting' file turns on the 'separate-metadata' option then metadata chunks will be stored under
+// 'metadata' instead, so that a different (usually cheaper and slower) storage class can be applied to
+// 'chunks' alone without affecting operations that only need metadata chunks.
+//
+// 'fossils' and 'metadata-fossils' are the directories used by storages that can't rename a file in place and
+// therefore move the file to a parallel directory instead of appending the '.fsl' suffix.
+const (
+	chunkDirName          = "chunks"
+	metadataDirName       = "metadata"
+	fossilDirName         = "fossils"
+	metadataFossilDirName = "metadata-fossils"
+
+	chunkDir    = chunkDirName + "/"
+	metadataDir = metadataDirName + "/"
+
+	// Metadata chunks are always stored at nesting level 1 (i.e., under 256 subdirectories of 'metadata/'),
+	// regardless of the levels configured for 'chunks/'
+	metadataNestingLevel = 1
+)
+
+// IsChunkDirectory returns true if 'dir' is one of the top-level directories where chunks are stored.  The
+// trailing '/' is optional.
+func IsChunkDirectory(dir string) bool {
+	dir = strings.TrimSuffix(dir, "/")
+	return dir == chunkDirName || dir == metadataDirName
+}
+
+// IsMetadataDirectory returns true if 'dir' is the top-level directory where metadata chunks are stored.  The
+// trailing '/' is optional.
+func IsMetadataDirectory(dir string) bool {
+	return strings.TrimSuffix(dir, "/") == metadataDirName
+}
+
+// IsMetadataChunkPath returns true if 'filePath' refers to a chunk (or a fossil) stored under the metadata
+// directory.
+func IsMetadataChunkPath(filePath string) bool {
+	return strings.HasPrefix(filePath, metadataDir)
+}
+
 // StorageBase is the base struct from which all storages are derived from
 type StorageBase struct {
 	DownloadRateLimit int // Maximum download rate (bytes/seconds)
@@ -80,6 +128,24 @@ type StorageBase struct {
 
 	readLevels []int // At which nesting level to find the chunk with the given id
 	writeLevel int   // Store the uploaded chunk to this level
+
+	separateMetadata bool // Store metadata chunks under 'metadata/' rather than 'chunks/'
+}
+
+// GetChunkDirectory returns the top-level directory under which a chunk of the given kind is stored.
+func (storage *StorageBase) GetChunkDirectory(isMetadata bool) string {
+	if isMetadata && storage.separateMetadata {
+		return metadataDir
+	}
+	return chunkDir
+}
+
+// GetChunkDirectories returns the top-level directories where chunks are stored.
+func (storage *StorageBase) GetChunkDirectories() []string {
+	if storage.separateMetadata {
+		return []string{chunkDir, metadataDir}
+	}
+	return []string{chunkDir}
 }
 
 // SetRateLimits sets the maximum download and upload rates
@@ -97,7 +163,8 @@ func (storage *StorageBase) SetDefaultNestingLevels(readLevels []int, writeLevel
 }
 
 // SetNestingLevels sets the new read and write levels (normally both at 1) if the 'config' file has
-// the 'fixed-nesting' key, or if a file named 'nesting' exists on the storage.
+// the 'fixed-nesting' key, or if a file named 'nesting' exists on the storage.  The 'nesting' file may also
+// turn on the 'separate-metadata' option to store metadata chunks under their own top-level directory.
 func (storage *StorageBase) SetNestingLevels(config *Config) {
 
 	// 'FixedNesting' is true only for the 'config' file with the new format (2.0.10+)
@@ -111,12 +178,14 @@ func (storage *StorageBase) SetNestingLevels(config *Config) {
 			nestingFile := CreateChunk(CreateConfig(), true)
 			if storage.DerivedStorage.DownloadFile(0, "nesting", nestingFile) == nil {
 				var nesting struct {
-					ReadLevels []int `json:"read-levels"`
-					WriteLevel int   `json:"write-level"`
+					ReadLevels       []int `json:"read-levels"`
+					WriteLevel       int   `json:"write-level"`
+					SeparateMetadata bool  `json:"separate-metadata"`
 				}
 				if json.Unmarshal(nestingFile.GetBytes(), &nesting) == nil {
 					storage.readLevels = nesting.ReadLevels
 					storage.writeLevel = nesting.WriteLevel
+					storage.separateMetadata = nesting.SeparateMetadata
 				}
 			}
 		}
@@ -124,6 +193,17 @@ func (storage *StorageBase) SetNestingLevels(config *Config) {
 		if len(storage.readLevels) == 0 {
 			storage.readLevels = []int{1}
 			storage.writeLevel = 1
+		}
+	}
+
+	if storage.separateMetadata {
+		LOG_DEBUG("STORAGE_NESTING", "Metadata chunks are stored under %s", metadataDir)
+		// The directory must exist before the first metadata chunk is uploaded, since not every storage
+		// creates intermediate directories on upload.  A failure here isn't fatal -- operations that only
+		// read chunks don't need the directory and may not even have the permission to create it.
+		err := storage.DerivedStorage.CreateDirectory(0, metadataDir)
+		if err != nil {
+			LOG_WARN("STORAGE_NESTING", "Failed to create the directory %s: %v", metadataDir, err)
 		}
 	}
 
@@ -137,10 +217,35 @@ func (storage *StorageBase) SetNestingLevels(config *Config) {
 }
 
 // FindChunk finds the chunk with the specified id at the levels one by one as specified by 'readLevels'.
-func (storage *StorageBase) FindChunk(threadIndex int, chunkID string, isFossil bool) (filePath string, exist bool, size int64, err error) {
+func (storage *StorageBase) FindChunk(threadIndex int, chunkID string, isFossil bool, isMetadata bool) (filePath string, exist bool, size int64, err error) {
+
+	filePath, exist, size, err = storage.findChunkUnderDirectory(threadIndex, chunkID, isFossil, storage.GetChunkDirectory(isMetadata))
+	if exist || err != nil || !isMetadata || !storage.separateMetadata {
+		return filePath, exist, size, err
+	}
+
+	// A metadata chunk uploaded before the storage was switched to storing metadata chunks separately is still
+	// under the chunk directory, so look there too before concluding that the chunk doesn't exist.  Note that
+	// 'filePath' is left unchanged, since that is where a new metadata chunk must be uploaded to.
+	otherPath, exist, size, err := storage.findChunkUnderDirectory(threadIndex, chunkID, isFossil, chunkDir)
+	if !exist || err != nil {
+		return filePath, false, 0, err
+	}
+	return otherPath, true, size, nil
+}
+
+// findChunkUnderDirectory looks for the chunk under the given top-level directory at the levels one by one as
+// specified by 'readLevels', or only at 'metadataNestingLevel' if the directory is the metadata directory.
+// If the chunk isn't found, the path returned is the one the chunk should be uploaded to.
+func (storage *StorageBase) findChunkUnderDirectory(threadIndex int, chunkID string, isFossil bool, topDir string) (filePath string, exist bool, size int64, err error) {
+	readLevels, writeLevel := storage.readLevels, storage.writeLevel
+	if topDir == metadataDir {
+		readLevels, writeLevel = []int{metadataNestingLevel}, metadataNestingLevel
+	}
+
 	chunkPaths := make([]string, 0)
-	for _, level := range storage.readLevels {
-		chunkPath := "chunks/"
+	for _, level := range readLevels {
+		chunkPath := topDir
 		for i := 0; i < level; i++ {
 			chunkPath += chunkID[2*i:2*i+2] + "/"
 		}
@@ -154,8 +259,8 @@ func (storage *StorageBase) FindChunk(threadIndex int, chunkID string, isFossil 
 		}
 		chunkPaths = append(chunkPaths, chunkPath)
 	}
-	for i, level := range storage.readLevels {
-		if storage.writeLevel == level {
+	for i, level := range readLevels {
+		if writeLevel == level {
 			return chunkPaths[i], false, 0, nil
 		}
 	}
