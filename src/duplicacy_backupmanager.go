@@ -614,7 +614,7 @@ func (manager *BackupManager) Backup(top string, quickMode bool, threads int, ta
 		}
 
 		skipped += " not included due to access errors"
-		LOG_WARN("BACKUP_SKIPPED", skipped)
+		LOG_WARN("BACKUP_SKIPPED", "%s", skipped)
 	}
 
 	chunkOperator.Stop()

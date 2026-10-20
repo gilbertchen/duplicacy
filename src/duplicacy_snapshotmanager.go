@@ -1276,7 +1276,7 @@ func (manager *SnapshotManager) ShowStatisticsTabular(snapshotMap map[string][]*
 			snapshotID, totalChunkCount, PrettyNumber(totalChunkSize), uniqueChunkCount, PrettyNumber(uniqueChunkSize)))
 	}
 	tableWriter.Flush()
-	LOG_INFO("SNAPSHOT_CHECK", tableBuffer.String())
+	LOG_INFO("SNAPSHOT_CHECK", "%s", tableBuffer.String())
 }
 
 // ConvertSequence converts a sequence of chunk hashes into a sequence of chunk ids.

@@ -395,7 +395,8 @@ func TestBackupManager(t *testing.T) {
 
 // Create file with random file with certain seed
 func createRandomFileSeeded(path string, maxSize int, seed int64) {
-	rand.Seed(seed)
+	// rand.Seed is a no-op since Go 1.24, so use a local generator to get deterministic output
+	random := rand.New(rand.NewSource(seed))
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		LOG_ERROR("RANDOM_FILE", "Can't open %s for writing: %v", path, err)
@@ -404,7 +405,7 @@ func createRandomFileSeeded(path string, maxSize int, seed int64) {
 
 	defer file.Close()
 
-	size := maxSize/2 + rand.Int()%(maxSize/2)
+	size := maxSize/2 + random.Int()%(maxSize/2)
 
 	buffer := make([]byte, 32*1024)
 	for size > 0 {
@@ -412,7 +413,7 @@ func createRandomFileSeeded(path string, maxSize int, seed int64) {
 		if bytes > cap(buffer) {
 			bytes = cap(buffer)
 		}
-		rand.Read(buffer[:bytes])
+		random.Read(buffer[:bytes])
 		bytes, err = file.Write(buffer[:bytes])
 		if err != nil {
 			LOG_ERROR("RANDOM_FILE", "Failed to write to %s: %v", path, err)
@@ -423,7 +424,7 @@ func createRandomFileSeeded(path string, maxSize int, seed int64) {
 }
 
 func corruptFile(path string, start int, length int, seed int64) {
-	rand.Seed(seed)
+	random := rand.New(rand.NewSource(seed))
 
 	file, err := os.OpenFile(path, os.O_WRONLY, 0644)
 	if err != nil {
@@ -444,7 +445,7 @@ func corruptFile(path string, start int, length int, seed int64) {
 	}
 
 	buffer := make([]byte, length)
-	rand.Read(buffer)
+	random.Read(buffer)
 
 	_, err = file.Write(buffer)
 	if err != nil {

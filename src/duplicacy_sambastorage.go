@@ -5,6 +5,7 @@
 package duplicacy
 
 import (
+	"context"
 	"io"
 	"os"
 	"fmt"
@@ -15,7 +16,7 @@ import (
 	"syscall"
 	"math/rand"
 
-	"github.com/hirochachacha/go-smb2"
+	"github.com/cloudsoda/go-smb2"
 )
 
 // SambaStorage is a local on-disk file storage implementing the Storage interface.
@@ -30,7 +31,8 @@ type SambaStorage struct {
 // CreateSambaStorage creates a file storage.
 func CreateSambaStorage(server string, port int, username string, password string, shareName string, storageDir string, threads int) (storage *SambaStorage, err error) {
 
-	connection, err := net.Dial("tcp", fmt.Sprintf("%s:%d", server, port))
+	address := fmt.Sprintf("%s:%d", server, port)
+	connection, err := net.Dial("tcp", address)
 	if err != nil {
 		return nil, err
 	}
@@ -42,7 +44,7 @@ func CreateSambaStorage(server string, port int, username string, password strin
 		},
 	}
 
-	client, err := dialer.Dial(connection)
+	client, err := dialer.DialConn(context.Background(), connection, address)
 	if err != nil {
 		return nil, err
 	}
