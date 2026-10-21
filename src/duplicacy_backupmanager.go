@@ -741,6 +741,24 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 		}
 
 		fullPath := joinPath(top, remoteEntry.Path)
+
+		// A stale symlink on disk where the snapshot has a non-symlink must be removed, not followed:
+		// the handlers below open the destination without O_NOFOLLOW, so a leftover symlink would be
+		// followed and the entry written through it to a path outside 'top' (CWE-59).  Replacing it
+		// requires -overwrite, consistent with how restore treats an existing file whose content differs.
+		if lstat, lerr := os.Lstat(fullPath); lerr == nil && lstat.Mode()&os.ModeSymlink != 0 && !remoteEntry.IsLink() {
+			if !overwrite {
+				LOG_WERROR(allowFailures, "RESTORE_OVERWRITE",
+					"%s already exists as a symlink but the snapshot has a different type.  Please specify the -overwrite option to replace it", remoteEntry.Path)
+				continue
+			}
+			if err := os.Remove(fullPath); err != nil {
+				LOG_WERROR(allowFailures, "RESTORE_REMOVE",
+					"Failed to remove the symlink %s before restoring: %v", remoteEntry.Path, err)
+				continue
+			}
+		}
+
 		if remoteEntry.IsLink() {
 			stat, err := os.Lstat(fullPath)
 			if stat != nil {
