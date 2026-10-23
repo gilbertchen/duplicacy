@@ -439,7 +439,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 				}
 			}
 
-			keyFile = GetPassword(preference, "ssh_key_file", "Enter the path of the private key file:",
+			keyFile = GetPassword(preference, "ssh_key_file", "Enter the path of the SSH private key file:",
 				true, resetPassword)
 
 			var keySigner ssh.Signer
@@ -457,7 +457,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 					if err != nil {
 						if _, ok := err.(*ssh.PassphraseMissingError); ok {
 							LOG_TRACE("SSH_PUBLICKEY", "The private key file is encrypted")
-							passphrase = GetPassword(preference, "ssh_passphrase", "Enter the passphrase to decrypt the private key file:", false, resetPassword)
+							passphrase = GetPassword(preference, "ssh_passphrase", "Enter the passphrase to decrypt the SSH private key file:", false, resetPassword)
 							if len(passphrase) == 0 {
 								LOG_INFO("SSH_PUBLICKEY", "No passphrase to descrypt the private key file %s", keyFile)
 							} else {
