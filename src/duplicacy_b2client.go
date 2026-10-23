@@ -38,7 +38,7 @@ type B2UploadArgument struct {
 	Token string
 }
 
-var B2AuthorizationURL = "https://api.backblazeb2.com/b2api/v1/b2_authorize_account"
+var B2AuthorizationURL = "https://api.backblazeb2.com/b2api/v4/b2_authorize_account"
 
 type B2Client struct {
 	HTTPClient         *http.Client
@@ -257,6 +257,12 @@ func (client *B2Client) call(threadIndex int, requestURL string, method string, 
 				return nil, nil, 0, fmt.Errorf("Authorization failure")
 			}
 
+			// The application key isn't allowed to make this request (e.g. it is restricted to other buckets or to a
+			// different file name prefix), so authorizing again won't help
+			if e.Code == "unauthorized" {
+				return nil, nil, 0, fmt.Errorf("URL request '%s' returned %d %s", requestURL, response.StatusCode, e.Message)
+			}
+
 			// Attempt authorization again.  If authorization is actually not done, run the random backoff
 			_, allowed := client.AuthorizeAccount(threadIndex)
 			if allowed {
@@ -291,11 +297,16 @@ func (client *B2Client) call(threadIndex int, requestURL string, method string, 
 
 }
 
+// Since v3, the urls are grouped under apiInfo.storageApi
 type B2AuthorizeAccountOutput struct {
 	AccountID          string
 	AuthorizationToken string
-	APIURL             string
-	DownloadURL        string
+	APIInfo            struct {
+		StorageAPI struct {
+			APIURL      string `json:"apiUrl"`
+			DownloadURL string `json:"downloadUrl"`
+		} `json:"storageApi"`
+	} `json:"apiInfo"`
 }
 
 func (client *B2Client) AuthorizeAccount(threadIndex int) (err error, allowed bool) {
@@ -325,9 +336,9 @@ func (client *B2Client) AuthorizeAccount(threadIndex int) (err error, allowed bo
 	client.AccountID = output.AccountID
 
 	client.AuthorizationToken = output.AuthorizationToken
-	client.APIURL = output.APIURL
+	client.APIURL = output.APIInfo.StorageAPI.APIURL
 	if client.DownloadURL == "" {
-		client.DownloadURL = output.DownloadURL
+		client.DownloadURL = output.APIInfo.StorageAPI.DownloadURL
 	}
 	LOG_INFO("BACKBLAZE_URL", "Download URL is: %s", client.DownloadURL)
 	client.IsAuthorized = true
@@ -350,7 +361,7 @@ func (client *B2Client) FindBucket(bucketName string) (err error) {
 	input["accountId"] = client.AccountID
 	input["bucketName"] = bucketName
 
-	url := client.getAPIURL() + "/b2api/v1/b2_list_buckets"
+	url := client.getAPIURL() + "/b2api/v4/b2_list_buckets"
 
 	readCloser, _, _, err := client.call(0, url, http.MethodPost, nil, input)
 	if err != nil {
@@ -384,7 +395,7 @@ type B2Entry struct {
 	FileID          string
 	FileName        string
 	Action          string
-	Size            int64
+	Size            int64 `json:"contentLength"` // 'size' was renamed to 'contentLength' in v2
 	UploadTimestamp int64
 }
 
@@ -417,13 +428,13 @@ func (client *B2Client) ListFileNames(threadIndex int, startFileName string, sin
 	input["prefix"] = client.StorageDir
 
 	for {
-		apiURL := client.getAPIURL() + "/b2api/v1/b2_list_file_names"
+		apiURL := client.getAPIURL() + "/b2api/v4/b2_list_file_names"
 		requestHeaders := map[string]string{}
 		requestMethod := http.MethodPost
 		var requestInput interface{}
 		requestInput = input
 		if includeVersions {
-			apiURL = client.getAPIURL() + "/b2api/v1/b2_list_file_versions"
+			apiURL = client.getAPIURL() + "/b2api/v4/b2_list_file_versions"
 		} else if singleFile {
 			// handle a single file with no versions as a special case to download the last byte of the file
 			apiURL = client.getDownloadURL() + "/file/" + client.BucketName + "/" + B2Escape(client.StorageDir + startFileName)
@@ -544,7 +555,7 @@ func (client *B2Client) DeleteFile(threadIndex int, fileName string, fileID stri
 	input["fileName"] = client.StorageDir + fileName
 	input["fileId"] = fileID
 
-	url := client.getAPIURL() + "/b2api/v1/b2_delete_file_version"
+	url := client.getAPIURL() + "/b2api/v4/b2_delete_file_version"
 	readCloser, _, _, err := client.call(threadIndex, url, http.MethodPost, make(map[string]string), input)
 	if err != nil {
 		return err
@@ -564,7 +575,7 @@ func (client *B2Client) HideFile(threadIndex int, fileName string) (fileID strin
 	input["bucketId"] = client.BucketID
 	input["fileName"] = client.StorageDir + fileName
 
-	url := client.getAPIURL() + "/b2api/v1/b2_hide_file"
+	url := client.getAPIURL() + "/b2api/v4/b2_hide_file"
 	readCloser, _, _, err := client.call(threadIndex, url, http.MethodPost, make(map[string]string), input)
 	if err != nil {
 		return "", err
@@ -603,7 +614,7 @@ func (client *B2Client) DownloadFile(threadIndex int, filePath string) (io.ReadC
 	}
 
 	// Proceed with the b2_download_file_by_id call
-	url := client.getAPIURL() + "/b2api/v1/b2_download_file_by_id?fileId=" + fileId
+	url := client.getAPIURL() + "/b2api/v4/b2_download_file_by_id?fileId=" + fileId
 	readCloser, _, len, err := client.call(threadIndex, url, http.MethodGet, make(map[string]string), 0)
 	return readCloser, len, err
 }
@@ -618,7 +629,7 @@ func (client *B2Client) getUploadURL(threadIndex int) error {
 	input := make(map[string]string)
 	input["bucketId"] = client.BucketID
 
-	url := client.getAPIURL() + "/b2api/v1/b2_get_upload_url"
+	url := client.getAPIURL() + "/b2api/v4/b2_get_upload_url"
 	readCloser, _, _, err := client.call(threadIndex, url, http.MethodPost, make(map[string]string), input)
 	if err != nil {
 		return err
