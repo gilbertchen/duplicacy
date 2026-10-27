@@ -7,7 +7,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -703,17 +702,24 @@ func ListEntries(top string, path string, patterns []string, nobackupFile string
 
 	fullPath := joinPath(top, path)
 
-	files := make([]os.FileInfo, 0, 1024)
-
-	files, err = ioutil.ReadDir(fullPath)
+	// Read the names first and lstat each entry separately: ioutil.ReadDir fails for the whole
+	// directory when one entry cannot be lstat'ed, e.g. a macOS data vault such as
+	// ~/Library/Application Support/com.apple.LaunchServicesTemplateApp.dv.
+	dir, err := os.Open(fullPath)
 	if err != nil {
 		return directoryList, nil, err
 	}
+	names, err := dir.Readdirnames(-1)
+	dir.Close()
+	if err != nil {
+		return directoryList, nil, err
+	}
+	sort.Strings(names)
 
-	// This binary search works because ioutil.ReadDir returns files sorted by Name() by default
+	// This binary search works because names is sorted
 	if nobackupFile != "" {
-		ii := sort.Search(len(files), func(ii int) bool { return strings.Compare(files[ii].Name(), nobackupFile) >= 0 })
-		if ii < len(files) && files[ii].Name() == nobackupFile {
+		ii := sort.SearchStrings(names, nobackupFile)
+		if ii < len(names) && names[ii] == nobackupFile {
 			LOG_DEBUG("LIST_NOBACKUP", "%s is excluded due to nobackup file", path)
 			return directoryList, skippedFiles, nil
 		}
@@ -722,6 +728,25 @@ func ListEntries(top string, path string, patterns []string, nobackupFile string
 	normalizedPath := path
 	if len(normalizedPath) > 0 && normalizedPath[len(normalizedPath)-1] != '/' {
 		normalizedPath += "/"
+	}
+
+	files := make([]os.FileInfo, 0, len(names))
+	for _, name := range names {
+		// Skip an entry the patterns exclude whether it is a file or a directory, without
+		// calling lstat on it
+		entryPath := normalizedPath + name
+		if len(patterns) > 0 && !MatchPath(entryPath, patterns) && !MatchPath(entryPath+"/", patterns) {
+			continue
+		}
+		f, err := os.Lstat(joinPath(fullPath, name))
+		if err != nil {
+			if !os.IsNotExist(err) {
+				LOG_WARN("LIST_FAILURE", "Failed to access %s: %v", entryPath, err)
+				skippedFiles = append(skippedFiles, entryPath)
+			}
+			continue
+		}
+		files = append(files, f)
 	}
 
 	normalizedTop := top
