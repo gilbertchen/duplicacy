@@ -429,6 +429,13 @@ func (snapshot *Snapshot) ClearChunks() {
 	snapshot.ChunkHashes = nil
 }
 
+// MetadataSequences returns the three sequences that name every chunk a snapshot references: the file list, the
+// chunk hashes of those files, and the length of each of those chunks.  Walking all three is what 'which chunks does
+// this snapshot reference' means, so that walk has one definition here.
+func (snapshot *Snapshot) MetadataSequences() [][]string {
+	return [][]string{snapshot.FileSequence, snapshot.ChunkSequence, snapshot.LengthSequence}
+}
+
 // LoadLengths construct 'ChunkLengths' from the json description.
 func (snapshot *Snapshot) LoadLengths(description []byte) (err error) {
 	return json.Unmarshal(description, &snapshot.ChunkLengths)

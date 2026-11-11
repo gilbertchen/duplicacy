@@ -9,14 +9,13 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
 	"testing"
 	"bytes"
 	"encoding/json"
 
-	"github.com/gilbertchen/xattr"
+	"github.com/pkg/xattr"
     "github.com/vmihailenco/msgpack"
 )
 
@@ -233,8 +232,10 @@ func TestEntryOrder(t *testing.T) {
 // TestEntryExcludeByAttribute tests the excludeByAttribute parameter to the ListEntries function
 func TestEntryExcludeByAttribute(t *testing.T) {
 
-	if !(runtime.GOOS == "darwin" || runtime.GOOS == "linux") {
-		t.Skip("skipping test not darwin or linux")
+	// The attribute that has to be set is chosen per OS by the excludedByAttribute implementation, so ask the
+	// package rather than hard-coding the macOS name (which no Linux file can ever carry).
+	if attributeExcludeName == "" {
+		t.Skip("skipping test on a platform without an exclusion attribute")
 	}
 
 	testDir := filepath.Join(os.TempDir(), "duplicacy_test")
@@ -273,7 +274,12 @@ func TestEntryExcludeByAttribute(t *testing.T) {
 	for _, file := range DATA {
 		fullPath := filepath.Join(testDir, file)
 		if strings.Contains(file, "exclude") {
-			xattr.Setxattr(fullPath, "com.apple.metadata:com_apple_backup_excludeItem", []byte("com.apple.backupd"))
+			err := xattr.Set(fullPath, attributeExcludeName, []byte(attributeExcludeValue))
+			if err != nil {
+				// The filesystem does not support extended attributes, so there is nothing to test.
+				os.RemoveAll(testDir)
+				t.Skipf("Setxattr(%s) returned an error: %s", fullPath, err)
+			}
 		}
 	}
 

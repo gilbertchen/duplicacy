@@ -169,13 +169,45 @@ func (config *Config) UnmarshalJSON(description []byte) (err error) {
 	return nil
 }
 
-func (config *Config) IsCompatibleWith(otherConfig *Config) bool {
+// sameChunkHash reports whether the two storages derive the same hash from the same chunk content, which is what makes
+// a chunk id mean the same thing on both sides.  The hash is keyed with HashKey, so this compares that key; where the
+// chunk boundaries fall is a separate condition, compared by each caller that depends on it.
+func (config *Config) sameChunkHash(otherConfig *Config) bool {
+	return bytes.Equal(config.HashKey, otherConfig.HashKey)
+}
 
+// sameChunkBoundaries reports whether the two storages split a file into chunks the same way, which takes both the size
+// thresholds and the rolling-hash seed.
+func (config *Config) sameChunkBoundaries(otherConfig *Config) bool {
 	return config.AverageChunkSize == otherConfig.AverageChunkSize &&
 		config.MaximumChunkSize == otherConfig.MaximumChunkSize &&
 		config.MinimumChunkSize == otherConfig.MinimumChunkSize &&
-		bytes.Equal(config.ChunkSeed, otherConfig.ChunkSeed) &&
-		bytes.Equal(config.HashKey, otherConfig.HashKey)
+		bytes.Equal(config.ChunkSeed, otherConfig.ChunkSeed)
+}
+
+// IsCompatibleWith reports whether the snapshots of this storage can be copied to the other one: the chunks have to
+// fall on the same boundaries and be stored under the same hash, so that the ids a snapshot references resolve
+// there.  The encryption keys are not part of this, because a copy re-encrypts the chunks.
+func (config *Config) IsCompatibleWith(otherConfig *Config) bool {
+
+	return config.sameChunkBoundaries(otherConfig) && config.sameChunkHash(otherConfig)
+}
+
+// IsBitIdenticalWith reports whether the two storages store a given chunk in exactly the same bytes.  If so, a chunk
+// file can be copied from one storage to the other without being decrypted and encrypted again, which is what the
+// copy command needs to know.  This is the case when the chunk hash, the chunk id and the encryption of the chunk
+// data are all the same, and the chunk is compressed and erasure coded the same way.  RSA encryption is excluded
+// because it encrypts each chunk with a fresh random key, so a chunk stored for one storage can only be read by the
+// other when the matching private key is available.
+func (config *Config) IsBitIdenticalWith(otherConfig *Config) bool {
+
+	return config.CompressionLevel == otherConfig.CompressionLevel &&
+		config.sameChunkHash(otherConfig) &&
+		bytes.Equal(config.IDKey, otherConfig.IDKey) &&
+		bytes.Equal(config.ChunkKey, otherConfig.ChunkKey) &&
+		config.DataShards == otherConfig.DataShards &&
+		config.ParityShards == otherConfig.ParityShards &&
+		config.rsaPublicKey == nil && otherConfig.rsaPublicKey == nil
 }
 
 func (config *Config) Print() {

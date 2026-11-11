@@ -208,6 +208,45 @@ func TestChunkChecksum(t *testing.T) {
 	}
 }
 
+// TestWriteRawData covers the constructor that turns a chunk copied verbatim into one that can be uploaded: the bytes
+// are kept as they came from the storage, the identity is taken from the given hash rather than recomputed, and the
+// checksum still guards the buffer.
+func TestWriteRawData(t *testing.T) {
+
+	setTestingT(t)
+
+	config := CreateConfig()
+	config.HashKey = []byte("duplicacydefault")
+	config.IDKey = []byte("duplicacydefault")
+
+	hash := string(bytes.Repeat([]byte{0xab}, 32))
+
+	storedData := make([]byte, 4096)
+	crypto_rand.Read(storedData)
+
+	chunk := CreateChunk(config, true)
+	chunk.WriteRawData(storedData, hash)
+
+	if !chunk.isRawData {
+		t.Errorf("WriteRawData did not mark the chunk as holding stored data")
+	}
+	if !bytes.Equal([]byte(chunk.GetHash()), []byte(hash)) {
+		t.Errorf("WriteRawData stored the chunk under a different hash: %x vs %x", chunk.GetHash(), hash)
+	}
+	if chunk.GetID() != config.GetChunkIDFromHash(hash) {
+		t.Errorf("WriteRawData derived the id %s instead of %s", chunk.GetID(), config.GetChunkIDFromHash(hash))
+	}
+	if !bytes.Equal(chunk.GetBytes(), storedData) {
+		t.Errorf("WriteRawData changed the bytes of the chunk")
+	}
+
+	// The checksum covers the stored bytes, so corruption in memory is still caught before the chunk is uploaded
+	chunk.GetBytes()[0] ^= 1
+	if !verifyChunk(chunk) {
+		t.Errorf("A stored chunk corrupted in memory was not rejected")
+	}
+}
+
 func TestChunkBasic(t *testing.T) {
 
 	key := []byte("duplicacydefault")

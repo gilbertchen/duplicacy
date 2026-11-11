@@ -76,6 +76,9 @@ func (storage *DropboxStorage) ListFiles(threadIndex int, dir string) (files []s
 	for {
 
 		if err != nil {
+			if e, ok := err.(*dropbox.Error); ok && strings.HasPrefix(e.Summary, "path/not_found/") {
+				return emptyListing()
+			}
 			return nil, nil, err
 		}
 

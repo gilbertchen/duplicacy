@@ -50,6 +50,11 @@ type Storage interface {
 	// 'chunks/', plus 'metadata/' if metadata chunks are stored separately.
 	GetChunkDirectories() []string
 
+	// ChunkPath returns the path the chunk with the specified id is stored at, without looking for it.  It is the
+	// path FindChunk returns when it doesn't find the chunk.  'isMetadata' selects the top-level directory, as in
+	// FindChunk.
+	ChunkPath(chunkID string, isMetadata bool) (filePath string, err error)
+
 	// DownloadFile reads the file at 'filePath' into the chunk.
 	DownloadFile(threadIndex int, filePath string, chunk *Chunk) (err error)
 
@@ -148,6 +153,14 @@ func (storage *StorageBase) GetChunkDirectories() []string {
 	return []string{chunkDir}
 }
 
+// emptyListing is what ListFiles returns when the directory it was asked for doesn't exist.  A missing directory is
+// the same as an empty directory: it happens when a snapshot id has never been backed up, and the callers treat the
+// two cases alike.  Each backend still asserts its own "not found" error, since only it knows how that error is
+// spelled.
+func emptyListing() ([]string, []int64, error) {
+	return nil, nil, nil
+}
+
 // SetRateLimits sets the maximum download and upload rates
 func (storage *StorageBase) SetRateLimits(downloadRateLimit int, uploadRateLimit int) {
 	storage.DownloadRateLimit = downloadRateLimit
@@ -214,6 +227,29 @@ func (storage *StorageBase) SetNestingLevels(config *Config) {
 		}
 	}
 	LOG_ERROR("STORAGE_NESTING", "The write level %d isn't in the read levels %v", storage.readLevels, storage.writeLevel)
+}
+
+// ChunkPath returns the path the chunk with the specified id is stored at, at the write level: the path FindChunk
+// returns when the chunk isn't found.
+func (storage *StorageBase) ChunkPath(chunkID string, isMetadata bool) (filePath string, err error) {
+
+	topDir := storage.GetChunkDirectory(isMetadata)
+	readLevels, writeLevel := storage.readLevels, storage.writeLevel
+	if topDir == metadataDir {
+		readLevels, writeLevel = []int{metadataNestingLevel}, metadataNestingLevel
+	}
+
+	for _, level := range readLevels {
+		if writeLevel == level {
+			chunkPath := topDir
+			for i := 0; i < level; i++ {
+				chunkPath += chunkID[2*i:2*i+2] + "/"
+			}
+			return chunkPath + chunkID[2*level:], nil
+		}
+	}
+
+	return "", fmt.Errorf("Invalid chunk nesting setup")
 }
 
 // FindChunk finds the chunk with the specified id at the levels one by one as specified by 'readLevels'.
@@ -315,6 +351,23 @@ func checkHostKey(hostname string, remote net.Addr, key ssh.PublicKey) error {
 	return nil
 }
 
+// needsSnapshotCache reports whether the storage at 'storagePath' should keep a snapshot cache.  The cache is written
+// into the repository, so it pays exactly when a cache read replaces a read of the storage: the storage has to be on a
+// network filesystem, and the repository has to be somewhere else.  A storage that is remote but shares its
+// filesystem with the repository is therefore not cached -- the write-back would cost what the read it removes costs,
+// and the write is the larger of the two -- and neither is a local storage, where a cache read is the same syscall as
+// the read it replaces.
+func needsSnapshotCache(storagePath string) bool {
+	if !isRemoteFilesystem(storagePath) {
+		return false
+	}
+
+	// The preference path may not be known yet in a test or an embedder, and assuming local then is the assumption
+	// that keeps the cache on, which is the behaviour a remote storage had before this decision existed.
+	cachePath := GetDuplicacyPreferencePath()
+	return cachePath == "" || !isRemoteFilesystem(cachePath)
+}
+
 // CreateStorage creates a storage object based on the provide storage URL.
 func CreateStorage(preference Preference, resetPassword bool, threads int) (storage Storage) {
 
@@ -340,6 +393,14 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	}
 
 	if isFileStorage {
+		// The '\\host\share' spelling is known to be remote from the URL alone, so it keeps the cache it has always
+		// had.  A share mounted at a path or mapped to a drive letter is spelled exactly like a local disk, so
+		// whether a snapshot cache is worth keeping for it cannot be read off the URL; it is asked of the filesystem
+		// instead.
+		if !isCacheNeeded {
+			isCacheNeeded = needsSnapshotCache(storageURL)
+		}
+
 		fileStorage, err := CreateFileStorage(storageURL, isCacheNeeded, threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the file storage at %s: %v", storageURL, err)
@@ -349,7 +410,9 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 	}
 
 	if strings.HasPrefix(storageURL, "flat://") {
-		fileStorage, err := CreateFileStorage(storageURL[7:], false, threads)
+		// flat:// is a plain path with the nesting turned off, so the cache decision is the same one the plain-path
+		// branch above makes; only the nesting differs.
+		fileStorage, err := CreateFileStorage(storageURL[7:], needsSnapshotCache(storageURL[7:]), threads)
 		if err != nil {
 			LOG_ERROR("STORAGE_CREATE", "Failed to load the file storage at %s: %v", storageURL, err)
 			return nil
@@ -733,7 +796,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		// Handle writing directly to the root of the drive
 		// For gcd://driveid@/, driveid@ is match[3] not match[2]
 		if matched[2] == "" && strings.HasSuffix(matched[3], "@") {
-			matched[2], matched[3]  = matched[3], matched[2]
+			matched[2], matched[3] = matched[3], matched[2]
 		}
 		driveID := matched[2]
 		if driveID != "" {
@@ -753,7 +816,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		// Handle writing directly to the root of the drive
 		// For odb://drive_id@/, drive_id@ is match[3] not match[2]
 		if matched[2] == "" && strings.HasSuffix(matched[3], "@") {
-			matched[2], matched[3]  = matched[3], matched[2]
+			matched[2], matched[3] = matched[3], matched[2]
 		}
 		drive_id := matched[2]
 		if len(drive_id) > 0 {
@@ -761,17 +824,17 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		}
 		storagePath := matched[3] + matched[4]
 		prompt := fmt.Sprintf("Enter the path of the OneDrive token file (downloadable from https://duplicacy.com/one_start):")
-		tokenFile := GetPassword(preference, matched[1] + "_token", prompt, true, resetPassword)
+		tokenFile := GetPassword(preference, matched[1]+"_token", prompt, true, resetPassword)
 
 		// client_id, just like tokenFile, can be stored in preferences
 		//prompt = fmt.Sprintf("Enter client_id for custom Azure app (if empty will use duplicacy.com one):")
-		client_id := GetPasswordFromPreference(preference, matched[1] + "_client_id")
+		client_id := GetPasswordFromPreference(preference, matched[1]+"_client_id")
 		client_secret := ""
 
 		if client_id != "" {
 			// client_secret should go into keyring
 			prompt = fmt.Sprintf("Enter client_secret for custom Azure app (if empty will use duplicacy.com one):")
-			client_secret = GetPassword(preference, matched[1] + "_client_secret", prompt, true, resetPassword)
+			client_secret = GetPassword(preference, matched[1]+"_client_secret", prompt, true, resetPassword)
 		}
 
 		oneDriveStorage, err := CreateOneDriveStorage(tokenFile, matched[1] == "odb", storagePath, threads, client_id, client_secret, drive_id)
@@ -780,9 +843,9 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 			return nil
 		}
 
-		SavePassword(preference, matched[1] + "_token", tokenFile)
+		SavePassword(preference, matched[1]+"_token", tokenFile)
 		if client_id != "" {
-			SavePassword(preference, matched[1] + "_client_secret", client_secret)
+			SavePassword(preference, matched[1]+"_client_secret", client_secret)
 		}
 		return oneDriveStorage
 	} else if matched[1] == "hubic" {
@@ -851,7 +914,7 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		storageDir := ""
 		index := strings.Index(bucket, "/")
 		if index >= 0 {
-			storageDir = bucket[index + 1:]
+			storageDir = bucket[index+1:]
 			bucket = bucket[:index]
 		}
 		apiKey := GetPassword(preference, "storj_key", "Enter the API access key:", true, resetPassword)
@@ -899,7 +962,6 @@ func CreateStorage(preference Preference, resetPassword bool, threads int) (stor
 		}
 		SavePassword(preference, "smb_password", password)
 		return sambaStorage
-
 
 	} else {
 		LOG_ERROR("STORAGE_CREATE", "The storage type '%s' is not supported", matched[1])

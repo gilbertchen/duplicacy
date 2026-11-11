@@ -61,40 +61,6 @@ func benchmarkSplit(reader *bytes.Reader, fileSize int64, chunkSize int, compres
 	return
 }
 
-func benchmarkRun(threads int, chunkCount int, job func(threadIndex int, chunkIndex int)) {
-	indexChannel := make(chan int, chunkCount)
-	stopChannel := make(chan int, threads)
-	finishChannel := make(chan int, threads)
-
-	// Start the uploading goroutines
-	for i := 0; i < threads; i++ {
-		go func(threadIndex int) {
-			defer CatchLogException()
-			for {
-				select {
-				case chunkIndex := <-indexChannel:
-					job(threadIndex, chunkIndex)
-					finishChannel <- 0
-				case <-stopChannel:
-					return
-				}
-			}
-		}(i)
-	}
-
-	for i := 0; i < chunkCount; i++ {
-		indexChannel <- i
-	}
-
-	for i := 0; i < chunkCount; i++ {
-		<-finishChannel
-	}
-
-	for i := 0; i < threads; i++ {
-		stopChannel <- 0
-	}
-}
-
 func Benchmark(localDirectory string, storage Storage, fileSize int64, chunkSize int, chunkCount int, uploadThreads int, downloadThreads int) bool {
 
 	filename := filepath.Join(localDirectory, "benchmark.dat")
@@ -164,7 +130,7 @@ func Benchmark(localDirectory string, storage Storage, fileSize int64, chunkSize
 
 	if len(existingChunks) > 0 {
 		LOG_INFO("BENCHMARK_DELETE", "Deleting %d temporary files from previous benchmark runs", len(existingChunks))
-		benchmarkRun(uploadThreads, len(existingChunks), func(threadIndex int, chunkIndex int) {
+		runConcurrently(uploadThreads, len(existingChunks), func(threadIndex int, chunkIndex int) {
 			storage.DeleteFile(threadIndex, existingChunks[chunkIndex])
 		})
 	}
@@ -185,7 +151,7 @@ func Benchmark(localDirectory string, storage Storage, fileSize int64, chunkSize
 	}
 
 	startTime = float64(time.Now().UnixNano()) / 1e9
-	benchmarkRun(uploadThreads, chunkCount, func(threadIndex int, chunkIndex int) {
+	runConcurrently(uploadThreads, chunkCount, func(threadIndex int, chunkIndex int) {
 		err := storage.UploadFile(threadIndex, fmt.Sprintf("benchmark/chunk%d", chunkIndex), chunks[chunkIndex])
 		if err != nil {
 			LOG_ERROR("BENCHMARK_UPLOAD", "Failed to upload the chunk: %v", err)
@@ -201,7 +167,7 @@ func Benchmark(localDirectory string, storage Storage, fileSize int64, chunkSize
 
 	startTime = float64(time.Now().UnixNano()) / 1e9
 	hashError := false
-	benchmarkRun(downloadThreads, chunkCount, func(threadIndex int, chunkIndex int) {
+	runConcurrently(downloadThreads, chunkCount, func(threadIndex int, chunkIndex int) {
 		chunk := config.GetChunk()
 		chunk.Reset(false)
 		err := storage.DownloadFile(threadIndex, fmt.Sprintf("benchmark/chunk%d", chunkIndex), chunk)
@@ -225,7 +191,7 @@ func Benchmark(localDirectory string, storage Storage, fileSize int64, chunkSize
 	LOG_INFO("BENCHMARK_DOWNLOAD", "Downloaded %s bytes in %.2fs: %s/s", PrettySize(int64(chunkSize*chunkCount)), runningTime, PrettySize(speed))
 
 	if !hashError {
-		benchmarkRun(uploadThreads, chunkCount, func(threadIndex int, chunkIndex int) {
+		runConcurrently(uploadThreads, chunkCount, func(threadIndex int, chunkIndex int) {
 			storage.DeleteFile(threadIndex, fmt.Sprintf("benchmark/chunk%d", chunkIndex))
 		})
 		LOG_INFO("BENCHMARK_DELETE", "Deleted %d temporary files from the storage", chunkCount)

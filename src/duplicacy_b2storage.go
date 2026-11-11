@@ -50,7 +50,15 @@ func (storage *B2Storage) ListFiles(threadIndex int, dir string) (files []string
 		includeVersions = true
 	}
 
-	entries, err := storage.client.ListFileNames(threadIndex, dir, false, includeVersions)
+	// Listing 'snapshots' only has to see the direct children (the snapshot ids), not every snapshot file of every
+	// id; the delimiter folds each subdirectory into a single "folder" entry.  'chunks' is listed as a flat prefix
+	// scan because the chunk names already encode the nesting levels.
+	delimiter := ""
+	if dir == "snapshots" {
+		delimiter = "/"
+	}
+
+	entries, err := storage.client.ListFileNames(threadIndex, dir, false, includeVersions, delimiter)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -96,7 +104,7 @@ func (storage *B2Storage) DeleteFile(threadIndex int, filePath string) (err erro
 
 	if strings.HasSuffix(filePath, ".fsl") {
 		filePath = filePath[:len(filePath)-len(".fsl")]
-		entries, err := storage.client.ListFileNames(threadIndex, filePath, true, true)
+		entries, err := storage.client.ListFileNames(threadIndex, filePath, true, true, "")
 		if err != nil {
 			return err
 		}
@@ -119,7 +127,7 @@ func (storage *B2Storage) DeleteFile(threadIndex int, filePath string) (err erro
 		return nil
 
 	} else {
-		entries, err := storage.client.ListFileNames(threadIndex, filePath, true, false)
+		entries, err := storage.client.ListFileNames(threadIndex, filePath, true, false, "")
 		if err != nil {
 			return err
 		}
@@ -157,7 +165,7 @@ func (storage *B2Storage) MoveFile(threadIndex int, from string, to string) (err
 		_, err = storage.client.HideFile(threadIndex, from)
 		return err
 	} else {
-		entries, err := storage.client.ListFileNames(threadIndex, filePath, true, true)
+		entries, err := storage.client.ListFileNames(threadIndex, filePath, true, true, "")
 		if err != nil {
 			return err
 		}
@@ -182,7 +190,7 @@ func (storage *B2Storage) GetFileInfo(threadIndex int, filePath string) (exist b
 		filePath = filePath[:len(filePath)-len(".fsl")]
 	}
 
-	entries, err := storage.client.ListFileNames(threadIndex, filePath, true, isFossil)
+	entries, err := storage.client.ListFileNames(threadIndex, filePath, true, isFossil, "")
 	if err != nil {
 		return false, false, 0, err
 	}

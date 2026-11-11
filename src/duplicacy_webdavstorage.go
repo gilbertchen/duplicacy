@@ -283,6 +283,9 @@ func (storage *WebDAVStorage) ListFiles(threadIndex int, dir string) (files []st
 	}
 	properties, err := storage.getProperties(dir, 1, "getcontentlength", "resourcetype")
 	if err != nil {
+		if err == errWebDAVNotExist {
+			return emptyListing()
+		}
 		return nil, nil, err
 	}
 

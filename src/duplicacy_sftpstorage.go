@@ -172,6 +172,9 @@ func (storage *SFTPStorage) ListFiles(threadIndex int, dirPath string) (files []
 		return err
 	})
 	if err != nil {
+		if os.IsNotExist(err) {
+			return emptyListing()
+		}
 		return nil, nil, err
 	}
 

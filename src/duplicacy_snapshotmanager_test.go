@@ -5,14 +5,11 @@
 package duplicacy
 
 import (
-	"crypto/rand"
-	"encoding/hex"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"os"
 	"path"
-	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -91,92 +88,6 @@ func TestIsDeletable(t *testing.T) {
 	}
 }
 
-func createTestSnapshotManager(testDir string) *SnapshotManager {
-
-	os.RemoveAll(testDir)
-	os.MkdirAll(testDir, 0700)
-
-	storage, _ := CreateFileStorage(testDir, false, 1)
-	storage.CreateDirectory(0, "chunks")
-	storage.CreateDirectory(0, "snapshots")
-	config := CreateConfig()
-	snapshotManager := CreateSnapshotManager(config, storage)
-
-	cacheDir := path.Join(testDir, "cache")
-	snapshotCache, _ := CreateFileStorage(cacheDir, false, 1)
-	snapshotCache.CreateDirectory(0, "chunks")
-	snapshotCache.CreateDirectory(0, "snapshots")
-
-	snapshotManager.snapshotCache = snapshotCache
-
-	SetDuplicacyPreferencePath(testDir + "/.duplicacy")
-
-	return snapshotManager
-}
-
-func uploadTestChunk(manager *SnapshotManager, content []byte) string {
-
-	chunkOperator := CreateChunkOperator(manager.config, manager.storage, nil, false, false, *testThreads, false)
-	chunkOperator.UploadCompletionFunc = func(chunk *Chunk, chunkIndex int, skipped bool, chunkSize int, uploadSize int) {
-		LOG_INFO("UPLOAD_CHUNK", "Chunk %s size %d uploaded", chunk.GetID(), chunkSize)
-	}
-
-	chunk := CreateChunk(manager.config, true)
-	chunk.Reset(true)
-	chunk.Write(content)
-
-	chunkOperator.Upload(chunk, 0, false)
-	chunkOperator.WaitForCompletion()
-	chunkOperator.Stop()
-
-	return chunk.GetHash()
-}
-
-func uploadRandomChunk(manager *SnapshotManager, chunkSize int) string {
-	content := make([]byte, chunkSize)
-	_, err := rand.Read(content)
-	if err != nil {
-		LOG_ERROR("UPLOAD_RANDOM", "Error generating random content: %v", err)
-		return ""
-	}
-
-	return uploadTestChunk(manager, content)
-}
-
-func uploadRandomChunks(manager *SnapshotManager, chunkSize int, numberOfChunks int) []string {
-	chunkList := make([]string, 0)
-	for i := 0; i < numberOfChunks; i++ {
-		chunkHash := uploadRandomChunk(manager, chunkSize)
-		chunkList = append(chunkList, chunkHash)
-	}
-	return chunkList
-}
-
-func createTestSnapshot(manager *SnapshotManager, snapshotID string, revision int, startTime int64, endTime int64, chunkHashes []string, tag string) {
-
-	snapshot := &Snapshot{
-		ID:          snapshotID,
-		Revision:    revision,
-		StartTime:   startTime,
-		EndTime:     endTime,
-		ChunkHashes: chunkHashes,
-		Tag:         tag,
-	}
-
-	var chunkHashesInHex []string
-	for _, chunkHash := range chunkHashes {
-		chunkHashesInHex = append(chunkHashesInHex, hex.EncodeToString([]byte(chunkHash)))
-	}
-
-	sequence, _ := json.Marshal(chunkHashesInHex)
-	snapshot.ChunkSequence = []string{uploadTestChunk(manager, sequence)}
-
-	description, _ := snapshot.MarshalJSON()
-	path := fmt.Sprintf("snapshots/%s/%d", snapshotID, snapshot.Revision)
-	manager.storage.CreateDirectory(0, "snapshots/"+snapshotID)
-	manager.UploadFile(path, path, description)
-}
-
 func checkTestSnapshots(manager *SnapshotManager, expectedSnapshots int, expectedFossils int) {
 
 	manager.CreateChunkOperator(false, false, 1, false)
@@ -194,7 +105,7 @@ func checkTestSnapshots(manager *SnapshotManager, expectedSnapshots int, expecte
 		if file[len(file)-1] == '/' {
 			continue
 		}
-		chunk := strings.Replace(file, "/", "", -1)
+		chunk := chunkIDFromListedPath(file)
 		chunks[chunk] = false
 	}
 
@@ -238,6 +149,105 @@ func checkTestSnapshots(manager *SnapshotManager, expectedSnapshots int, expecte
 
 	if numberOfFossils != expectedFossils {
 		LOG_ERROR("FOSSIL_COUNT", "Expecting %d unreferenced chunks, got %d instead", expectedFossils, numberOfFossils)
+	}
+}
+
+// capturedLog is a single message passed to one of the logging functions.
+type capturedLog struct {
+	level   int
+	logID   string
+	message string
+}
+
+// logCapture records the log messages produced while it is installed as LogFunction, so that a test can inspect what
+// a command printed.
+type logCapture struct {
+	logs     []capturedLog
+	logsLock sync.Mutex
+}
+
+func (capture *logCapture) log(level int, logID string, message string) {
+	capture.logsLock.Lock()
+	defer capture.logsLock.Unlock()
+	capture.logs = append(capture.logs, capturedLog{level, logID, message})
+}
+
+// messages returns the messages that were logged under 'logID'.
+func (capture *logCapture) messages(logID string) (messages []string) {
+	capture.logsLock.Lock()
+	defer capture.logsLock.Unlock()
+	for _, log := range capture.logs {
+		if log.logID == logID {
+			messages = append(messages, log.message)
+		}
+	}
+	return messages
+}
+
+// failures returns the messages that were logged as errors, since they are only recorded and never propagated while
+// the capture is installed.
+func (capture *logCapture) failures() (failures []string) {
+	capture.logsLock.Lock()
+	defer capture.logsLock.Unlock()
+	for _, log := range capture.logs {
+		if log.level >= ERROR {
+			failures = append(failures, fmt.Sprintf("%s: %s", log.logID, log.message))
+		}
+	}
+	return failures
+}
+
+// Both the reading and the writing side derive the path of a snapshot file from snapshotDir and snapshotPath, so the
+// storage layout is defined once.  This pins that layout: the snapshot file of a revision sits directly in the
+// directory named after the snapshot id, and the directory carries the trailing slash the listings expect.
+func TestSnapshotPathHelpers(t *testing.T) {
+
+	if dir := snapshotDir("vm1@host1"); dir != "snapshots/vm1@host1/" {
+		t.Errorf("snapshotDir returned %q instead of %q", dir, "snapshots/vm1@host1/")
+	}
+	if file := snapshotPath("vm1@host1", 3); file != "snapshots/vm1@host1/3" {
+		t.Errorf("snapshotPath returned %q instead of %q", file, "snapshots/vm1@host1/3")
+	}
+}
+
+// A chunk listed under 'chunks/' arrives as the nested path the storage lays it out in.  chunkIDFromListedPath has to
+// recover the 64-character id from it, and it has to leave the '.fsl' suffix of a fossil alone: the suffix is what
+// tells a caller that the entry is a fossil rather than a chunk.
+func TestChunkIDFromListedPath(t *testing.T) {
+
+	chunkID := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+
+	// The nesting directories are the first bytes of the id itself, so removing the separators has to return the id
+	// unchanged.
+	nestedPath := chunkID[:2] + "/" + chunkID[2:4] + "/" + chunkID[4:]
+
+	if id := chunkIDFromListedPath(nestedPath); id != chunkID {
+		t.Errorf("chunkIDFromListedPath returned %q instead of %q", id, chunkID)
+	}
+	if fossil := chunkIDFromListedPath(nestedPath + ".fsl"); fossil != chunkID+".fsl" {
+		t.Errorf("chunkIDFromListedPath returned %q instead of %q for a fossil", fossil, chunkID+".fsl")
+	}
+}
+
+// The three metadata sequences are what 'which chunks does this snapshot reference' means, and the chunk-id walk
+// depends on seeing all of them.  MetadataSequences is the one definition of that set.
+func TestMetadataSequences(t *testing.T) {
+
+	snapshot := &Snapshot{
+		FileSequence:   []string{"file"},
+		ChunkSequence:  []string{"chunks"},
+		LengthSequence: []string{"lengths"},
+	}
+
+	sequences := snapshot.MetadataSequences()
+	if len(sequences) != 3 {
+		t.Errorf("MetadataSequences returned %d sequences instead of 3", len(sequences))
+		return
+	}
+	for i, expected := range []string{"file", "chunks", "lengths"} {
+		if len(sequences[i]) != 1 || sequences[i][0] != expected {
+			t.Errorf("MetadataSequences returned %v at index %d instead of the %s sequence", sequences[i], i, expected)
+		}
 	}
 }
 

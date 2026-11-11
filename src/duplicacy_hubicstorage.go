@@ -91,6 +91,9 @@ func (storage *HubicStorage) ListFiles(threadIndex int, dir string) ([]string, [
 	} else if strings.HasPrefix(dir, "snapshots/") {
 		entries, err := storage.client.ListEntries(storage.storageDir + "/" + dir)
 		if err != nil {
+			if e, ok := err.(HubicError); ok && e.Status == 404 {
+				return emptyListing()
+			}
 			return nil, nil, err
 		}
 

@@ -146,8 +146,28 @@ func (storage *FileStorage) DownloadFile(threadIndex int, filePath string, chunk
 
 }
 
-// UploadFile writes 'content' to the file at 'filePath'
+// UploadFile writes 'content' to the file at 'filePath'.  The write is fsynced before the file is renamed into
+// place, so that a file found at 'filePath' is complete even if the machine loses power mid-write.
 func (storage *FileStorage) UploadFile(threadIndex int, filePath string, content []byte) (err error) {
+	return storage.uploadFile(threadIndex, filePath, content, true)
+}
+
+// UploadFileNoSync writes 'content' to the file at 'filePath' without fsyncing it.  It may only be used for snapshot
+// cache entries that the reader verifies against the storage before trusting, so that a write torn by a crash is
+// rejected and re-fetched rather than believed; the chunk cache is the only such entry today (see
+// ChunkOperator.DownloadChunk, which re-derives the chunk id and falls back to the storage on a mismatch).  Entries
+// that are read back unverified, such as the cached snapshot files and fossil collections, must use UploadFile.
+//
+// It stays off the Storage interface because the cache is the only caller and it is always a FileStorage: see
+// BackupManager.SetupSnapshotCache, which builds the cache with CreateFileStorage, and the snapshotCache fields that
+// hold it.  The interface's UploadFile is the durable write the storages implement; the option to skip the fsync exists
+// only for the local cache.
+func (storage *FileStorage) UploadFileNoSync(threadIndex int, filePath string, content []byte) (err error) {
+	return storage.uploadFile(threadIndex, filePath, content, false)
+}
+
+// uploadFile writes 'content' to the file at 'filePath', fsyncing it first when 'durable' is set.
+func (storage *FileStorage) uploadFile(threadIndex int, filePath string, content []byte, durable bool) (err error) {
 
 	fullPath := path.Join(storage.storageDir, filePath)
 
@@ -191,12 +211,14 @@ func (storage *FileStorage) UploadFile(threadIndex int, filePath string, content
 		return err
 	}
 
-	if err = file.Sync(); err != nil {
-		pathErr, ok := err.(*os.PathError)
-		isNotSupported := ok && pathErr.Op == "sync" && pathErr.Err == syscall.ENOTSUP
-		if !isNotSupported {
-			_ = file.Close()
-			return err
+	if durable {
+		if err = file.Sync(); err != nil {
+			pathErr, ok := err.(*os.PathError)
+			isNotSupported := ok && pathErr.Op == "sync" && pathErr.Err == syscall.ENOTSUP
+			if !isNotSupported {
+				_ = file.Close()
+				return err
+			}
 		}
 	}
 
