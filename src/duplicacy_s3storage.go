@@ -33,8 +33,13 @@ type S3Storage struct {
 func CreateS3Storage(regionName string, endpoint string, bucketName string, storageDir string,
 	accessKey string, secretKey string, threads int,
 	isSSLSupported bool, isMinioCompatible bool) (storage *S3Storage, err error) {
+	return CreateS3StorageWithToken(regionName, endpoint, bucketName, storageDir, accessKey, secretKey, "", threads, isSSLSupported, isMinioCompatible)
+}
 
-	token := ""
+// CreatesS3StorageWithToken create an amazon s3 storage object using an optional security token.
+func CreateS3StorageWithToken(regionName string, endpoint string, bucketName string, storageDir string,
+	accessKey string, secretKey string, token string, threads int,
+	isSSLSupported bool, isMinioCompatible bool) (storage *S3Storage, err error) {
 
 	auth := credentials.NewStaticCredentials(accessKey, secretKey, token)
 
