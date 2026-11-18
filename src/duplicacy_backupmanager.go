@@ -740,7 +740,11 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 			localEntry = nil
 		}
 
-		fullPath := joinPath(top, remoteEntry.Path)
+		fullPath, err := safeJoinPath(top, remoteEntry.Path)
+		if err != nil {
+			LOG_WARN("RESTORE_SKIP", "Skipping entry with unsafe path: %v", err)
+			continue
+		}
 		if remoteEntry.IsLink() {
 			stat, err := os.Lstat(fullPath)
 			if stat != nil {
@@ -833,7 +837,12 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 	// Now download files one by one
 	for _, file := range fileEntries {
 
-		fullPath := joinPath(top, file.Path)
+		fullPath, err := safeJoinPath(top, file.Path)
+		if err != nil {
+			LOG_WARN("RESTORE_SKIP", "Skipping entry with unsafe path: %v", err)
+			failedFileCount++
+			continue
+		}
 		stat, _ := os.Stat(fullPath)
 		if stat != nil {
 			if quickMode {
@@ -912,7 +921,11 @@ func (manager *BackupManager) Restore(top string, revision int, inPlace bool, qu
 	}
 
 	for _, entry := range directoryEntries {
-		dir := joinPath(top, entry.Path)
+		dir, err := safeJoinPath(top, entry.Path)
+		if err != nil {
+			LOG_WARN("RESTORE_SKIP", "Skipping directory entry with unsafe path: %v", err)
+			continue
+		}
 		entry.RestoreMetadata(dir, nil, setOwner)
 	}
 
@@ -1156,7 +1169,11 @@ func (manager *BackupManager) RestoreFile(chunkDownloader *ChunkDownloader, chun
 
 	preferencePath := GetDuplicacyPreferencePath()
 	temporaryPath := path.Join(preferencePath, "temporary")
-	fullPath := joinPath(top, entry.Path)
+	fullPath, err := safeJoinPath(top, entry.Path)
+	if err != nil {
+		LOG_WARN("RESTORE_SKIP", "Skipping entry with unsafe path: %v", err)
+		return false, err
+	}
 
 	defer func() {
 		if existingFile != nil {

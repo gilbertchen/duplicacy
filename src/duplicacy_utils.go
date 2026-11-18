@@ -462,6 +462,19 @@ func AtoSize(sizeString string) int {
 	return size
 }
 
+// safeJoinPath is like joinPath, but rejects an entryPath that would
+// resolve outside the directory rooted at top. An entry's path originates
+// from a remote snapshot's own stored file list, which unlike a real
+// local directory walk has no character restrictions.
+func safeJoinPath(top string, entryPath string) (string, error) {
+	fullPath := joinPath(top, entryPath)
+	boundary := joinPath(top) + string(os.PathSeparator)
+	if !strings.HasPrefix(fullPath, boundary) {
+		return "", fmt.Errorf("entry path %q escapes restore directory %q", entryPath, top)
+	}
+	return fullPath, nil
+}
+
 func PrintMemoryUsage() {
 
 	for {
